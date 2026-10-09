@@ -157,6 +157,8 @@
   --brand-yellow: oklch(0.83 0.16 91);
   --brand-blue: oklch(0.48 0.12 250);
   --overlay: oklch(0.2 0.02 220 / 45%);
+  --account-wash: linear-gradient(90deg, var(--card) 0%, var(--card) 36%, oklch(1 0 0 / 95%) 44%, oklch(1 0 0 / 35%) 65%, transparent 100%);
+  --account-caption: oklch(0.25 0.025 230);
   --shadow-panel: 0 2px 5px oklch(0.2 0.02 220 / 2%);
   --banner-wash: linear-gradient(90deg, oklch(0.97 0.022 190 / 98%) 0%, oklch(0.97 0.022 190 / 93%) 31%, oklch(0.97 0.022 190 / 20%) 65%, transparent 100%);
 }
@@ -317,3 +319,36 @@ button, input, select, textarea { font: inherit; }
 @media (max-width: 760px) { .sidebar { transform: translateX(-100%); transition: transform .2s; width: 222px; } .sidebar.open { transform: translateX(0); box-shadow: 0 0 0 100vmax var(--overlay); } .workspace-main { margin-left: 0; } .mobile-menu { display: inline-flex; } .topbar { height: 65px; padding: 0 16px; gap: 10px; } .topbar-left,.topbar-right { gap: 8px; } .breadcrumb > span,.breadcrumb > svg { display: none; } .content { padding: 23px 16px; } .profile-summary { padding-left: 10px; } .profile-summary .avatar { width: 30px; height: 30px; } .role-select { padding: 6px; } .page-heading { flex-wrap: wrap; } .page-heading h1 { font-size: 22px; } .date-chip { font-size: 10px; padding: 8px; } .welcome-banner { height: 195px; } .welcome-copy { inset: 22px 18px auto; max-width: 270px; } .welcome-copy h2 { font-size: 22px; } .welcome-copy p { font-size: 11px; max-width: 245px; } .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } .dashboard-grid { grid-template-columns: 1fr; } .task-row { gap: 8px; padding-inline: 15px; } .task-row .avatar { display: none; } .stat-value { font-size: 25px; } .workspace-footer { font-size: 8px; flex-wrap: wrap; } .chat-layout { grid-template-columns: 1fr; } .chat-contacts { display: flex; overflow-x: auto; border-bottom: 1px solid var(--border); padding: 5px; } .chat-contact { width: auto; } .chat-contact small { display: none; } .chat-layout { height: 620px; grid-template-rows: 70px 1fr; } .kanban { grid-template-columns: 1fr; } .kanban-column { min-height: 150px; } .notification-popup { position: fixed; top: 65px; right: 12px; width: min(315px, calc(100vw - 24px)); } }
 @media (max-width: 760px) { .welcome-banner::after { background: linear-gradient(90deg, oklch(0.97 0.022 190 / 99%) 0%, oklch(0.97 0.022 190 / 94%) 58%, oklch(0.97 0.022 190 / 55%) 100%); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+.account-page { position: relative; isolation: isolate; min-height: 100svh; background: var(--card); }
+.account-photo, .account-wash { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.account-photo { object-fit: cover; object-position: 65% center; }
+.account-wash { background: var(--account-wash); }
+.account-content { width: 52%; max-width: 720px; min-height: 100svh; display: flex; flex-direction: column; padding: 42px 64px 25px; }
+.account-brand { padding: 0; width: fit-content; text-decoration: none; }
+.account-form { width: 100%; max-width: 380px; margin: auto 0; padding: 55px 0; }
+.account-eyebrow { display: flex; align-items: center; gap: 14px; font-size: 11px; font-weight: 700; color: var(--primary); margin-bottom: 20px; }
+.account-eyebrow span { font-size: 9px; color: var(--muted-foreground); border-left: 1px solid var(--border); padding-left: 14px; }
+.account-form h1 { font-size: 32px; font-weight: 750; line-height: 1.35; max-width: 360px; }
+.account-intro { font-size: 13px; color: var(--muted-foreground); line-height: 1.8; margin: 12px 0 28px; overflow-wrap: anywhere; }
+.account-fields { display: grid; gap: 19px; }
+.account-field { display: grid; gap: 9px; font-size: 12px; font-weight: 600; }
+.account-input { display: flex; align-items: center; gap: 11px; padding: 0 12px; background: var(--card); border: 1px solid var(--input); border-radius: 6px; height: 48px; color: var(--muted-foreground); }
+.account-input:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.account-input input { width: 100%; min-width: 0; outline: none; color: var(--foreground); font-size: 13px; font-weight: 400; }
+.account-input > svg { flex-shrink: 0; }
+.account-input button { flex-shrink: 0; }
+.account-field select { width: 100%; height: 46px; border: 1px solid var(--input); border-radius: 6px; background: var(--card); padding: 0 12px; font-weight: 400; }
+.account-forgot { text-align: right; margin-top: -9px; font-size: 12px; font-weight: 600; color: var(--primary); }
+.account-forgot a:hover, .account-back:hover { text-decoration: underline; }
+.account-submit { width: 100%; height: 48px; justify-content: space-between; padding-inline: 18px; }
+.account-notice { color: var(--muted-foreground); font-size: 10px; line-height: 1.7; text-align: center; margin-top: 22px; }
+.account-footer { font-size: 9px; line-height: 1.8; color: var(--muted-foreground); }
+.account-footer span { display: block; }
+.account-back { display: inline-flex; gap: 8px; align-items: center; color: var(--muted-foreground); font-size: 12px; margin-bottom: 30px; }
+.account-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 8px; background: var(--secondary); color: var(--primary); margin-bottom: 20px; }
+.account-caption { position: absolute; left: 63%; top: 15%; right: 4%; color: var(--account-caption); }
+.account-caption > span { font-size: 10px; font-weight: 650; }
+.account-caption p { margin-top: 15px; font-size: 30px; line-height: 1.4; font-weight: 600; }
+@media (max-width: 1000px) { .account-content { width: 60%; padding-inline: 40px; } .account-caption { left: 67%; } .account-caption p { font-size: 24px; } }
+@media (max-width: 640px) { .account-content { width: 100%; max-width: none; padding: 28px 24px 20px; background: var(--card); } .account-form { margin-inline: auto; padding-block: 40px; } .account-form h1 { font-size: 28px; } .account-caption { display: none; } .account-photo, .account-wash { display: none; } .account-footer { text-align: center; } }

@@ -12,13 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AbsensiRouteImport } from './routes/absensi'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IzinRouteImport } from './routes/izin'
 import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as PengaturanRouteImport } from './routes/pengaturan'
 import { Route as PengumumanRouteImport } from './routes/pengumuman'
 import { Route as PerformaRouteImport } from './routes/performa'
 import { Route as ProfilRouteImport } from './routes/profil'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TaskRouteImport } from './routes/task'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as WarningRouteImport } from './routes/warning'
@@ -38,6 +41,11 @@ const ChatRoute = ChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IzinRoute = IzinRouteImport.update({
   id: '/izin',
   path: '/izin',
@@ -51,6 +59,11 @@ const LaporanRoute = LaporanRouteImport.update({
 const LogRoute = LogRouteImport.update({
   id: '/log',
   path: '/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PengaturanRoute = PengaturanRouteImport.update({
@@ -73,6 +86,11 @@ const ProfilRoute = ProfilRouteImport.update({
   path: '/profil',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TaskRoute = TaskRouteImport.update({
   id: '/task',
   path: '/task',
@@ -93,13 +111,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
   '/chat': typeof ChatRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/izin': typeof IzinRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/login': typeof LoginRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -108,13 +129,16 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
   '/chat': typeof ChatRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/izin': typeof IzinRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/login': typeof LoginRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -124,13 +148,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
   '/chat': typeof ChatRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/izin': typeof IzinRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/login': typeof LoginRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -141,13 +168,16 @@ export interface FileRouteTypes {
     | '/'
     | '/absensi'
     | '/chat'
+    | '/forgot-password'
     | '/izin'
     | '/laporan'
     | '/log'
+    | '/login'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
     | '/profil'
+    | '/reset-password'
     | '/task'
     | '/users'
     | '/warning'
@@ -156,13 +186,16 @@ export interface FileRouteTypes {
     | '/'
     | '/absensi'
     | '/chat'
+    | '/forgot-password'
     | '/izin'
     | '/laporan'
     | '/log'
+    | '/login'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
     | '/profil'
+    | '/reset-password'
     | '/task'
     | '/users'
     | '/warning'
@@ -171,13 +204,16 @@ export interface FileRouteTypes {
     | '/'
     | '/absensi'
     | '/chat'
+    | '/forgot-password'
     | '/izin'
     | '/laporan'
     | '/log'
+    | '/login'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
     | '/profil'
+    | '/reset-password'
     | '/task'
     | '/users'
     | '/warning'
@@ -187,13 +223,16 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AbsensiRoute: typeof AbsensiRoute
   ChatRoute: typeof ChatRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   IzinRoute: typeof IzinRoute
   LaporanRoute: typeof LaporanRoute
   LogRoute: typeof LogRoute
+  LoginRoute: typeof LoginRoute
   PengaturanRoute: typeof PengaturanRoute
   PengumumanRoute: typeof PengumumanRoute
   PerformaRoute: typeof PerformaRoute
   ProfilRoute: typeof ProfilRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   TaskRoute: typeof TaskRoute
   UsersRoute: typeof UsersRoute
   WarningRoute: typeof WarningRoute
@@ -222,6 +261,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/izin': {
       id: '/izin'
       path: '/izin'
@@ -241,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/log'
       fullPath: '/log'
       preLoaderRoute: typeof LogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pengaturan': {
@@ -271,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfilRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/task': {
       id: '/task'
       path: '/task'
@@ -299,13 +359,16 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AbsensiRoute: AbsensiRoute,
   ChatRoute: ChatRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   IzinRoute: IzinRoute,
   LaporanRoute: LaporanRoute,
   LogRoute: LogRoute,
+  LoginRoute: LoginRoute,
   PengaturanRoute: PengaturanRoute,
   PengumumanRoute: PengumumanRoute,
   PerformaRoute: PerformaRoute,
   ProfilRoute: ProfilRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   TaskRoute: TaskRoute,
   UsersRoute: UsersRoute,
   WarningRoute: WarningRoute,
