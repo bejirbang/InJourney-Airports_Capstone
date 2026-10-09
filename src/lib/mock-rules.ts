@@ -1,0 +1,11 @@
+export type Role = 'Intern' | 'Mentor' | 'Admin';
+export type TaskStatus = 'To Do' | 'In Progress' | 'In Review' | 'Done';
+export type LeaveStatus = 'Pending' | 'Disetujui' | 'Ditolak' | 'Dibatalkan';
+export const leaveTypes = ['Izin Sakit', 'Izin Urgent'] as const;
+export const canClockOut = (clockedIn: boolean, reportSent: boolean, clockedOut: boolean) => clockedIn && reportSent && !clockedOut;
+export const canEditReport = (clockedOut: boolean) => !clockedOut;
+export const canProcessLeave = (role: Role, status: LeaveStatus, hasEvidence: boolean) => status === 'Pending' && (role === 'Mentor' || (role === 'Admin' && hasEvidence));
+export const canCancelLeave = (status: LeaveStatus) => status === 'Pending';
+export const canExport = (role: Role) => role === 'Admin';
+export const canSeeWarnings = (role: Role) => role === 'Admin';
+export const reviewTask = (accept: boolean): TaskStatus => accept ? 'Done' : 'In Progress';
