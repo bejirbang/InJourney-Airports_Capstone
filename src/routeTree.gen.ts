@@ -10,33 +10,193 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AbsensiRouteImport } from './routes/absensi'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as IzinRouteImport } from './routes/izin'
+import { Route as LaporanRouteImport } from './routes/laporan'
+import { Route as LogRouteImport } from './routes/log'
+import { Route as PengaturanRouteImport } from './routes/pengaturan'
+import { Route as PengumumanRouteImport } from './routes/pengumuman'
+import { Route as PerformaRouteImport } from './routes/performa'
+import { Route as ProfilRouteImport } from './routes/profil'
+import { Route as TaskRouteImport } from './routes/task'
+import { Route as UsersRouteImport } from './routes/users'
+import { Route as WarningRouteImport } from './routes/warning'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AbsensiRoute = AbsensiRouteImport.update({
+  id: '/absensi',
+  path: '/absensi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IzinRoute = IzinRouteImport.update({
+  id: '/izin',
+  path: '/izin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LaporanRoute = LaporanRouteImport.update({
+  id: '/laporan',
+  path: '/laporan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogRoute = LogRouteImport.update({
+  id: '/log',
+  path: '/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PengaturanRoute = PengaturanRouteImport.update({
+  id: '/pengaturan',
+  path: '/pengaturan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PengumumanRoute = PengumumanRouteImport.update({
+  id: '/pengumuman',
+  path: '/pengumuman',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerformaRoute = PerformaRouteImport.update({
+  id: '/performa',
+  path: '/performa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfilRoute = ProfilRouteImport.update({
+  id: '/profil',
+  path: '/profil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TaskRoute = TaskRouteImport.update({
+  id: '/task',
+  path: '/task',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WarningRoute = WarningRouteImport.update({
+  id: '/warning',
+  path: '/warning',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/absensi': typeof AbsensiRoute
+  '/chat': typeof ChatRoute
+  '/izin': typeof IzinRoute
+  '/laporan': typeof LaporanRoute
+  '/log': typeof LogRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengumuman': typeof PengumumanRoute
+  '/performa': typeof PerformaRoute
+  '/profil': typeof ProfilRoute
+  '/task': typeof TaskRoute
+  '/users': typeof UsersRoute
+  '/warning': typeof WarningRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/absensi': typeof AbsensiRoute
+  '/chat': typeof ChatRoute
+  '/izin': typeof IzinRoute
+  '/laporan': typeof LaporanRoute
+  '/log': typeof LogRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengumuman': typeof PengumumanRoute
+  '/performa': typeof PerformaRoute
+  '/profil': typeof ProfilRoute
+  '/task': typeof TaskRoute
+  '/users': typeof UsersRoute
+  '/warning': typeof WarningRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/absensi': typeof AbsensiRoute
+  '/chat': typeof ChatRoute
+  '/izin': typeof IzinRoute
+  '/laporan': typeof LaporanRoute
+  '/log': typeof LogRoute
+  '/pengaturan': typeof PengaturanRoute
+  '/pengumuman': typeof PengumumanRoute
+  '/performa': typeof PerformaRoute
+  '/profil': typeof ProfilRoute
+  '/task': typeof TaskRoute
+  '/users': typeof UsersRoute
+  '/warning': typeof WarningRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/absensi'
+    | '/chat'
+    | '/izin'
+    | '/laporan'
+    | '/log'
+    | '/pengaturan'
+    | '/pengumuman'
+    | '/performa'
+    | '/profil'
+    | '/task'
+    | '/users'
+    | '/warning'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/absensi'
+    | '/chat'
+    | '/izin'
+    | '/laporan'
+    | '/log'
+    | '/pengaturan'
+    | '/pengumuman'
+    | '/performa'
+    | '/profil'
+    | '/task'
+    | '/users'
+    | '/warning'
+  id:
+    | '__root__'
+    | '/'
+    | '/absensi'
+    | '/chat'
+    | '/izin'
+    | '/laporan'
+    | '/log'
+    | '/pengaturan'
+    | '/pengumuman'
+    | '/performa'
+    | '/profil'
+    | '/task'
+    | '/users'
+    | '/warning'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AbsensiRoute: typeof AbsensiRoute
+  ChatRoute: typeof ChatRoute
+  IzinRoute: typeof IzinRoute
+  LaporanRoute: typeof LaporanRoute
+  LogRoute: typeof LogRoute
+  PengaturanRoute: typeof PengaturanRoute
+  PengumumanRoute: typeof PengumumanRoute
+  PerformaRoute: typeof PerformaRoute
+  ProfilRoute: typeof ProfilRoute
+  TaskRoute: typeof TaskRoute
+  UsersRoute: typeof UsersRoute
+  WarningRoute: typeof WarningRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +208,107 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/absensi': {
+      id: '/absensi'
+      path: '/absensi'
+      fullPath: '/absensi'
+      preLoaderRoute: typeof AbsensiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/izin': {
+      id: '/izin'
+      path: '/izin'
+      fullPath: '/izin'
+      preLoaderRoute: typeof IzinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/laporan': {
+      id: '/laporan'
+      path: '/laporan'
+      fullPath: '/laporan'
+      preLoaderRoute: typeof LaporanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/log': {
+      id: '/log'
+      path: '/log'
+      fullPath: '/log'
+      preLoaderRoute: typeof LogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pengaturan': {
+      id: '/pengaturan'
+      path: '/pengaturan'
+      fullPath: '/pengaturan'
+      preLoaderRoute: typeof PengaturanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pengumuman': {
+      id: '/pengumuman'
+      path: '/pengumuman'
+      fullPath: '/pengumuman'
+      preLoaderRoute: typeof PengumumanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/performa': {
+      id: '/performa'
+      path: '/performa'
+      fullPath: '/performa'
+      preLoaderRoute: typeof PerformaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profil': {
+      id: '/profil'
+      path: '/profil'
+      fullPath: '/profil'
+      preLoaderRoute: typeof ProfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/task': {
+      id: '/task'
+      path: '/task'
+      fullPath: '/task'
+      preLoaderRoute: typeof TaskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/warning': {
+      id: '/warning'
+      path: '/warning'
+      fullPath: '/warning'
+      preLoaderRoute: typeof WarningRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AbsensiRoute: AbsensiRoute,
+  ChatRoute: ChatRoute,
+  IzinRoute: IzinRoute,
+  LaporanRoute: LaporanRoute,
+  LogRoute: LogRoute,
+  PengaturanRoute: PengaturanRoute,
+  PengumumanRoute: PengumumanRoute,
+  PerformaRoute: PerformaRoute,
+  ProfilRoute: ProfilRoute,
+  TaskRoute: TaskRoute,
+  UsersRoute: UsersRoute,
+  WarningRoute: WarningRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
