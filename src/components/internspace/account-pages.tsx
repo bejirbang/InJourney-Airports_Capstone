@@ -1,0 +1,32 @@
+import { useState, type ReactNode } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, LockKeyhole, Mail, CheckCircle2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useMock } from './model';
+import type { Role } from '@/lib/mock-rules';
+import airport from '@/assets/airport-banner.jpg';
+
+function AccountLayout({ children }: { children: ReactNode }) {
+  return <main className="account-page"><img className="account-photo" src={airport} alt="Terminal bandara dan pesawat di apron" /><div className="account-wash" /><div className="account-content"><Link to="/login" className="brand account-brand" aria-label="InJourney Airports"><span className="brand-symbol" aria-hidden="true"><i /><i /><i /></span><div className="brand-word">InJourney<span>airports</span></div></Link><div className="account-form">{children}</div><footer className="account-footer">© 2026 InJourney Airports<span>Intern Management & Attendance System</span></footer></div><div className="account-caption"><span>INJOURNEY AIRPORTS</span><p>Awal perjalanan,<br />peluang tanpa batas.</p></div></main>;
+}
+
+function PasswordField({ label, name, value, onChange, confirmation = false }: { label: string; name: string; value: string; onChange: (value: string) => void; confirmation?: boolean }) {
+  const [visible, setVisible] = useState(false);
+  return <label className="account-field">{label}<div className="account-input"><LockKeyhole size={17} /><input name={name} type={visible ? 'text' : 'password'} autoComplete={confirmation ? 'new-password' : 'current-password'} value={value} onChange={e => onChange(e.target.value)} placeholder={confirmation ? 'Ulangi password baru' : 'Masukkan password'} required /><Button type="button" variant="ghost" size="icon" aria-label={`${visible ? 'Sembunyikan' : 'Tampilkan'} ${label.toLowerCase()}`} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</Button></div></label>;
+}
+
+export function LoginPage() {
+  const m = useMock(); const navigate = useNavigate();
+  const [email, setEmail] = useState('nabila.putri@example.com'); const [password, setPassword] = useState(''); const [role, setRole] = useState<Role>('Intern');
+  return <AccountLayout><span className="account-eyebrow">INTERNSPACE <span>SESI CONTOH</span></span><h1>Selamat datang kembali.</h1><p className="account-intro">Masuk ke ruang perjalanan magang Anda.</p><form className="account-fields" onSubmit={e => { e.preventDefault(); m.setRole(role); setPassword(''); void navigate({ to: '/' }); }}><label className="account-field">Email<div className="account-input"><Mail size={17} /><input name="email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@example.com" /></div></label><PasswordField label="Password" name="password" value={password} onChange={setPassword} /><div className="account-forgot"><Link to="/forgot-password">Lupa password?</Link></div><label className="account-field">Peran sesi contoh<select aria-label="Peran sesi contoh" value={role} onChange={e => setRole(e.target.value as Role)}><option>Intern</option><option>Mentor</option><option>Admin</option></select></label><Button type="submit" className="account-submit">Masuk <ArrowRight size={17} /></Button></form><p className="account-notice">Sesi contoh · Tidak terhubung ke akun perusahaan.</p></AccountLayout>;
+}
+
+export function ForgotPasswordPage() {
+  const [email, setEmail] = useState(''); const [sent, setSent] = useState(false);
+  return <AccountLayout><Link to="/login" className="account-back"><ArrowLeft size={15} />Kembali ke login</Link><div className="account-icon">{sent ? <CheckCircle2 /> : <Mail />}</div><h1>{sent ? 'Permintaan reset siap.' : 'Lupa password?'}</h1><p className="account-intro">{sent ? `Permintaan contoh untuk ${email}. Tidak ada email yang dikirim.` : 'Masukkan email yang terdaftar untuk melanjutkan reset password.'}</p>{sent ? <div className="account-fields"><Button asChild className="account-submit"><Link to="/reset-password">Lanjutkan reset contoh <ArrowRight size={17} /></Link></Button><Button variant="ghost" onClick={() => setSent(false)}>Gunakan email lain</Button></div> : <form className="account-fields" onSubmit={e => { e.preventDefault(); setSent(true); }}><label className="account-field">Email<div className="account-input"><Mail size={17} /><input type="email" name="email" autoComplete="email" placeholder="nama@example.com" required value={email} onChange={e => setEmail(e.target.value)} /></div></label><Button type="submit" className="account-submit">Lanjutkan <ArrowRight size={17} /></Button></form>}<p className="account-notice">Sesi contoh · Tidak ada email reset yang dikirim.</p></AccountLayout>;
+}
+
+export function ResetPasswordPage() {
+  const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [error, setError] = useState(''); const [done, setDone] = useState(false);
+  return <AccountLayout><Link to="/login" className="account-back"><ArrowLeft size={15} />Kembali ke login</Link><div className="account-icon">{done ? <CheckCircle2 /> : <LockKeyhole />}</div><h1>{done ? 'Reset contoh selesai.' : 'Buat password baru.'}</h1><p className="account-intro">{done ? 'Alur reset telah selesai. Password akun nyata tidak berubah.' : 'Masukkan password baru dan ulangi untuk konfirmasi.'}</p>{done ? <Button asChild className="account-submit"><Link to="/login">Kembali ke login <ArrowRight size={17} /></Link></Button> : <form className="account-fields" onSubmit={e => { e.preventDefault(); if (password !== confirmation) { setError('Konfirmasi password tidak cocok.'); return; } setPassword(''); setConfirmation(''); setError(''); setDone(true); }}><PasswordField label="Password baru" name="new-password" value={password} onChange={setPassword} confirmation /><PasswordField label="Konfirmasi password" name="confirmation" value={confirmation} onChange={setConfirmation} confirmation />{error && <p role="alert" className="text-destructive text-sm">{error}</p>}<Button type="submit" className="account-submit">Reset password <ArrowRight size={17} /></Button></form>}<p className="account-notice">Sesi contoh · Password tidak disimpan.</p></AccountLayout>;
+}

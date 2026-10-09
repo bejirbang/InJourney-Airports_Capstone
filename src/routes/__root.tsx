@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -118,11 +119,13 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const path = useLocation().pathname;
+  const accountPage = ['/login', '/forgot-password', '/reset-password'].includes(path);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <MockProvider><Workspace><Outlet /></Workspace></MockProvider>
+      <MockProvider>{accountPage ? <Outlet /> : <Workspace><Outlet /></Workspace>}</MockProvider>
     </QueryClientProvider>
   );
 }
