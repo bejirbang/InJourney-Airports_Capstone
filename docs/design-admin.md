@@ -1,11 +1,12 @@
 # design-admin.md - Desain Role Admin (Lengkap, Berdasarkan Alur)
 
 Sistem: Web Intern Management dan Attendance System
-Versi: Draft 1 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026
+Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026
+Perubahan Draft 2: menu Lokasi Kantor (Bagian 9A), batas file 2 MB, validasi lokasi saat clock in dan clock out.
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
-- **[Usulan]** = pilihan desain dari saya. Per 10 Oktober 2026 semua usulan di dokumen ini **diikuti**, kecuali hal yang menyentuh sistem backend (batas ukuran file, jenis file, rincian validasi lokasi). Hal itu tetap terbuka di Bagian 17.
+- **[Usulan]** = pilihan desain dari saya. Per 10 Oktober 2026 semua usulan di dokumen ini **diikuti**, kecuali hal yang tercantum di Bagian 17.2.
 
 ---
 
@@ -23,6 +24,7 @@ Isi:
 7. Alur 5 - Izin pending
 8. Alur 6 - Akhir periode magang
 9. Alur 7 - Kalender libur dan jam kerja
+9A. Alur 7B - Lokasi kantor
 10. Alur 8 - Catatan warning
 11. Alur 9 - Pengumuman
 12. Alur 10 - Export laporan PDF
@@ -55,6 +57,7 @@ Isi:
 | Pengumuman  |                                                          |
 | Laporan     |                                                          |
 | Pengaturan  |                                                          |
+| Lokasi Kantor|                                                         |
 | Log Aktivitas|                                                         |
 +-------------+----------------------------------------------------------+
 ```
@@ -74,6 +77,7 @@ Angka kecil di sebelah Koreksi dan Izin adalah jumlah yang menunggu diproses.
 | Pengumuman | Buat dan kelola pengumuman per role | /admin/announcements |
 | Laporan | Export PDF | /admin/reports |
 | Pengaturan | Jam kerja dan kalender libur | /admin/settings |
+| Lokasi Kantor | Daftar kantor, titik di peta, radius clock in dan clock out | /admin/offices |
 | Log Aktivitas | Jejak tindakan admin | /admin/audit-log |
 
 Chat dan notifikasi (bell icon) ada di navbar atas, bukan di sidebar. **[Keputusan]** Tidak ada halaman notifikasi terpisah.
@@ -94,11 +98,13 @@ Chat dan notifikasi (bell icon) ada di navbar atas, bukan di sidebar. **[Keputus
 | 2 | Mengisi password baru dan konfirmasinya | Password tersimpan, masuk ke Dashboard | Ganti Password |
 | 3 | Membuka Pengaturan, tab **Jam Kerja**, mengisi jam masuk dan jam pulang | Jam kerja global tersimpan | Pengaturan |
 | 4 | Membuka tab **Kalender Libur**, menambah hari libur | Tanggal libur tampil di kalender | Pengaturan |
-| 5 | Membuka Pengguna, menambah akun Mentor | Akun dibuat, password sementara tampil sekali | Pengguna |
-| 6 | Menambah akun Intern, memilih mentor dan periode magang | Akun dibuat, password sementara tampil sekali | Pengguna |
-| 7 | Menyampaikan email internal dan password sementara ke tiap pengguna | - | - |
+| 5 | Membuka **Lokasi Kantor**, menambah kantor lewat peta, mengisi nama dan dua radius | Kantor tersimpan dan aktif | Lokasi Kantor |
+| 6 | Membuka Pengguna, menambah akun Mentor | Akun dibuat, password sementara tampil sekali | Pengguna |
+| 7 | Menambah akun Intern, memilih mentor dan periode magang | Akun dibuat, password sementara tampil sekali | Pengguna |
+| 8 | Menyampaikan email internal dan password sementara ke tiap pengguna | - | - |
 
 Mengapa jam kerja dan kalender dulu: status kehadiran dihitung dari keduanya. Kalau diisi belakangan, absensi awal bisa salah hitung.
+Mengapa lokasi kantor sebelum akun intern: tanpa kantor aktif, intern tidak bisa clock in.
 
 ### Layar Ganti Password (login pertama)
 
@@ -341,6 +347,7 @@ Tiap daftar menampilkan maksimal 5 baris, sisanya lewat **Lihat semua**.
 | Kondisi | Tampilan |
 |---|---|
 | Hari ini Sabtu, Minggu, atau libur | Banner "Hari ini hari libur: [nama libur]". Kartu hari ini disembunyikan |
+| Belum ada kantor aktif | Banner "Belum ada kantor aktif. Intern tidak bisa clock in." dengan tautan ke Lokasi Kantor |
 | Tidak ada yang perlu ditindak | Tulisan "Tidak ada yang perlu ditindak hari ini." di tiap kotak |
 | Data gagal dimuat | Pesan "Data gagal dimuat." dan tombol **Coba lagi** |
 
@@ -411,6 +418,7 @@ Tiap daftar menampilkan maksimal 5 baris, sisanya lewat **Lihat semua**.
 - Data hasil koreksi diberi label kecil **"Dikoreksi admin"** di daftar absensi. Validasi lokasi tidak dijalankan ulang untuk koreksi. **[Usulan]**
 - Batas waktu pengajuan koreksi tidak dibatasi sistem. Kebijakannya diserahkan ke perusahaan, yang penting fiturnya ada. **[Keputusan]**
 - Setelah diproses, permintaan tidak bisa dibuka ulang. Jika masih salah, intern mengajukan permintaan baru. **[Usulan]**
+- Bukti koreksi maksimal 2 MB per file. **[Keputusan]**
 
 ### 6.5 Kondisi khusus
 
@@ -489,6 +497,7 @@ Jenis izin hanya **Sakit** dan **Urgent**. **[Keputusan]** Jumlah hari kerja dih
 | Setelah izin disetujui | Absensi pada hari kerja yang tercakup berubah menjadi Izin. Hari non-kerja tidak ikut dihitung |
 
 Catatan wajib diisi untuk Setujui maupun Tolak. **[Usulan]**
+Lampiran izin maksimal 2 MB per file. **[Keputusan]**
 
 ---
 
@@ -614,6 +623,93 @@ Aturan:
 ```
 
 Penghitungan ulang otomatis untuk libur tanggal lampau sudah **[Keputusan]**.
+
+---
+
+## 9A. Alur 7B - Lokasi Kantor
+
+**Tujuan:** menentukan di mana intern boleh clock in dan clock out.
+**Halaman:** Lokasi Kantor (menu sendiri di sidebar).
+**Aturan dasar:** **[Keputusan]** Admin membuat kantor dengan memilih titik di peta, memberi nama, lalu mengisi radius maksimal clock in dan radius maksimal clock out. Kedua radius boleh berbeda.
+
+### 9A.1 Layar daftar
+
+```
++------------------------------------------------------------------------+
+| Lokasi Kantor                                    [ + Tambah Kantor ]   |
+|                                                                        |
+| Nama                     Radius clock in  Radius clock out  Status Aksi|
+| Kantor Pusat Terminal 3  100 m            300 m             Aktif  [...]|
+| Kantor Cabang Terminal 1 150 m            150 m             Nonaktif[...]|
++------------------------------------------------------------------------+
+```
+
+Menu aksi [...] per baris: Ubah, Nonaktifkan atau Aktifkan.
+Kondisi kosong: "Belum ada kantor. Tambahkan kantor agar intern bisa clock in."
+
+### 9A.2 Langkah menambah kantor
+
+| No | Langkah Admin | Respons sistem |
+|---|---|---|
+| 1 | Klik **Tambah Kantor** | Formulir dengan peta terbuka |
+| 2 | Mencari alamat di kotak cari, atau menggeser peta | Peta berpindah ke lokasi yang dicari |
+| 3 | Klik titik kantor di peta | Pin muncul. Pin bisa digeser untuk dirapikan |
+| 4 | Mengisi nama kantor | - |
+| 5 | Mengisi radius clock in dan radius clock out (meter) | Dua lingkaran tampil di peta sebagai pratinjau |
+| 6 | Klik **Simpan** | Kantor tersimpan dan aktif. Tindakan masuk log |
+
+### 9A.3 Layar formulir
+
+```
++--------------------------------------------------------------+
+| Tambah Kantor                                                |
+|                                                              |
+| Cari alamat [_______________________________] [Cari]         |
+| +----------------------------------------------------------+ |
+| |                                                          | |
+| |              ( PETA )        o  <- pin kantor            | |
+| |        lingkaran 1 = radius clock in                     | |
+| |        lingkaran 2 = radius clock out                    | |
+| +----------------------------------------------------------+ |
+| Koordinat: -6.1256, 106.6559 (terisi otomatis dari pin)      |
+|                                                              |
+| Nama kantor *            [______________________________]    |
+| Radius clock in (m) *    [ 100 ]                             |
+| Radius clock out (m) *   [ 300 ]                             |
+|                                                              |
+|                              [ Batal ]  [ Simpan ]           |
++--------------------------------------------------------------+
+```
+
+Formulir **Ubah** memakai layar yang sama dengan data terisi.
+
+### 9A.4 Validasi
+
+| Kolom | Aturan | Pesan jika salah |
+|---|---|---|
+| Pin | Wajib dipasang di peta | "Pilih titik kantor di peta." |
+| Nama | Wajib, belum dipakai kantor lain | "Nama kantor wajib diisi." |
+| Radius clock in | Wajib, angka 10 sampai 1000 **[Usulan]** | "Isi radius antara 10 dan 1000 meter." |
+| Radius clock out | Wajib, angka 10 sampai 1000 **[Usulan]** | "Isi radius antara 10 dan 1000 meter." |
+
+### 9A.5 Aturan
+
+- Clock in diterima bila posisi intern berada dalam **radius clock in** salah satu kantor aktif. Clock out memakai **radius clock out**. **[Keputusan]**
+- Intern boleh memakai kantor aktif mana pun, tidak terikat satu kantor. **[Usulan, belum diputuskan]**
+- Kantor tidak dihapus, hanya dinonaktifkan, agar riwayat absensi tetap menunjuk kantornya. **[Usulan]**
+- Mengubah titik atau radius hanya berlaku untuk clock in dan clock out berikutnya. Absensi lama tidak berubah. **[Usulan]**
+- Peta memakai **Leaflet dengan OpenStreetMap**, gratis dan tanpa API key. Pencarian alamat memakai Nominatim. **[Usulan]**
+
+### 9A.6 Kondisi khusus
+
+| Kondisi | Perilaku |
+|---|---|
+| Belum ada kantor aktif | Banner di halaman ini dan di Dashboard: "Belum ada kantor aktif. Intern tidak bisa clock in." |
+| Menonaktifkan kantor aktif terakhir | Dialog konfirmasi menjelaskan bahwa intern tidak bisa clock in sampai ada kantor aktif |
+| Peta gagal dimuat | Pesan "Peta gagal dimuat." dan tombol **Coba lagi**. Kantor tidak bisa disimpan tanpa pin |
+| Pencarian alamat tidak menemukan hasil | Pesan "Alamat tidak ditemukan. Geser peta dan pilih titik secara manual." |
+
+**Dampak:** tambah, ubah, nonaktifkan, dan aktifkan kantor masuk Log Aktivitas. Tidak ada notifikasi ke intern atau mentor.
 
 ---
 
@@ -770,6 +866,7 @@ Jenis aksi yang dicatat:
 | Absensi | Setujui koreksi, tolak koreksi |
 | Izin | Setujui izin pending, tolak izin pending |
 | Kalender dan jam kerja | Tambah, ubah, hapus libur, ubah jam kerja, penghitungan ulang absensi |
+| Lokasi kantor | Tambah, ubah titik atau radius, nonaktifkan, aktifkan |
 | Warning | Tambah catatan |
 | Pengumuman | Buat, ubah, hapus |
 | Laporan | Export PDF |
@@ -824,13 +921,14 @@ Warna tidak boleh menjadi satu-satunya penanda. Selalu sertakan teks pada badge.
 | Disetujui | Izin, koreksi | Hijau |
 | Ditolak | Izin, koreksi | Merah |
 | Dibatalkan | Izin | Abu-abu |
-| Aktif | Akun | Hijau |
-| Nonaktif | Akun | Abu-abu |
+| Aktif | Akun, kantor | Hijau |
+| Nonaktif | Akun, kantor | Abu-abu |
 
 ### 15.2 Format
 
 - Tanggal: "Sen, 12 Okt 2026". Waktu: 24 jam, misalnya 17:00. Zona waktu mengikuti perusahaan.
 - Lama pending izin ditulis dalam jam, misalnya "30 jam".
+- Radius ditulis dalam meter, misalnya "100 m".
 - Tombol utama (Simpan, Setujui, Kirim) di kanan bawah. Tombol batal di sebelah kirinya.
 
 ### 15.3 Kondisi layar
@@ -844,7 +942,7 @@ Warna tidak boleh menjadi satu-satunya penanda. Selalu sertakan teks pada badge.
 
 ### 15.4 Dialog konfirmasi
 
-Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset password, tambah libur tanggal lampau, hapus pengumuman. Isinya selalu menjelaskan **dampaknya** dalam kalimat biasa, dan tombol konfirmasi memakai kata kerja jelas (contoh: "Nonaktifkan", bukan "OK").
+Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset password, tambah libur tanggal lampau, hapus pengumuman, nonaktifkan kantor. Isinya selalu menjelaskan **dampaknya** dalam kalimat biasa, dan tombol konfirmasi memakai kata kerja jelas (contoh: "Nonaktifkan", bukan "OK").
 
 ### 15.5 Pesan sistem penting
 
@@ -855,6 +953,7 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 | Akses ke data yang sudah diproses pihak lain | "Data ini sudah diproses oleh [nama]." |
 | Izin tanpa bukti | "Tidak ada surat resmi atau bukti." |
 | Akun terakhir admin | "Minimal harus ada satu admin aktif." |
+| Belum ada kantor aktif | "Belum ada kantor aktif. Intern tidak bisa clock in." |
 
 ---
 
@@ -868,6 +967,7 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 | Warning | Membuat dan melihat | - (hanya admin yang melihat) |
 | Pengumuman | Buat, ubah, hapus, pilih role penerima | - |
 | Kalender dan jam kerja | Mengatur libur dan jam kerja | Mengubah batas 23:59 |
+| Lokasi kantor | Menambah, mengubah, menonaktifkan, mengaktifkan kantor dan radiusnya | Menghapus kantor |
 | Laporan | Export PDF | Export format lain |
 | Chat | Chat dengan semua orang | Membaca chat orang lain |
 | Task | Ikut dalam export Task | Membuat atau menilai Task (hak mentor) |
@@ -878,9 +978,9 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 
 ## 17. Keputusan Tambahan dan Hal yang Masih Terbuka
 
-### 17.1 Keputusan tambahan (mengikuti usulan)
+### 17.1 Keputusan tambahan
 
-Per 10 Oktober 2026, usulan berikut dianggap disepakati.
+Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikuti usulan, nomor 11 sampai 13 adalah keputusan baru.
 
 | No | Topik | Keputusan |
 |---|---|---|
@@ -894,11 +994,14 @@ Per 10 Oktober 2026, usulan berikut dianggap disepakati.
 | 8 | Akun admin | Admin tidak bisa menonaktifkan akunnya sendiri, dan minimal satu admin aktif |
 | 9 | Nonaktif otomatis | Berlaku mulai hari setelah tanggal selesai magang |
 | 10 | Koreksi absensi | Admin hanya mengubah jam clock in dan clock out. Status dihitung ulang otomatis |
+| 11 | Lokasi kantor | Admin membuat kantor lewat peta, dengan nama, radius clock in, dan radius clock out yang boleh berbeda |
+| 12 | Batas ukuran file | Maksimal 2 MB, berlaku untuk lampiran izin, bukti koreksi, dan hasil Task |
+| 13 | Validasi lokasi | Berlaku saat clock in dan clock out, memakai radius kantor aktif |
 
-### 17.2 Hal yang masih terbuka (menyentuh backend)
+### 17.2 Hal yang masih terbuka
 
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Batas ukuran lampiran izin | Mengikuti keputusan batas ukuran file Task (2 MB atau 10 MB) |
-| 2 | Jenis file lampiran | Usulan awal: PDF, JPG, PNG |
-| 3 | Rincian validasi lokasi clock in | Metode sudah diputuskan, rincian pada tahap teknis. Memengaruhi label "Dikoreksi admin" |
+| 1 | Jenis file lampiran | Usulan awal: PDF, JPG, PNG |
+| 2 | Intern dan kantor | Intern terikat satu kantor, atau boleh memakai kantor aktif mana pun (usulan: mana pun) |
+| 3 | Batas radius | Usulan 10 sampai 1000 meter, belum diputuskan |
