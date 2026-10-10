@@ -66,7 +66,11 @@ Frontend (TanStack Start, di Vercel)
 │   ├── roadmap.md
 │   └── src/
 │       ├── routes/                  Satu berkas per halaman
-│       ├── components/internspace/  Komponen halaman dan data contoh
+│       ├── components/internspace/  Komponen halaman per role (lihat README di folder itu)
+│       │   ├── intern/              Menu Intern
+│       │   ├── mentor/              Menu Mentor
+│       │   ├── admin/               Menu Admin
+│       │   └── shared/              Dipakai beberapa role, termasuk data contoh (model.tsx)
 │       ├── components/ui/           Komponen dasar (shadcn/ui)
 │       └── lib/mock-rules.ts        Aturan bisnis yang dipakai layar
 └── backend/           API (Laravel)
@@ -92,14 +96,16 @@ Halaman yang sudah ada:
 | Pengumuman | `/pengumuman` | Admin |
 | Laporan | `/laporan` | Admin |
 | Pengaturan | `/pengaturan` | Admin |
+| Lokasi Kantor | `/lokasi-kantor` | Admin |
 | Log Aktivitas | `/log` | Admin |
 | Chat, Profil | `/chat`, `/profil` | Semua |
 
 Yang perlu diketahui:
-- Semua data masih **data contoh** di `src/components/internspace/model.tsx`. Belum ada panggilan ke API.
+- Semua data masih **data contoh** di `src/components/internspace/shared/model.tsx`. Belum ada panggilan ke API.
+- Pemetaan menu ke file per role ada di `src/components/internspace/README.md`.
 - Prototipe memakai tanggal tetap (12 Oktober 2026) agar data contoh konsisten.
 - Aturan bisnis dikumpulkan di `src/lib/mock-rules.ts` dan sudah punya test. Backend harus menerapkan aturan yang sama.
-- Menu **Lokasi Kantor** untuk admin sudah ada di dokumen desain tetapi belum dibuat di frontend.
+- Menu **Lokasi Kantor** untuk admin sudah dibuat (peta Leaflet + OpenStreetMap). Clock in dan clock out intern memeriksa radius kantor aktif.
 
 Menjalankan:
 
