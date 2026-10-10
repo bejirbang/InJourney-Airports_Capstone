@@ -247,9 +247,9 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
         >
           <fieldset className="form-field">
             <legend className="mb-2">Jenis izin *</legend>
-            <div className="flex gap-5">
+            <div className="radio-list">
               {leaveTypes.map((t) => (
-                <label key={t} className="flex items-center gap-2">
+                <label key={t} className="radio-item">
                   <input
                     type="radio"
                     name="type"
@@ -257,7 +257,7 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
                     checked={type === t}
                     onChange={() => setType(t)}
                   />
-                  {t}
+                  <span>{t}</span>
                 </label>
               ))}
             </div>
@@ -405,7 +405,7 @@ function ReviewerLeave() {
             { value: "semua", label: "Semua" },
           ]}
         />
-        <div className="flex gap-2">
+        <div className="toolbar-filters">
           <select
             className="role-select"
             aria-label="Filter jenis"
@@ -629,14 +629,14 @@ function DecisionDialog({ leave, onClose }: { leave: Leave | null; onClose: () =
         {pending && adminCanAct && (
           <div className="form-grid">
             {isAdmin && (
-              <label className="flex items-center gap-2 text-xs">
+              <label className="check-line">
                 <input
                   type="checkbox"
                   checked={checked}
                   disabled={!leave.evidence}
                   onChange={(e) => setChecked(e.target.checked)}
                 />
-                Saya sudah memeriksa surat resmi atau bukti
+                <span>Saya sudah memeriksa surat resmi atau bukti</span>
               </label>
             )}
             <label className="form-field">

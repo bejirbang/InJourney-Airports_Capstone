@@ -274,11 +274,23 @@ button, input, select, textarea { font: inherit; }
 .announcement p { font-size: 10px; color: var(--muted-foreground); line-height: 1.7; margin: 4px 0; }
 .announcement small { font-size: 9px; color: var(--muted-foreground); }
 .workspace-footer { display: flex; justify-content: space-between; gap: 12px; font-size: 9px; color: var(--muted-foreground); margin-top: 26px; }
-.toolbar { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.toolbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.toolbar-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.toolbar-filters .role-select { min-height: 36px; min-width: 0; }
 .search-field { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); padding: 9px 12px; }
 .search-field input { outline: none; background: transparent; min-width: 0; width: 190px; }
-.form-field { display: grid; gap: 8px; font-size: 12px; }
-.form-field input, .form-field select, .form-field textarea { padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--card); width: 100%; outline: none; }
+.form-field { display: grid; gap: 8px; font-size: 12px; min-width: 0; }
+.form-field > legend { font-size: 12px; font-weight: 600; padding: 0; }
+.form-field input:not([type="radio"]):not([type="checkbox"]):not([type="file"]), .form-field select, .form-field textarea { padding: 10px 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--card); width: 100%; outline: none; }
+.form-field input[type="radio"], .form-field input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--primary); margin: 0; padding: 0; border: none; background: none; }
+.form-field input[type="file"] { width: 100%; min-width: 0; font-size: 12px; }
+.radio-list { display: grid; gap: 8px; }
+.radio-item { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); font-size: 12px; font-weight: 500; cursor: pointer; width: 100%; box-sizing: border-box; }
+.radio-item:hover { border-color: var(--primary); }
+.radio-item:has(input:checked) { border-color: var(--primary); background: var(--secondary); color: var(--secondary-foreground); font-weight: 650; }
+.radio-item input { width: 15px; height: 15px; flex-shrink: 0; accent-color: var(--primary); margin: 0; }
+.check-line { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.6; cursor: pointer; }
+.check-line input { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; accent-color: var(--primary); }
 .form-field input:focus, .form-field textarea:focus { border-color: var(--primary); }
 .form-field textarea { min-height: 110px; resize: vertical; }
 .form-grid { display: grid; gap: 17px; }
@@ -377,10 +389,11 @@ button, input, select, textarea { font: inherit; }
 .status.st-teal, .metric.st-teal { background: var(--secondary); color: var(--secondary-foreground); border-color: color-mix(in srgb, var(--primary) 20%, white); }
 .tag { display: inline-flex; align-items: center; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }
-.tabs button { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
+.tabs button { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; flex-shrink: 0; background: none; cursor: pointer; }
+.tabs button:hover { color: var(--foreground); }
 .tabs button.active { color: var(--primary); border-color: var(--primary); }
-.toolbar .tabs { margin-bottom: 0; border-bottom: 0; }
+.toolbar .tabs { margin-bottom: 0; border-bottom: 1px solid var(--border); flex: 1 1 auto; min-width: min(100%, 280px); }
 .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--card); }
 .segmented button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 11px; color: var(--muted-foreground); }
 .segmented button.active { background: var(--secondary); color: var(--primary); font-weight: 650; }
@@ -524,6 +537,11 @@ button, input, select, textarea { font: inherit; }
   .action-row > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
   .detail-list > div { grid-template-columns: 1fr; gap: 2px; }
   .compare, .split { grid-template-columns: 1fr; }
+  .form-two { grid-template-columns: 1fr; }
+  .toolbar { align-items: stretch; flex-direction: column; }
+  .toolbar .tabs { min-width: 0; width: 100%; }
+  .toolbar-filters { margin-left: 0; width: 100%; }
+  .toolbar-filters .role-select { flex: 1 1 140px; }
   .calendar { padding-inline: 8px; gap: 2px; }
   .calendar-cell { min-height: 58px; padding: 3px; }
   .notification-popup { width: min(340px, calc(100vw - 24px)); }

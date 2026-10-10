@@ -1637,7 +1637,7 @@ export function ReportsPage() {
         <div className="form-grid px-5 pb-5 max-w-xl">
           <fieldset className="form-field">
             <legend className="mb-2">Jenis laporan *</legend>
-            <div className="grid gap-2">
+            <div className="radio-list">
               {(
                 [
                   ["absensi", "Rekap Absensi"],
@@ -1645,9 +1645,14 @@ export function ReportsPage() {
                   ["task", "Rekap Task"],
                 ] as const
               ).map(([v, l]) => (
-                <label key={v} className="flex items-center gap-2">
-                  <input type="radio" checked={type === v} onChange={() => setType(v)} />
-                  {l}
+                <label key={v} className="radio-item">
+                  <input
+                    type="radio"
+                    name="report-type"
+                    checked={type === v}
+                    onChange={() => setType(v)}
+                  />
+                  <span>{l}</span>
                 </label>
               ))}
             </div>
