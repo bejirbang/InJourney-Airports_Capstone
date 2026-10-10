@@ -389,7 +389,7 @@ button, input, select, textarea { font: inherit; }
 .status.st-teal, .metric.st-teal { background: var(--secondary); color: var(--secondary-foreground); border-color: color-mix(in srgb, var(--primary) 20%, white); }
 .tag { display: inline-flex; align-items: center; font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
 
-.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; max-width: 100%; scrollbar-width: thin; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; overflow-y: hidden; max-width: 100%; scrollbar-width: thin; }
 .tabs button { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; flex-shrink: 0; background: none; cursor: pointer; }
 .tabs button:hover { color: var(--foreground); }
 .tabs button.active { color: var(--primary); border-color: var(--primary); }
