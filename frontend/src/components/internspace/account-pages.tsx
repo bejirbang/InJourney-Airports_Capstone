@@ -1,32 +1,239 @@
-import { useState, type ReactNode } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ArrowRight, Eye, EyeOff, LockKeyhole, Mail, CheckCircle2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useMock } from './model';
-import type { Role } from '@/lib/mock-rules';
-import airport from '@/assets/airport-banner.jpg';
+import { useState, type ReactNode } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { isAutoInactive, notStarted, validatePassword } from "@/lib/mock-rules";
+import { DEMO_PASSWORD, ME, TEMP_PASSWORD, useMock } from "./model";
+import airport from "@/assets/airport-banner.jpg";
 
 function AccountLayout({ children }: { children: ReactNode }) {
-  return <main className="account-page"><img className="account-photo" src={airport} alt="Terminal bandara dan pesawat di apron" /><div className="account-wash" /><div className="account-content"><Link to="/login" className="brand account-brand" aria-label="InJourney Airports"><span className="brand-symbol" aria-hidden="true"><i /><i /><i /></span><div className="brand-word">InJourney<span>airports</span></div></Link><div className="account-form">{children}</div><footer className="account-footer">© 2026 InJourney Airports<span>Intern Management & Attendance System</span></footer></div><div className="account-caption"><span>INJOURNEY AIRPORTS</span><p>Awal perjalanan,<br />peluang tanpa batas.</p></div></main>;
+  return (
+    <main className="account-page">
+      <img className="account-photo" src={airport} alt="Terminal bandara dan pesawat di apron" />
+      <div className="account-wash" />
+      <div className="account-content">
+        <Link to="/login" className="brand account-brand" aria-label="InJourney Airports">
+          <span className="brand-symbol" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+          <div className="brand-word">
+            InJourney<span>airports</span>
+          </div>
+        </Link>
+        <div className="account-form">{children}</div>
+        <footer className="account-footer">
+          © 2026 InJourney Airports<span>Intern Management & Attendance System</span>
+        </footer>
+      </div>
+      <div className="account-caption">
+        <span>INJOURNEY AIRPORTS</span>
+        <p>
+          Awal perjalanan,
+          <br />
+          peluang tanpa batas.
+        </p>
+      </div>
+    </main>
+  );
 }
 
-function PasswordField({ label, name, value, onChange, confirmation = false }: { label: string; name: string; value: string; onChange: (value: string) => void; confirmation?: boolean }) {
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: string;
+  placeholder: string;
+}) {
   const [visible, setVisible] = useState(false);
-  return <label className="account-field">{label}<div className="account-input"><LockKeyhole size={17} /><input name={name} type={visible ? 'text' : 'password'} autoComplete={confirmation ? 'new-password' : 'current-password'} value={value} onChange={e => onChange(e.target.value)} placeholder={confirmation ? 'Ulangi password baru' : 'Masukkan password'} required /><Button type="button" variant="ghost" size="icon" aria-label={`${visible ? 'Sembunyikan' : 'Tampilkan'} ${label.toLowerCase()}`} onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={17} /> : <Eye size={17} />}</Button></div></label>;
+  return (
+    <label className="account-field">
+      {label}
+      <div className="account-input">
+        <LockKeyhole size={17} />
+        <input
+          type={visible ? "text" : "password"}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`${visible ? "Sembunyikan" : "Tampilkan"} ${label.toLowerCase()}`}
+          onClick={() => setVisible(!visible)}
+        >
+          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
+        </Button>
+      </div>
+    </label>
+  );
 }
 
+const demoAccounts = [
+  { email: "nabila.putri@example.com", note: "Intern" },
+  { email: "budi.santoso@example.com", note: "Mentor" },
+  { email: "ayu.wulandari@example.com", note: "Admin" },
+  { email: "dimas.arya@example.com", note: "magang sudah selesai" },
+  { email: "hana.kusuma@example.com", note: "magang belum dimulai" },
+];
+
+/** Login dengan email internal buatan admin. Tanpa Google OAuth dan tanpa pemulihan mandiri. */
 export function LoginPage() {
-  const m = useMock(); const navigate = useNavigate();
-  const [email, setEmail] = useState('nabila.putri@example.com'); const [password, setPassword] = useState(''); const [role, setRole] = useState<Role>('Intern');
-  return <AccountLayout><span className="account-eyebrow">INTERNSPACE <span>SESI CONTOH</span></span><h1>Selamat datang kembali.</h1><p className="account-intro">Masuk ke ruang perjalanan magang Anda.</p><form className="account-fields" onSubmit={e => { e.preventDefault(); m.setRole(role); setPassword(''); void navigate({ to: '/' }); }}><label className="account-field">Email<div className="account-input"><Mail size={17} /><input name="email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nama@example.com" /></div></label><PasswordField label="Password" name="password" value={password} onChange={setPassword} /><div className="account-forgot"><Link to="/forgot-password">Lupa password?</Link></div><label className="account-field">Peran sesi contoh<select aria-label="Peran sesi contoh" value={role} onChange={e => setRole(e.target.value as Role)}><option>Intern</option><option>Mentor</option><option>Admin</option></select></label><Button type="submit" className="account-submit">Masuk <ArrowRight size={17} /></Button></form><p className="account-notice">Sesi contoh · Tidak terhubung ke akun perusahaan.</p></AccountLayout>;
+  const m = useMock();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  return (
+    <AccountLayout>
+      <span className="account-eyebrow">
+        INTERN MANAGEMENT <span>PROTOTIPE</span>
+      </span>
+      <h1>Masuk</h1>
+      <p className="account-intro">Gunakan email internal dan password dari admin.</p>
+      <form
+        className="account-fields"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const person = m.people.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
+          if (!person || (password !== DEMO_PASSWORD && password !== TEMP_PASSWORD))
+            return setError("Email atau password salah.");
+          if (person.role === "Intern" && notStarted(person.start))
+            return setError("Masa magang Anda belum dimulai.");
+          if (!person.active || (person.role === "Intern" && isAutoInactive(person.end)))
+            return setError("Akun Anda tidak aktif. Hubungi admin.");
+          if (ME[person.role] !== person.name)
+            return setError(
+              `Prototipe hanya membuka tampilan ${ME[person.role]} untuk role ${person.role}.`,
+            );
+          setError("");
+          setPassword("");
+          m.setRole(person.role);
+          if (password === TEMP_PASSWORD) {
+            m.setMustChangePassword(true);
+            void navigate({ to: "/ganti-password" });
+          } else void navigate({ to: "/" });
+        }}
+      >
+        <label className="account-field">
+          Email internal
+          <div className="account-input">
+            <Mail size={17} />
+            <input
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="nama@example.com"
+            />
+          </div>
+        </label>
+        <PasswordField
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
+          placeholder="Masukkan password"
+        />
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
+        )}
+        <Button type="submit" className="account-submit">
+          Masuk <ArrowRight size={17} />
+        </Button>
+        <p className="text-xs text-muted-foreground">Lupa password? Hubungi admin.</p>
+      </form>
+      <details className="demo-box">
+        <summary>Akun contoh untuk mencoba prototipe</summary>
+        <p>
+          Password <code>{DEMO_PASSWORD}</code>. Pakai <code>{TEMP_PASSWORD}</code> untuk mencoba
+          alur login pertama (ganti password).
+        </p>
+        <ul>
+          {demoAccounts.map((a) => (
+            <li key={a.email}>
+              <button type="button" onClick={() => setEmail(a.email)}>
+                {a.email}
+              </button>{" "}
+              · {a.note}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </AccountLayout>
+  );
 }
 
-export function ForgotPasswordPage() {
-  const [email, setEmail] = useState(''); const [sent, setSent] = useState(false);
-  return <AccountLayout><Link to="/login" className="account-back"><ArrowLeft size={15} />Kembali ke login</Link><div className="account-icon">{sent ? <CheckCircle2 /> : <Mail />}</div><h1>{sent ? 'Permintaan reset siap.' : 'Lupa password?'}</h1><p className="account-intro">{sent ? `Permintaan contoh untuk ${email}. Tidak ada email yang dikirim.` : 'Masukkan email yang terdaftar untuk melanjutkan reset password.'}</p>{sent ? <div className="account-fields"><Button asChild className="account-submit"><Link to="/reset-password">Lanjutkan reset contoh <ArrowRight size={17} /></Link></Button><Button variant="ghost" onClick={() => setSent(false)}>Gunakan email lain</Button></div> : <form className="account-fields" onSubmit={e => { e.preventDefault(); setSent(true); }}><label className="account-field">Email<div className="account-input"><Mail size={17} /><input type="email" name="email" autoComplete="email" placeholder="nama@example.com" required value={email} onChange={e => setEmail(e.target.value)} /></div></label><Button type="submit" className="account-submit">Lanjutkan <ArrowRight size={17} /></Button></form>}<p className="account-notice">Sesi contoh · Tidak ada email reset yang dikirim.</p></AccountLayout>;
-}
-
-export function ResetPasswordPage() {
-  const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [error, setError] = useState(''); const [done, setDone] = useState(false);
-  return <AccountLayout><Link to="/login" className="account-back"><ArrowLeft size={15} />Kembali ke login</Link><div className="account-icon">{done ? <CheckCircle2 /> : <LockKeyhole />}</div><h1>{done ? 'Reset contoh selesai.' : 'Buat password baru.'}</h1><p className="account-intro">{done ? 'Alur reset telah selesai. Password akun nyata tidak berubah.' : 'Masukkan password baru dan ulangi untuk konfirmasi.'}</p>{done ? <Button asChild className="account-submit"><Link to="/login">Kembali ke login <ArrowRight size={17} /></Link></Button> : <form className="account-fields" onSubmit={e => { e.preventDefault(); if (password !== confirmation) { setError('Konfirmasi password tidak cocok.'); return; } setPassword(''); setConfirmation(''); setError(''); setDone(true); }}><PasswordField label="Password baru" name="new-password" value={password} onChange={setPassword} confirmation /><PasswordField label="Konfirmasi password" name="confirmation" value={confirmation} onChange={setConfirmation} confirmation />{error && <p role="alert" className="text-destructive text-sm">{error}</p>}<Button type="submit" className="account-submit">Reset password <ArrowRight size={17} /></Button></form>}<p className="account-notice">Sesi contoh · Password tidak disimpan.</p></AccountLayout>;
+/** Ganti password wajib saat login pertama dan setelah reset oleh admin. */
+export function ChangePasswordPage() {
+  const m = useMock();
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  return (
+    <AccountLayout>
+      <div className="account-icon">
+        <LockKeyhole />
+      </div>
+      <h1>Ganti Password</h1>
+      <p className="account-intro">
+        Demi keamanan, buat password baru Anda. Halaman lain terbuka setelah password diganti.
+      </p>
+      <form
+        className="account-fields"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const err = validatePassword(password, confirmation, TEMP_PASSWORD);
+          if (err) return setError(err);
+          setError("");
+          setPassword("");
+          setConfirmation("");
+          m.setMustChangePassword(false);
+          toast.success("Password tersimpan.");
+          void navigate({ to: "/" });
+        }}
+      >
+        <PasswordField
+          label="Password baru"
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          placeholder="Password baru"
+        />
+        <PasswordField
+          label="Ulangi password baru"
+          value={confirmation}
+          onChange={setConfirmation}
+          autoComplete="new-password"
+          placeholder="Ulangi password baru"
+        />
+        <p className="text-xs text-muted-foreground">
+          Syarat: minimal 8 karakter, ada huruf dan angka.
+        </p>
+        {error && (
+          <p role="alert" className="form-error">
+            {error}
+          </p>
+        )}
+        <Button type="submit" className="account-submit">
+          Simpan Password <ArrowRight size={17} />
+        </Button>
+      </form>
+      <p className="account-notice">Prototipe · Password tidak disimpan.</p>
+    </AccountLayout>
+  );
 }

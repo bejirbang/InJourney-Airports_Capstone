@@ -13,8 +13,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { MockProvider } from '@/components/internspace/model';
-import { Workspace } from '@/components/internspace/shell';
+import { MockProvider } from "@/components/internspace/model";
+import { Workspace } from "@/components/internspace/shell";
 
 function NotFoundComponent() {
   return (
@@ -94,7 +94,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;650;700;750;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;650;700;750;800&display=swap",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -120,12 +123,20 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const path = useLocation().pathname;
-  const accountPage = ['/login', '/forgot-password', '/reset-password'].includes(path);
+  const accountPage = ["/login", "/ganti-password"].includes(path);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <MockProvider>{accountPage ? <Outlet /> : <Workspace><Outlet /></Workspace>}</MockProvider>
+      <MockProvider>
+        {accountPage ? (
+          <Outlet />
+        ) : (
+          <Workspace>
+            <Outlet />
+          </Workspace>
+        )}
+      </MockProvider>
     </QueryClientProvider>
   );
 }

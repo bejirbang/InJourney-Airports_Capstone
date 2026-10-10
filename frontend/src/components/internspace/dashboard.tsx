@@ -1,14 +1,573 @@
-import { useState } from 'react';
-import { CalendarCheck, CheckCheck, Clock3, ListTodo, TrendingUp, ArrowRight, MapPin, LogOut, FileText, Megaphone, CalendarDays, MessageSquare, LogIn } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useMock, initials, roleName } from './model';
-import { Panel, PageHeading, Status, SectionLink, ReportDialog, Feedback } from './shared';
-import { canClockOut } from '@/lib/mock-rules';
-import airport from '@/assets/airport-banner.jpg';
+import { useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { AlertTriangle, ArrowRight, CalendarOff, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  TODAY,
+  addDays,
+  canExtend,
+  endsWithin,
+  formatDate,
+  formatMonth,
+  formatPeriod,
+  formatShort,
+  formatShortTime,
+  isOverduePending,
+  isWorkingDay,
+  lateLabel,
+  pendingHours,
+  taskIsLate,
+} from "@/lib/mock-rules";
+import { ME, recap, shortName, useMock, type Person } from "./model";
+import { Empty, FormError, PageHeading, Panel, Status } from "./shared";
+import { TodayCard } from "./attendance";
+import airport from "@/assets/airport-banner.jpg";
 
 export function Dashboard() {
-  const m = useMock(); const [reportOpen, setReportOpen] = useState(false); const [feedback, setFeedback] = useState('');
-  const isIntern = m.role === 'Intern'; const isAdmin = m.role === 'Admin';
-  const stats = isIntern ? [{ label: 'Kehadiran bulan ini', value: '6', unit: '/ 7 hari', note: '85,7% tingkat kehadiran', icon: CalendarCheck, color: 'text-primary', bg: 'bg-secondary' }, { label: 'Task selesai', value: '12', unit: 'task', note: '+3 task dari bulan lalu', icon: CheckCheck, color: 'text-success', bg: 'bg-success-soft' }, { label: 'Task aktif', value: String(m.tasks.filter(t => t.status !== 'Done').length), unit: 'task', note: '1 task menunggu review', icon: ListTodo, color: 'text-info', bg: 'bg-info-soft' }, { label: 'Sisa periode magang', value: '83', unit: 'hari', note: 'Berakhir 31 Desember 2026', icon: Clock3, color: 'text-warning', bg: 'bg-warning-soft' }] : isAdmin ? [{ label: 'Intern hadir', value: '24', unit: 'intern', note: 'Dari 28 intern aktif', icon: CalendarCheck, color: 'text-primary', bg: 'bg-secondary' }, { label: 'Izin hari ini', value: '2', unit: 'intern', note: 'Izin telah disetujui', icon: CalendarDays, color: 'text-warning', bg: 'bg-warning-soft' }, { label: 'Tidak hadir', value: '1', unit: 'intern', note: 'Rekap hari kerja terakhir', icon: ListTodo, color: 'text-info', bg: 'bg-info-soft' }, { label: 'Lupa clock out', value: '1', unit: 'intern', note: 'Rekap hari kerja terakhir', icon: Clock3, color: 'text-warning', bg: 'bg-warning-soft' }] : [{ label: 'Intern bimbingan', value: '2', unit: 'intern', note: 'Semua intern aktif', icon: CalendarCheck, color: 'text-primary', bg: 'bg-secondary' }, { label: 'Task selesai', value: '12', unit: 'task', note: 'Bulan Oktober 2026', icon: CheckCheck, color: 'text-success', bg: 'bg-success-soft' }, { label: 'Menunggu review', value: String(m.tasks.filter(t => t.status === 'In Review').length), unit: 'task', note: 'Periksa hasil intern', icon: ListTodo, color: 'text-info', bg: 'bg-info-soft' }, { label: 'Izin pending', value: String(m.leaves.filter(l => l.status === 'Pending').length), unit: 'izin', note: 'Menunggu persetujuan', icon: Clock3, color: 'text-warning', bg: 'bg-warning-soft' }];
-  return <><PageHeading title="Dashboard" subtitle={isIntern ? 'Semua yang kamu butuhkan untuk menjalani hari magangmu.' : 'Ringkasan aktivitas dan pengelolaan peserta magang.'} /><section className="welcome-banner"><img src={airport} width={1600} height={608} alt="Terminal dan apron bandara internasional" /><div className="welcome-copy"><span className="eyebrow">YOUR JOURNEY STARTS HERE</span><h2>Selamat pagi, {roleName(m.role, m.profile).split(' ')[0]} <span className="text-warning">☀</span></h2><p>{isIntern ? 'Langkah kecil hari ini, pengalaman besar untuk masa depan. Yuk, mulai harimu dengan semangat!' : 'Bersama membimbing talenta masa depan. Pantau perjalanan dan aktivitas magang hari ini.'}</p><div className="flex items-center gap-2 mt-3 text-[10px] text-primary font-medium"><MapPin size={12} /> Kantor Pusat InJourney Airports</div></div></section><div className="stats-grid">{stats.map(s => <section className="stat" key={s.label}><div className="stat-top"><span>{s.label}</span><span className={`stat-icon ${s.color} ${s.bg}`}><s.icon /></span></div><div className="stat-value">{s.value} <small>{s.unit}</small></div><div className="stat-foot">{s.label === 'Task selesai' && <TrendingUp size={11} className="text-success" />}{s.note}</div></section>)}</div><div className="dashboard-grid"><div className="flex flex-col gap-[22px]"><Panel title={isAdmin ? 'Perlu ditindaklanjuti' : 'Task aktif'} subtitle={isAdmin ? 'Permintaan yang menunggu verifikasi admin' : 'Tetap fokus, selesaikan satu per satu.'} action={<SectionLink to={isAdmin ? '/absensi' : '/task'}>Lihat semua</SectionLink>}>{isAdmin ? <><div className="announcement"><span className="announcement-icon bg-warning-soft text-warning"><Clock3 /></span><div><h3>1 pengajuan izin pending lebih dari 24 jam</h3><p>Verifikasi bukti resmi sebelum memproses pengajuan.</p><SectionLink to="/izin">Lihat pengajuan</SectionLink></div></div><div className="announcement"><span className="announcement-icon"><FileText /></span><div><h3>{m.corrections.filter(c => c.status === 'Pending').length} permintaan koreksi absensi</h3><p>Konfirmasi ke intern sebelum persetujuan.</p><SectionLink to="/absensi">Periksa koreksi</SectionLink></div></div><div className="announcement"><span className="announcement-icon"><CalendarDays /></span><div><h3>Magang Rizky Pratama berakhir dalam 7 hari</h3><p>16 Oktober 2026 · Konfirmasi perpanjangan ke mentor.</p><SectionLink to="/chat">Hubungi mentor</SectionLink></div></div></> : m.tasks.filter(t => t.status !== 'Done').map(t => <div className="task-row" key={t.id}><span className="task-checkbox"><ListTodo size={11} /></span><div className="task-copy"><h3>{t.title}</h3><div className="task-meta"><span>{t.id}</span><span>·</span><CalendarDays size={10} /><span>{t.due}</span>{t.comment && <span className="text-primary flex gap-1 items-center"><MessageSquare size={10} />1 komentar</span>}</div></div><Status status={t.status} /><span className="avatar blue !w-6 !h-6 !text-[8px]">BS</span></div>)}<div className="flex items-center justify-between px-5 py-3 border-t border-border text-[10px] text-muted-foreground"><span>{isAdmin ? 'Pastikan semua permintaan terverifikasi.' : 'Setiap progress adalah langkah menuju tujuanmu.'}</span><CheckCheck size={14} className="text-primary" /></div></Panel><Panel title={isAdmin ? 'Kehadiran hari ini' : 'Rekap kehadiran'} subtitle={isAdmin ? 'Data peserta magang aktif' : 'Perjalanan konsisten, hasil yang berarti.'} action={<span className="date-chip !py-1.5 !text-[9px]">Oktober 2026 <CalendarDays size={10} /></span>}><div className="chart-body"><div className="flex justify-between"><span className="text-[10px] text-muted-foreground">{isAdmin ? 'Kehadiran minggu ini' : 'Kehadiran minggu ini'}</span><div className="chart-legend"><span><i className="legend-dot" />Hadir</span><span><i className="legend-dot leave" />Izin</span></div></div><div className="chart"><span className="chart-axis bottom-0">0</span><span className="chart-axis bottom-[40px]">4</span><span className="chart-axis bottom-[80px]">8</span><span className="chart-axis top-0">12</span>{[1, 2, 3, 4, 5].map(i => <div key={i} className="chart-bar" />)}</div><div className="chart-days">{['Sen, 5 Okt', 'Sel, 6 Okt', 'Rab, 7 Okt', 'Kam, 8 Okt', 'Jum, 9 Okt'].map(d => <span key={d}>{d}</span>)}</div></div></Panel></div><div className="flex flex-col gap-[22px]">{isIntern ? <Panel title="Absensi hari ini" action={<span className="text-[9px] text-muted-foreground">9 Okt 2026</span>}><div className="attendance-body"><div className="attendance-state"><span>Jumat · Hari kerja</span><Status status={m.clockOut ? 'Hadir' : m.clockIn ? 'Sudah clock in' : 'Belum clock in'} /></div><div className="time-display">14:39<span className="text-muted-foreground text-[24px]">:00</span></div><div className="time-caption">Waktu Indonesia Barat (WIB)</div><div className="clock-times"><div><small>Clock in</small><strong>{m.clockIn || '--:--'} <span className="text-[9px] text-muted-foreground">WIB</span></strong></div><div><small>Clock out</small><strong>{m.clockOut || '--:--'} <span className="text-[9px] text-muted-foreground">WIB</span></strong></div></div>{m.clockOut ? <div className="summary-strip justify-center"><CheckCheck size={16} />Absensi hari ini selesai</div> : <Button className="w-full h-10 text-xs" onClick={() => { if (!m.clockIn) { m.setClockIn('14:39'); setFeedback('Clock in tercatat pada 14:39 WIB. Lokasi menggunakan contoh kantor pusat.'); } else if (!canClockOut(!!m.clockIn, m.reportSent, !!m.clockOut)) { setReportOpen(true); } else { m.setClockOut('14:39'); setFeedback('Clock out berhasil dicatat. Laporan harian telah dikunci.'); } }}>{m.clockIn ? <><LogOut />Clock Out</> : <><LogIn />Clock In</>}</Button>}<div className="attendance-note"><MapPin size={10} />{m.clockIn ? 'Lokasi contoh: Kantor Pusat' : 'Validasi lokasi belum terhubung'}</div><div className="mt-4 pt-3 border-t border-border flex items-center justify-between"><span className="text-[10px] text-muted-foreground flex items-center gap-1.5"><FileText size={12} />Daily Report</span><Button variant="link" className="h-5 p-0 text-[10px]" onClick={() => setReportOpen(true)}>{m.reportSent ? 'Lihat laporan' : 'Isi laporan'}<ArrowRight size={12} /></Button></div>{!m.reportSent && <p className="text-[9px] text-warning mt-2">Belum dikirim · wajib sebelum clock out</p>}</div></Panel> : <Panel title="Intern bimbingan" subtitle={isAdmin ? 'Peserta magang aktif' : 'Digital Experience Division'}>{m.people.filter(p => p.role === 'Intern').map(p => <div className="task-row" key={p.id}><span className="avatar">{initials(p.name)}</span><div className="task-copy"><h3>{p.name}</h3><div className="task-meta">UI/UX Design Intern</div></div><Status status="Aktif" /></div>)}</Panel>}<Panel title="Pengumuman" action={<Megaphone size={15} className="text-muted-foreground" />}>{m.announcements.slice(0, 2).map((a, i) => <div className="announcement" key={a.title}><span className={`announcement-icon ${i ? 'bg-secondary text-primary' : ''}`}>{i ? <FileText /> : <Megaphone />}</span><div><h3>{a.title}{i === 0 && <span className="status review ml-2 !text-[8px]">Baru</span>}</h3><p>{a.text}</p><small>Human Capital · {i ? '7' : '9'} Oktober 2026</small></div></div>)}</Panel></div></div><ReportDialog open={reportOpen} onClose={() => setReportOpen(false)} /><Feedback text={feedback} onClose={() => setFeedback('')} /></>;
+  const m = useMock();
+  return (
+    <>
+      <PageHeading title="Dashboard" />
+      <section className="welcome-banner compact">
+        <img src={airport} width={1600} height={608} alt="Terminal dan apron bandara" />
+        <div className="welcome-copy">
+          <span className="eyebrow">INJOURNEY AIRPORTS · {m.role.toUpperCase()}</span>
+          <h2>Selamat datang, {m.me.name.split(" ")[0]}</h2>
+          <p>
+            {m.role === "Intern"
+              ? "Cek status hari ini dan Task yang perlu dikerjakan."
+              : "Berikut hal yang perlu ditindak hari ini."}
+          </p>
+        </div>
+      </section>
+      {m.role === "Intern" ? (
+        <InternDashboard />
+      ) : m.role === "Mentor" ? (
+        <MentorDashboard />
+      ) : (
+        <AdminDashboard />
+      )}
+    </>
+  );
+}
+
+function HolidayBanner() {
+  const m = useMock();
+  if (isWorkingDay(TODAY, m.holidayDates)) return null;
+  return (
+    <div className="banner info">
+      <CalendarOff size={16} />
+      Hari ini hari libur: {m.holidayName(TODAY) ?? "akhir pekan"}.
+    </div>
+  );
+}
+
+// ---------- Intern (design-intern.md Alur 2) ----------
+
+function InternDashboard() {
+  const m = useMock();
+  const navigate = useNavigate();
+  const { state, rec } = m.today(ME.Intern);
+  const month = TODAY.slice(0, 7);
+  const r = recap(m.rowsFor(ME.Intern, `${month}-01`, `${month}-31`));
+  const tasks = m.tasks.filter((t) => t.intern === ME.Intern);
+  const active = tasks
+    .filter((t) => t.status !== "Done")
+    .sort((a, b) => a.due.localeCompare(b.due));
+  const late = active.filter((t) => taskIsLate(t.due, t.status, t.submittedAt));
+  const nearest = active.find((t) => t.due >= m.nowIso()) ?? active[0];
+  return (
+    <div className="grid gap-5">
+      {state === "Sudah Clock In" && !rec?.report && (
+        <div className="banner warn">
+          <AlertTriangle size={16} />
+          <span className="mr-auto">Daily Report hari ini belum dikirim.</span>
+          <Button
+            size="sm"
+            onClick={() =>
+              void navigate({ to: "/absensi", search: { tab: "hari-ini", open: "report" } })
+            }
+          >
+            Isi Daily Report
+          </Button>
+        </div>
+      )}
+      <div className="dashboard-grid">
+        <TodayCard />
+        <Panel
+          title={`Rekap bulan ini (${formatMonth(month)})`}
+          subtitle="Status final. Hari berjalan belum dihitung sampai lewat 23:59."
+        >
+          <div className="recap-grid">
+            <Metric label="Hadir" value={r.hadir} tone="green" />
+            <Metric label="Izin" value={r.izin} tone="blue" />
+            <Metric label="Tidak Hadir" value={r.tidakHadir} tone="red" />
+            <Metric label="Lupa Clock Out" value={r.lupa} tone="orange" />
+          </div>
+          <p className="px-5 pb-5 text-[11px] text-muted-foreground">
+            Hari kerja berjalan: {r.hariKerja}
+          </p>
+        </Panel>
+      </div>
+      <Panel
+        title="Task aktif"
+        action={
+          <Link className="text-action" to="/task">
+            Lihat Task <ArrowRight size={12} />
+          </Link>
+        }
+      >
+        {tasks.length === 0 ? (
+          <Empty>Belum ada Task dari mentor.</Empty>
+        ) : (
+          <div className="px-5 pb-5 grid gap-3">
+            <div className="flex flex-wrap gap-2">
+              {(["To Do", "In Progress", "In Review"] as const).map((s) => (
+                <span key={s} className="count-chip">
+                  <Status status={s} /> {tasks.filter((t) => t.status === s).length}
+                </span>
+              ))}
+              {late.length > 0 && (
+                <span className="count-chip">
+                  <Status status="Terlambat" /> {late.length}
+                </span>
+              )}
+            </div>
+            {nearest && (
+              <p className="text-xs">
+                Tenggat terdekat:{" "}
+                <Link
+                  className="font-semibold text-primary"
+                  to="/task"
+                  search={{ open: nearest.id }}
+                >
+                  {nearest.title}
+                </Link>{" "}
+                - {formatShortTime(nearest.due)}
+              </p>
+            )}
+          </div>
+        )}
+      </Panel>
+      <div className="info-line">
+        <span>Periode magang: {m.me.start ? formatPeriod(m.me.start, m.me.end) : "-"}</span>
+        <span>Mentor: {m.me.mentor}</span>
+      </div>
+      <AnnouncementList />
+    </div>
+  );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number | string; tone: string }) {
+  return (
+    <div className={`metric st-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AnnouncementList() {
+  const m = useMock();
+  const list = m.announcements.filter((a) => a.audience.includes(m.role)).slice(0, 3);
+  if (list.length === 0) return null;
+  return (
+    <Panel title="Pengumuman" subtitle="Dari admin untuk role Anda.">
+      {list.map((a) => (
+        <div className="announcement" key={a.id}>
+          <div>
+            <h3>{a.title}</h3>
+            <p>{a.text}</p>
+            <small>
+              {a.author} · {formatShort(a.date, true)}
+            </small>
+          </div>
+        </div>
+      ))}
+    </Panel>
+  );
+}
+
+function TodayCounts({ interns }: { interns: Person[] }) {
+  const m = useMock();
+  const states = interns.map((p) => m.today(p.name).state);
+  const sudah = states.filter((s) => s === "Sudah Clock In" || s === "Sudah Clock Out").length;
+  return (
+    <>
+      <div className="recap-grid three">
+        <Metric label="Sudah Clock In" value={sudah} tone="teal" />
+        <Metric label="Izin" value={states.filter((s) => s === "Izin").length} tone="blue" />
+        <Metric
+          label="Belum Clock In"
+          value={states.filter((s) => s === "Belum Clock In").length}
+          tone="light"
+        />
+      </div>
+      <p className="px-5 pb-4 text-[11px] text-muted-foreground">
+        Status final ditetapkan sistem setelah 23:59.
+      </p>
+    </>
+  );
+}
+
+function ActionBox({
+  title,
+  count,
+  children,
+  all,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+  all: React.ReactNode;
+}) {
+  return (
+    <Panel
+      title={`${title} (${count})`}
+      action={count > 5 ? all : undefined}
+      className="action-box"
+    >
+      {count === 0 ? (
+        <Empty>Tidak ada yang perlu ditindak hari ini.</Empty>
+      ) : (
+        <div className="action-list">{children}</div>
+      )}
+    </Panel>
+  );
+}
+
+// ---------- Mentor (design-mentor.md Alur 2) ----------
+
+function MentorDashboard() {
+  const m = useMock();
+  const interns = m.internsOf(ME.Mentor);
+  const names = interns.map((p) => p.name);
+  const active = interns.filter((p) => m.isActive(p));
+  if (interns.length === 0)
+    return <Empty>Belum ada intern bimbingan. Hubungi admin untuk penugasan.</Empty>;
+  const tasks = m.tasks.filter((t) => names.includes(t.intern));
+  const review = tasks
+    .filter((t) => t.status === "In Review")
+    .sort((a, b) => (a.submittedAt ?? "").localeCompare(b.submittedAt ?? ""));
+  const leaves = m.leaves
+    .filter((l) => l.status === "Pending" && names.includes(l.intern))
+    .sort((a, b) => a.submitted.localeCompare(b.submitted));
+  const comments = tasks.filter((t) => t.unread.Mentor > 0);
+  const late = tasks
+    .filter((t) => taskIsLate(t.due, t.status, t.submittedAt))
+    .sort((a, b) => a.due.localeCompare(b.due));
+  const holiday = !isWorkingDay(TODAY, m.holidayDates);
+  return (
+    <div className="grid gap-5">
+      <HolidayBanner />
+      {!holiday && (
+        <Panel title={`Intern saya hari ini (${active.length} intern)`}>
+          <TodayCounts interns={active} />
+        </Panel>
+      )}
+      <h2 className="section-title">Perlu tindakan</h2>
+      <div className="action-grid">
+        <ActionBox
+          title="Task menunggu review"
+          count={review.length}
+          all={
+            <Link className="text-action" to="/task">
+              Lihat semua
+            </Link>
+          }
+        >
+          {review.slice(0, 5).map((t) => (
+            <ActionRow
+              key={t.id}
+              who={t.intern}
+              what={t.title}
+              meta={t.submittedAt ? `dikumpulkan ${formatShortTime(t.submittedAt)}` : ""}
+              to="/task"
+              open={t.id}
+            />
+          ))}
+        </ActionBox>
+        <ActionBox
+          title="Izin pending"
+          count={leaves.length}
+          all={
+            <Link className="text-action" to="/izin">
+              Lihat semua
+            </Link>
+          }
+        >
+          {leaves.slice(0, 5).map((l) => (
+            <ActionRow
+              key={l.id}
+              who={l.intern}
+              what={l.type.replace("Izin ", "")}
+              meta={`${pendingHours(l.submitted)} jam`}
+              warn={isOverduePending(l.status, l.submitted)}
+              to="/izin"
+              open={String(l.id)}
+            />
+          ))}
+        </ActionBox>
+        <ActionBox
+          title="Komentar baru dari intern"
+          count={comments.length}
+          all={
+            <Link className="text-action" to="/task">
+              Lihat semua
+            </Link>
+          }
+        >
+          {comments.slice(0, 5).map((t) => (
+            <ActionRow
+              key={t.id}
+              who={t.intern}
+              what={`Task "${t.title}"`}
+              meta={`${t.unread.Mentor} baru`}
+              to="/task"
+              open={t.id}
+            />
+          ))}
+        </ActionBox>
+        <ActionBox
+          title="Task terlambat"
+          count={late.length}
+          all={
+            <Link className="text-action" to="/task">
+              Lihat semua
+            </Link>
+          }
+        >
+          {late.slice(0, 5).map((t) => (
+            <ActionRow
+              key={t.id}
+              who={t.intern}
+              what={`Task "${t.title}"`}
+              meta={lateLabel(t.due).toLowerCase()}
+              warn
+              to="/task"
+              open={t.id}
+            />
+          ))}
+        </ActionBox>
+      </div>
+      <AnnouncementList />
+    </div>
+  );
+}
+
+function ActionRow({
+  who,
+  what,
+  meta,
+  warn = false,
+  to,
+  open,
+}: {
+  who: string;
+  what: string;
+  meta: string;
+  warn?: boolean;
+  to: "/task" | "/izin" | "/koreksi";
+  open: string;
+}) {
+  return (
+    <div className="action-row">
+      <strong>{shortName(who)}</strong>
+      <span className="truncate">{what}</span>
+      <span className={`meta ${warn ? "warn" : ""}`}>
+        {warn && "! "}
+        {meta}
+      </span>
+      <Button size="sm" variant="outline" asChild>
+        <Link to={to} search={{ open }}>
+          Buka
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+// ---------- Admin (design-admin.md Alur 3) ----------
+
+function AdminDashboard() {
+  const m = useMock();
+  const navigate = useNavigate();
+  const [extend, setExtend] = useState<Person | null>(null);
+  const inPeriod = m.people.filter((p) => p.role === "Intern" && m.isActive(p));
+  let yesterday = addDays(TODAY, -1);
+  while (!isWorkingDay(yesterday, m.holidayDates)) yesterday = addDays(yesterday, -1);
+  const yRows = inPeriod.flatMap((p) => m.rowsFor(p.name, yesterday, yesterday));
+  const y = (s: string) => yRows.filter((r) => r.status === s).length;
+  const overdue = m.leaves
+    .filter((l) => isOverduePending(l.status, l.submitted))
+    .sort((a, b) => a.submitted.localeCompare(b.submitted));
+  const corrections = m.corrections
+    .filter((c) => c.status === "Pending")
+    .sort((a, b) => a.submitted.localeCompare(b.submitted));
+  const ending = inPeriod
+    .filter((p) => endsWithin(p.end, 7))
+    .sort((a, b) => a.end.localeCompare(b.end));
+  const holiday = !isWorkingDay(TODAY, m.holidayDates);
+  return (
+    <div className="grid gap-5">
+      <HolidayBanner />
+      {!holiday && (
+        <Panel title={`Hari ini (${inPeriod.length} intern aktif)`}>
+          <TodayCounts interns={inPeriod} />
+          <p className="px-5 pb-5 text-[11px]">
+            Kemarin ({formatDate(yesterday)}): Hadir {y("Hadir")} | Izin {y("Izin")} | Tidak Hadir{" "}
+            {y("Tidak Hadir")} | Lupa Clock Out {y("Lupa Clock Out")}
+          </p>
+        </Panel>
+      )}
+      <h2 className="section-title">Perlu tindakan</h2>
+      <div className="action-grid">
+        <ActionBox
+          title="Izin pending > 24 jam"
+          count={overdue.length}
+          all={
+            <Link className="text-action" to="/izin">
+              Lihat semua
+            </Link>
+          }
+        >
+          {overdue.slice(0, 5).map((l) => (
+            <ActionRow
+              key={l.id}
+              who={l.intern}
+              what={l.type.replace("Izin ", "")}
+              meta={`${pendingHours(l.submitted)} jam`}
+              warn
+              to="/izin"
+              open={String(l.id)}
+            />
+          ))}
+        </ActionBox>
+        <ActionBox
+          title="Permintaan koreksi"
+          count={corrections.length}
+          all={
+            <Link className="text-action" to="/koreksi">
+              Lihat semua
+            </Link>
+          }
+        >
+          {corrections.slice(0, 5).map((c) => (
+            <ActionRow
+              key={c.id}
+              who={c.intern}
+              what={formatShort(c.date)}
+              meta={`diajukan ${formatShortTime(c.submitted)}`}
+              to="/koreksi"
+              open={String(c.id)}
+            />
+          ))}
+        </ActionBox>
+      </div>
+      <Panel title={`Magang berakhir dalam 7 hari (${ending.length})`}>
+        {ending.length === 0 ? (
+          <Empty>Tidak ada yang perlu ditindak hari ini.</Empty>
+        ) : (
+          <div className="action-list">
+            {ending.map((p) => (
+              <div className="action-row" key={p.id}>
+                <strong>{shortName(p.name)}</strong>
+                <span>Selesai {formatShort(p.end)}</span>
+                <span className="meta">Mentor: {p.mentor}</span>
+                <span className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      m.setChatDraft({
+                        to: p.mentor,
+                        text: `Halo ${p.mentor}, masa magang ${p.name} berakhir ${formatShort(p.end, true)}. Apakah akan diperpanjang? Mohon konfirmasinya. Terima kasih.`,
+                      });
+                      void navigate({ to: "/chat", search: { to: p.mentor } });
+                    }}
+                  >
+                    <MessageSquare />
+                    Tanya mentor
+                  </Button>
+                  <Button size="sm" onClick={() => setExtend(p)}>
+                    Perpanjang
+                  </Button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+      <ExtendDialog person={extend} onClose={() => setExtend(null)} />
+    </div>
+  );
+}
+
+export function ExtendDialog({ person, onClose }: { person: Person | null; onClose: () => void }) {
+  const m = useMock();
+  const [date, setDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Dialog
+      open={!!person}
+      onOpenChange={(o) => {
+        if (!o) {
+          onClose();
+          setDate("");
+          setError(null);
+        }
+      }}
+    >
+      <DialogContent className="max-w-md">
+        <DialogTitle>Perpanjang Magang - {person?.name}</DialogTitle>
+        <DialogDescription>
+          Tanggal selesai saat ini: {person && formatShort(person.end, true)}
+        </DialogDescription>
+        <label className="form-field">
+          Tanggal selesai baru *
+          <input
+            type="date"
+            value={date}
+            min={person ? addDays(person.end, 1) : undefined}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        <FormError text={error} />
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Batal
+          </Button>
+          <Button
+            onClick={() => {
+              if (!person) return;
+              if (!canExtend(person.end, date))
+                return setError("Tanggal baru harus setelah tanggal selesai saat ini.");
+              m.setPeople((old) =>
+                old.map((p) => (p.id === person.id ? { ...p, end: date, active: true } : p)),
+              );
+              m.log(
+                "Akun",
+                person.name,
+                `Perpanjang magang dari ${formatShort(person.end, true)} ke ${formatShort(date, true)}.`,
+              );
+              toast.success("Perubahan tersimpan.");
+              setDate("");
+              setError(null);
+              onClose();
+            }}
+          >
+            Simpan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

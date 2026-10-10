@@ -1,13 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Dashboard } from '@/components/internspace/dashboard';
+import { Dashboard } from "@/components/internspace/dashboard";
+import { pageSearch } from "@/lib/search";
+
 export const Route = createFileRoute("/")({
-  head: () => ({ meta: [
-    { title: 'Dashboard | InternSpace InJourney Airports' },
-    { name: 'description', content: 'Ringkasan kehadiran, task, dan pengumuman peserta magang InJourney Airports.' },
-    { property: 'og:title', content: 'Dashboard | InternSpace InJourney Airports' },
-    { property: 'og:description', content: 'Ringkasan kehadiran, task, dan pengumuman peserta magang InJourney Airports.' },
-    { property: 'og:type', content: 'website' },
-    { name: 'twitter:card', content: 'summary_large_image' },
-  ] }),
+  validateSearch: pageSearch,
+  head: () => ({
+    meta: [
+      { title: "Dashboard | InternSpace InJourney Airports" },
+      {
+        name: "description",
+        content: "Ringkasan hari ini dan hal yang perlu ditindak sesuai role.",
+      },
+      { property: "og:title", content: "Dashboard | InternSpace InJourney Airports" },
+      {
+        property: "og:description",
+        content: "Ringkasan hari ini dan hal yang perlu ditindak sesuai role.",
+      },
+    ],
+  }),
   component: Dashboard,
 });

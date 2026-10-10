@@ -1,13 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { UsersPage } from '@/components/internspace/other-pages';
-export const Route = createFileRoute('/users')({
- head: () => ({ meta: [
-  { title: 'Manajemen User | InternSpace InJourney Airports' },
-  { name: 'description', content: 'Pengelolaan akun dan mentor peserta magang.' },
-  { property: 'og:title', content: 'Manajemen User | InternSpace InJourney Airports' },
-  { property: 'og:description', content: 'Pengelolaan akun dan mentor peserta magang.' },
-  { property: 'og:type', content: 'website' },
-  { name: 'twitter:card', content: 'summary_large_image' },
- ] }),
- component: UsersPage,
+import { createFileRoute } from "@tanstack/react-router";
+import { UsersPage } from "@/components/internspace/admin-pages";
+import { pageSearch } from "@/lib/search";
+
+export const Route = createFileRoute("/users")({
+  validateSearch: pageSearch,
+  head: () => ({
+    meta: [
+      { title: "Pengguna | InternSpace InJourney Airports" },
+      { name: "description", content: "Kelola akun intern, mentor, dan admin." },
+      { property: "og:title", content: "Pengguna | InternSpace InJourney Airports" },
+      { property: "og:description", content: "Kelola akun intern, mentor, dan admin." },
+    ],
+  }),
+  component: UsersPage,
 });

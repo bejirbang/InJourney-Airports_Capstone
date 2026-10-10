@@ -1,13 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { ChatPage } from '@/components/internspace/other-pages';
-export const Route = createFileRoute('/chat')({
- head: () => ({ meta: [
-  { title: 'Chat | InternSpace InJourney Airports' },
-  { name: 'description', content: 'Percakapan peserta magang, mentor, dan admin.' },
-  { property: 'og:title', content: 'Chat | InternSpace InJourney Airports' },
-  { property: 'og:description', content: 'Percakapan peserta magang, mentor, dan admin.' },
-  { property: 'og:type', content: 'website' },
-  { name: 'twitter:card', content: 'summary_large_image' },
- ] }),
- component: ChatPage,
+import { createFileRoute } from "@tanstack/react-router";
+import { ChatPage } from "@/components/internspace/other-pages";
+import { pageSearch } from "@/lib/search";
+
+export const Route = createFileRoute("/chat")({
+  validateSearch: pageSearch,
+  head: () => ({
+    meta: [
+      { title: "Chat | InternSpace InJourney Airports" },
+      { name: "description", content: "Chat antarpengguna." },
+      { property: "og:title", content: "Chat | InternSpace InJourney Airports" },
+      { property: "og:description", content: "Chat antarpengguna." },
+    ],
+  }),
+  component: ChatPage,
 });

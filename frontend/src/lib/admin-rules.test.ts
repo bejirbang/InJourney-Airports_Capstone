@@ -19,9 +19,9 @@ describe('Admin rules', () => {
   it('deactivates automatically the day after the internship ends', () => { expect(isAutoInactive('2026-10-09', '2026-10-09')).toBe(false); expect(isAutoInactive('2026-10-08', '2026-10-09')).toBe(true); });
   it('lists internships ending within 7 days', () => { expect(endsWithin('2026-10-16', 7, '2026-10-09')).toBe(true); expect(endsWithin('2026-10-17', 7, '2026-10-09')).toBe(false); });
   it('extension must be after the current end date', () => { expect(canExtend('2026-10-16', '2026-10-16')).toBe(false); expect(canExtend('2026-10-16', '2026-11-16')).toBe(true); });
-  it('blocks deactivating yourself', () => { expect(deactivateBlock(people[0], 1, people)).toMatch(/sendiri/); });
-  it('keeps at least one active admin', () => { expect(deactivateBlock(people[0], 99, people)).toMatch(/minimal satu admin/); });
-  it('blocks deactivating a mentor with active interns', () => { expect(deactivateBlock(people[1], 1, people)).toMatch(/Pindahkan intern/); expect(deactivateBlock(people[3], 1, people)).toBeNull(); });
+  it('blocks deactivating yourself', () => { expect(deactivateBlock(people[0]!, 1, people)).toMatch(/sendiri/); });
+  it('keeps at least one active admin', () => { expect(deactivateBlock(people[0]!, 99, people)).toMatch(/minimal satu admin/); });
+  it('blocks deactivating a mentor with active interns', () => { expect(deactivateBlock(people[1]!, 1, people)).toMatch(/Pindahkan intern/); expect(deactivateBlock(people[3]!, 1, people)).toBeNull(); });
   it('validates new accounts with the PRD messages', () => {
     expect(validateAccount({ ...input, name: '' }, people)).toBe('Nama wajib diisi.');
     expect(validateAccount({ ...input, email: 'NABILA@x.id' }, people)).toBe('Email sudah terdaftar.');

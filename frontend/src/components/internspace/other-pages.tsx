@@ -1,29 +1,234 @@
-import { useState } from 'react';
-import { Send, Plus, Users, Download, Pencil, KeyRound, UserX, Megaphone, Trash2, ShieldAlert, CalendarDays } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { PageHeading, Panel, Status, Feedback } from './shared';
-import { useMock, initials, roleName } from './model';
-import { canExport, canSeeWarnings, type Role } from '@/lib/mock-rules';
+import { useEffect, useRef, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { Search, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { formatPeriod, formatShortTime } from "@/lib/mock-rules";
+import type { PageSearch } from "@/lib/search";
+import { initials, useMock } from "./model";
+import { DetailList, Empty, FormError, PageHeading, Panel } from "./shared";
+
+// ---------- Chat (semua role) ----------
 
 export function ChatPage() {
-  const m = useMock(); const [person, setPerson] = useState('Budi Santoso'); const [message, setMessage] = useState(''); const [messages, setMessages] = useState<Record<string, string[]>>({});
-  const contacts = m.people.filter(p => p.name !== roleName(m.role, m.profile));
-  return <><PageHeading title="Chat" subtitle="Tetap terhubung dengan mentor dan tim magang." /><section className="panel chat-layout"><div className="chat-contacts">{contacts.map(p => <Button key={p.id} className="chat-contact" variant={person === p.name ? 'secondary' : 'ghost'} onClick={() => setPerson(p.name)}><span className="avatar">{initials(p.name)}</span><span>{p.name}<small>{p.role}</small></span></Button>)}</div><div className="chat-main"><div className="chat-header flex gap-3 items-center"><span className="avatar blue">{initials(person)}</span><div>{person}<p className="text-[10px] text-success mt-1 font-normal">● Aktif</p></div></div><div className="chat-messages"><div className="text-center text-[9px] text-muted-foreground">Jumat, 9 Oktober 2026</div><div className="chat-bubble">Selamat pagi! Bagaimana progress pekerjaan hari ini?</div><div className="chat-bubble mine">Selamat pagi, Pak. Rancangan halaman informasi penerbangan sudah saya lanjutkan.</div><div className="chat-bubble">Baik, jangan lupa sertakan hasil riset pengguna pada rancanganmu, ya.</div>{(messages[person] || []).map((text, i) => <div className="chat-bubble mine" key={i}>{text}</div>)}</div><form className="chat-compose" onSubmit={e => { e.preventDefault(); if (!message.trim()) return; setMessages(old => ({ ...old, [person]: [...(old[person] || []), message] })); setMessage(''); }}><input aria-label="Pesan chat" placeholder="Tulis pesan…" value={message} onChange={e => setMessage(e.target.value)} /><Button size="icon" type="submit" aria-label="Kirim pesan"><Send /></Button></form></div></section></>;
+  const m = useMock();
+  const search = useSearch({ strict: false }) as PageSearch;
+  const me = m.me.name;
+  const [query, setQuery] = useState("");
+  const [message, setMessage] = useState("");
+  const mine = m.chats.filter((c) => c.from === me || c.to === me);
+  const lastWith = (name: string) => mine.filter((c) => c.from === name || c.to === name).at(-1);
+  const contacts = m.people
+    .filter((p) => p.name !== me && p.name.toLowerCase().includes(query.toLowerCase()))
+    .sort(
+      (a, b) =>
+        (lastWith(b.name)?.at ?? "").localeCompare(lastWith(a.name)?.at ?? "") ||
+        a.name.localeCompare(b.name),
+    );
+  const [active, setActive] = useState<string>(search.to ?? contacts[0]?.name ?? "");
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (search.to) setActive(search.to);
+  }, [search.to]);
+  useEffect(() => {
+    if (!active) return;
+    m.markChatRead(active);
+    if (m.chatDraft?.to === active) {
+      setMessage(m.chatDraft.text);
+      m.setChatDraft(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, m.chats.length]);
+  const thread = mine.filter((c) => c.from === active || c.to === active);
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [thread.length, active]);
+  const unreadFrom = (name: string) =>
+    mine.filter((c) => c.from === name && c.at > (m.chatRead[`${me}|${name}`] ?? "")).length;
+  const person = m.person(active);
+  return (
+    <>
+      <PageHeading
+        title="Chat"
+        subtitle="Semua pengguna dapat saling chat. Percakapan hanya dilihat pihak di dalamnya."
+      />
+      <section className="panel chat-layout">
+        <div className="chat-contacts">
+          <label className="search-field mb-2">
+            <Search size={14} className="text-muted-foreground" />
+            <input
+              aria-label="Cari kontak"
+              placeholder="Cari kontak"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          {contacts.map((p) => {
+            const last = lastWith(p.name);
+            const unread = unreadFrom(p.name);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className={`chat-contact ${active === p.name ? "active" : ""}`}
+                onClick={() => setActive(p.name)}
+              >
+                <span className="avatar">{initials(p.name)}</span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="flex justify-between gap-2">
+                    <strong className="truncate">{p.name}</strong>
+                    {unread > 0 && <span className="nav-count !ml-0">{unread}</span>}
+                  </span>
+                  <small className="truncate block">{last ? last.text : p.role}</small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="chat-main">
+          {!person ? (
+            <Empty>Pilih kontak untuk mulai chat.</Empty>
+          ) : (
+            <>
+              <div className="chat-header flex gap-3 items-center">
+                <span className="avatar blue">{initials(person.name)}</span>
+                <div>
+                  {person.name}
+                  <p className="text-[10px] text-muted-foreground mt-1 font-normal">
+                    {person.role} · {person.title}
+                  </p>
+                </div>
+              </div>
+              <div className="chat-messages" ref={listRef}>
+                {thread.length === 0 && <Empty>Belum ada pesan. Mulai percakapan.</Empty>}
+                {thread.map((c) => (
+                  <div key={c.id} className={`chat-bubble ${c.from === me ? "mine" : ""}`}>
+                    {c.text}
+                    <small>{formatShortTime(c.at)}</small>
+                  </div>
+                ))}
+              </div>
+              <form
+                className="chat-compose"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!message.trim()) return;
+                  m.sendChat(person.name, message.trim());
+                  setMessage("");
+                }}
+              >
+                <input
+                  aria-label="Tulis pesan"
+                  placeholder="Tulis pesan..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                />
+                <Button size="icon" type="submit" aria-label="Kirim pesan">
+                  <Send />
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
+      </section>
+      {m.role === "Admin" && (
+        <p className="text-[11px] text-muted-foreground mt-3">
+          Daftar chat hanya menampilkan percakapan milik Anda. Admin tidak dapat membaca chat orang
+          lain.
+        </p>
+      )}
+    </>
+  );
 }
+
+// ---------- Profil (semua role) ----------
+
 export function ProfilePage() {
-  const m = useMock(); const [feedback, setFeedback] = useState('');
-  return <><PageHeading title="Profil Saya" subtitle="Informasi pribadi dan detail periode magangmu." /><Panel title="Informasi profil"><form className="form-grid p-5 pt-0 max-w-2xl" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); if (m.role === 'Intern') m.setProfile(String(fd.get('name'))); setFeedback('Perubahan profil berhasil disimpan dalam sesi contoh.'); }}><div className="flex items-center gap-4 mb-3"><span className="avatar !w-16 !h-16 !text-xl">{initials(roleName(m.role, m.profile))}</span><div><h2 className="font-semibold text-base">{roleName(m.role, m.profile)}</h2><p className="text-muted-foreground mt-2 text-xs">{m.role} · Digital Experience Division</p></div></div><div className="form-two"><label className="form-field">Nama lengkap<input name="name" defaultValue={roleName(m.role, m.profile)} key={m.role} required /></label><label className="form-field">Email<input name="email" type="email" defaultValue="nabila.putri@example.com" required /></label></div><div className="form-two"><label className="form-field">Nomor telepon<input name="phone" placeholder="Nomor telepon" /></label><label className="form-field">Universitas<input name="university" defaultValue="Universitas Indonesia" /></label></div>{m.role === 'Intern' && <div className="summary-strip flex-col !items-start"><strong>Periode magang</strong><p>1 Agustus – 31 Desember 2026</p><p>Mentor: Budi Santoso</p></div>}<Button type="submit" className="w-fit">Simpan perubahan</Button></form></Panel><Feedback text={feedback} onClose={() => setFeedback('')} /></>;
+  const m = useMock();
+  const [name, setName] = useState(m.me.name);
+  const [phone, setPhone] = useState(m.me.phone ?? "");
+  const [photo, setPhoto] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setName(m.me.name);
+    setPhone(m.me.phone ?? "");
+  }, [m.me.name, m.me.phone]);
+  return (
+    <>
+      <PageHeading
+        title="Profil Saya"
+        subtitle="Anda dapat mengubah nama, foto, dan kontak. Data lain dikelola admin."
+      />
+      <div className="grid gap-5 max-w-3xl">
+        <Panel title="Data profil">
+          <form
+            className="form-grid px-5 pb-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!name.trim()) return setError("Nama wajib diisi.");
+              setError(null);
+              // Nama tampilan tidak mengubah kunci data contoh.
+              m.setPeople((old) =>
+                old.map((p) => (p.id === m.me.id ? { ...p, phone: phone.trim() } : p)),
+              );
+              toast.success("Perubahan tersimpan.");
+            }}
+          >
+            <div className="flex items-center gap-4">
+              <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
+              <label className="form-field">
+                Foto profil
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? "")}
+                />
+                {photo && (
+                  <small className="text-muted-foreground">
+                    {photo} (pratinjau tidak disimpan di prototipe)
+                  </small>
+                )}
+              </label>
+            </div>
+            <div className="form-two">
+              <label className="form-field">
+                Nama lengkap
+                <input value={name} onChange={(e) => setName(e.target.value)} />
+              </label>
+              <label className="form-field">
+                Nomor telepon
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="08xx-xxxx-xxxx"
+                />
+              </label>
+            </div>
+            <FormError text={error} />
+            <div className="form-actions">
+              <Button type="submit">Simpan</Button>
+            </div>
+          </form>
+        </Panel>
+        <Panel title="Data akun" subtitle="Hanya dapat diubah admin.">
+          <div className="px-5 pb-5">
+            <DetailList
+              items={[
+                ["Email internal", m.me.email],
+                ["Role", m.role],
+                ["Jabatan atau bidang", m.me.title],
+                ...(m.role === "Intern"
+                  ? ([
+                      ["Mentor", m.me.mentor],
+                      ["Periode magang", m.me.start ? formatPeriod(m.me.start, m.me.end) : "-"],
+                    ] as [string, string][])
+                  : []),
+                ["Password", "Diganti saat login pertama atau lewat reset oleh admin."],
+              ]}
+            />
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
 }
-export function UsersPage() {
-  const m = useMock(); const [open, setOpen] = useState(false); const [edit, setEdit] = useState<number | null>(null); const [feedback, setFeedback] = useState(''); const person = m.people.find(p => p.id === edit);
-  if (m.role !== 'Admin') return <Restricted />;
-  return <><PageHeading title="Manajemen User" subtitle="Kelola akun, mentor, dan periode magang peserta." action={<Button onClick={() => setOpen(true)}><Plus />Tambah user</Button>} /><Panel title="Daftar pengguna" subtitle={`${m.people.length} akun terdaftar`}><div className="table-wrap"><table className="data-table"><thead><tr><th>Pengguna</th><th>Role</th><th>Mentor</th><th>Akhir magang</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>{m.people.map(p => <tr key={p.id}><td><strong>{p.name}</strong><small className="block text-muted-foreground mt-1 text-[9px]">{p.email}</small></td><td>{p.role}</td><td>{p.mentor}</td><td>{p.end}</td><td><Status status={p.active ? 'Aktif' : 'Nonaktif'} /></td><td><div className="flex gap-1"><Button size="icon" variant="ghost" title="Ubah pengguna" aria-label={`Ubah ${p.name}`} onClick={() => setEdit(p.id)}><Pencil /></Button><Button size="icon" variant="ghost" title="Reset password" aria-label={`Reset password ${p.name}`} onClick={() => { m.log(`Ayu Wulandari meminta reset password ${p.name}.`); setFeedback('Permintaan reset password disimulasikan. Mockup tidak membuat password atau mengubah akun sungguhan.'); }}><KeyRound /></Button><Button size="icon" variant="ghost" title={p.active ? 'Nonaktifkan akun' : 'Aktifkan akun'} aria-label={`Ubah status ${p.name}`} onClick={() => { m.setPeople(old => old.map(x => x.id === p.id ? { ...x, active: !x.active } : x)); m.log(`Ayu Wulandari mengubah status akun ${p.name}.`); }}><UserX /></Button></div></td></tr>)}</tbody></table></div></Panel><Dialog open={open || !!person} onOpenChange={() => { setOpen(false); setEdit(null); }}><DialogContent><DialogTitle>{person ? 'Ubah pengguna' : 'Tambah pengguna'}</DialogTitle><DialogDescription>Informasi akun dan penetapan mentor magang.</DialogDescription><form className="form-grid" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const data = { name: String(fd.get('name')), email: String(fd.get('email')), role: String(fd.get('role')) as Role, mentor: String(fd.get('mentor')), end: String(fd.get('end')) || '—' }; if (person) m.setPeople(old => old.map(p => p.id === person.id ? { ...p, ...data } : p)); else m.setPeople(old => [...old, { ...data, id: Date.now(), active: true }]); m.log(`Ayu Wulandari ${person ? 'memperbarui' : 'menambahkan'} akun ${data.name}.`); setOpen(false); setEdit(null); }}><label className="form-field">Nama lengkap<input name="name" defaultValue={person?.name} required /></label><label className="form-field">Email<input name="email" type="email" defaultValue={person?.email} required /></label><label className="form-field">Role<select name="role" defaultValue={person?.role || 'Intern'}><option>Intern</option><option>Mentor</option><option>Admin</option></select></label><label className="form-field">Mentor<select name="mentor" defaultValue={person?.mentor}>{m.people.filter(p => p.role === 'Mentor').map(p => <option key={p.id}>{p.name}</option>)}</select></label><div className="form-two"><label className="form-field">Mulai magang<input name="start" type="date" defaultValue="2026-08-01" /></label><label className="form-field">Selesai magang<input name="end" type="date" defaultValue={person?.end !== '—' ? person?.end : undefined} /></label></div><Button type="submit">Simpan pengguna</Button></form></DialogContent></Dialog><Feedback text={feedback} onClose={() => setFeedback('')} /></>;
-}
-export function PerformancePage() { const m = useMock(); if (m.role !== 'Mentor') return <Restricted />; return <><PageHeading title="Performa Intern" subtitle="Pantau kehadiran dan progress intern yang kamu bimbing." /><div className="stats-grid !grid-cols-3"><div className="stat"><p className="text-muted-foreground text-xs">Kehadiran Nabila</p><div className="stat-value">85,7<small>%</small></div><p className="text-xs text-primary">6 dari 7 hari kerja</p></div><div className="stat"><p className="text-muted-foreground text-xs">Task selesai</p><div className="stat-value">12<small> task</small></div><p className="text-xs text-success">Bulan Oktober</p></div><div className="stat"><p className="text-muted-foreground text-xs">Daily Report terkirim</p><div className="stat-value">5<small> laporan</small></div><p className="text-xs text-info">Bulan Oktober</p></div></div><Panel title="Rekap intern bimbingan"><div className="table-wrap"><table className="data-table"><thead><tr><th>Intern</th><th>Kehadiran</th><th>Task selesai</th><th>Daily Report</th></tr></thead><tbody><tr><td>Nabila Putri</td><td>6 / 7 hari</td><td>12</td><td>5</td></tr><tr><td>Rizky Pratama</td><td>7 / 7 hari</td><td>8</td><td>7</td></tr></tbody></table></div></Panel><p className="text-muted-foreground text-xs mt-4">Dasar perhitungan KPI belum ditetapkan.</p></>; }
-export function WarningsPage() { const m = useMock(); const [open, setOpen] = useState(false); if (!canSeeWarnings(m.role)) return <Restricted />; return <><PageHeading title="Catatan Warning" subtitle="Catatan peringatan intern. Hanya dapat dilihat oleh admin." action={<Button onClick={() => setOpen(true)}><Plus />Tambah catatan</Button>} /><Panel title="Riwayat catatan">{m.warnings.map((w, i) => <div className="announcement" key={i}><span className="announcement-icon bg-warning-soft text-warning"><ShieldAlert /></span><p className="detail-copy">{w}</p></div>)}</Panel><Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogTitle>Tambah catatan peringatan</DialogTitle><DialogDescription>Catatan ini tidak terlihat oleh intern maupun mentor.</DialogDescription><form className="form-grid" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); m.setWarnings(old => [...old, `${fd.get('intern')} — ${fd.get('note')}`]); m.log('Ayu Wulandari menambahkan catatan warning.'); setOpen(false); }}><label className="form-field">Intern<select name="intern">{m.people.filter(p => p.role === 'Intern').map(p => <option key={p.id}>{p.name}</option>)}</select></label><label className="form-field">Catatan<textarea name="note" required /></label><Button type="submit">Simpan catatan</Button></form></DialogContent></Dialog></>; }
-export function AnnouncementsPage() { const m = useMock(); const [open, setOpen] = useState(false); const [edit, setEdit] = useState<number | null>(null); const existing = edit !== null ? m.announcements[edit] : undefined; return <><PageHeading title="Pengumuman" subtitle="Informasi terbaru dari tim Human Capital." action={m.role === 'Admin' ? <Button onClick={() => setOpen(true)}><Plus />Buat pengumuman</Button> : undefined} /><Panel title="Pengumuman terbaru">{m.announcements.filter(a => m.role === 'Admin' || a.audience.includes(m.role)).map((a, i) => <div className="announcement" key={a.title}><span className="announcement-icon"><Megaphone /></span><div className="flex-1"><h3>{a.title}</h3><p>{a.text}</p><small>Penerima: {a.audience}</small></div>{m.role === 'Admin' && <div className="flex"><Button variant="ghost" size="icon" aria-label={`Edit ${a.title}`} onClick={() => { setEdit(i); setOpen(true); }}><Pencil /></Button><Button variant="ghost" size="icon" aria-label={`Hapus ${a.title}`} onClick={() => { m.setAnnouncements(old => old.filter((_, index) => index !== i)); m.log('Ayu Wulandari menghapus pengumuman.'); }}><Trash2 /></Button></div>}</div>)}</Panel><Dialog open={open && m.role === 'Admin'} onOpenChange={() => { setOpen(false); setEdit(null); }}><DialogContent><DialogTitle>{existing ? 'Ubah pengumuman' : 'Buat pengumuman'}</DialogTitle><DialogDescription>Pengumuman tampil pada lonceng notifikasi penerima.</DialogDescription><form className="form-grid" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const a = { title: String(fd.get('title')), text: String(fd.get('text')), audience: String(fd.get('audience')) }; m.setAnnouncements(old => edit !== null ? old.map((x, i) => i === edit ? a : x) : [...old, a]); m.log('Ayu Wulandari menyimpan pengumuman.'); setOpen(false); setEdit(null); }}><label className="form-field">Judul<input name="title" required defaultValue={existing?.title} /></label><label className="form-field">Isi pengumuman<textarea name="text" required defaultValue={existing?.text} /></label><label className="form-field">Penerima<select name="audience" defaultValue={existing?.audience}><option>Intern & Mentor</option><option>Intern</option><option>Mentor</option></select></label><Button type="submit">Simpan pengumuman</Button></form></DialogContent></Dialog></>; }
-export function SettingsPage() { const m = useMock(); const [feedback, setFeedback] = useState(''); const [holidays, setHolidays] = useState(['2026-12-25']); const [open, setOpen] = useState(false); if (m.role !== 'Admin') return <Restricted />; return <><PageHeading title="Pengaturan Sistem" subtitle="Atur jam kerja global dan kalender kerja peserta magang." /><Panel title="Jam kerja"><form className="form-grid p-5 pt-0 max-w-lg" onSubmit={e => { e.preventDefault(); m.log('Ayu Wulandari memperbarui jam kerja global.'); setFeedback('Pengaturan jam kerja contoh berhasil disimpan.'); }}><div className="form-two"><label className="form-field">Jam masuk<input type="time" defaultValue="08:00" required /></label><label className="form-field">Jam pulang<input type="time" defaultValue="17:00" required /></label></div><p className="detail-copy">Sabtu dan Minggu merupakan hari non-kerja. Cut-off kehadiran: 23:59.</p><Button className="w-fit" type="submit">Simpan pengaturan</Button></form></Panel><div className="mt-6"><Panel title="Kalender kerja" action={<Button size="sm" variant="outline" onClick={() => setOpen(true)}><Plus />Hari libur</Button>}>{holidays.map((h, i) => <div className="task-row" key={h}><CalendarDays size={17} className="text-primary" /><span className="flex-1">{h} · Hari libur</span><Button variant="ghost" size="icon" aria-label={`Hapus hari libur ${h}`} onClick={() => { setHolidays(old => old.filter((_, n) => n !== i)); m.log(`Ayu Wulandari menghapus hari libur ${h}.`); }}><Trash2 /></Button></div>)}</Panel></div><Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogTitle>Tambah hari libur</DialogTitle><DialogDescription>Perubahan kalender tercatat di log aktivitas.</DialogDescription><form className="form-grid" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const day = String(fd.get('date')); setHolidays(old => [...old, day]); m.log(`Ayu Wulandari menambah hari libur ${day}.`); setOpen(false); }}><label className="form-field">Tanggal<input name="date" type="date" required /></label><label className="form-field">Keterangan<input name="note" required /></label><Button type="submit">Tambah hari libur</Button></form></DialogContent></Dialog><Feedback text={feedback} onClose={() => setFeedback('')} /></>; }
-export function LogsPage() { const m = useMock(); if (m.role !== 'Admin') return <Restricted />; return <><PageHeading title="Log Aktivitas" subtitle="Jejak perubahan administrasi dalam workspace." /><Panel title="Aktivitas terbaru">{m.logs.map((l, i) => <div className="task-row" key={i}><span className="status review">Admin</span><p className="text-xs">{l}</p></div>)}</Panel></>; }
-export function ReportsPage() { const m = useMock(); const [type, setType] = useState('Absensi'); const [feedback, setFeedback] = useState(''); if (!canExport(m.role)) return <Restricted />; return <><PageHeading title="Export Laporan" subtitle="Siapkan rekap absensi, izin, dan task dalam format PDF." /><Panel title="Pengaturan laporan"><div className="form-grid p-5 pt-0 max-w-xl"><label className="form-field">Jenis laporan<select value={type} onChange={e => setType(e.target.value)}><option>Absensi</option><option>Izin</option><option>Task</option></select></label><div className="form-two"><label className="form-field">Tanggal mulai<input type="date" defaultValue="2026-10-01" /></label><label className="form-field">Tanggal selesai<input type="date" defaultValue="2026-10-09" /></label></div><label className="form-field">Intern<select><option>Semua intern</option><option>Nabila Putri</option><option>Rizky Pratama</option></select></label><Button className="w-fit" onClick={() => setFeedback(`Preview laporan ${type.toLowerCase()} siap. Unduhan PDF belum terhubung pada mockup ini.`)}><Download />Siapkan PDF</Button></div></Panel><Feedback text={feedback} onClose={() => setFeedback('')} /></>; }
-function Restricted() { return <><PageHeading title="Akses terbatas" subtitle="Halaman ini tidak tersedia untuk peran yang sedang dipilih." /><Panel title="Pilih peran yang sesuai"><p className="detail-copy p-5 pt-0">Ubah peran pada pilihan akun di bagian atas untuk melihat halaman ini.</p></Panel></>; }
