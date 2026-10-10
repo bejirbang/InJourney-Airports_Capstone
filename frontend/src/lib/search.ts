@@ -25,5 +25,6 @@ export type AppPath =
   | "/pengumuman"
   | "/laporan"
   | "/pengaturan"
+  | "/lokasi-kantor"
   | "/log"
   | "/profil";

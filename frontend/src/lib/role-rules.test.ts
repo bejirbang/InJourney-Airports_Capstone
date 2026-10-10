@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  checkLocation,
+  locationMessage,
+  validateFileSize,
+  distanceMeters,
+  validateOffice,
+  withinOffice,
   attendanceRate,
   attendanceStatus,
   canDeleteTask,
@@ -209,5 +215,65 @@ describe("Akun dan KPI", () => {
   it("izin yang disetujui tidak dihitung sebagai ketidakhadiran", () => {
     expect(attendanceRate(18, 20, 2)).toBe(1);
     expect(attendanceRate(0, 0, 0)).toBeNull();
+  });
+});
+
+describe("Lokasi kantor (design-admin.md 9A)", () => {
+  const ok = {
+    name: "Kantor Pusat",
+    lat: -6.1256,
+    lng: 106.6559,
+    radiusIn: "100",
+    radiusOut: "300",
+  };
+  it("memvalidasi pin, nama, dan radius", () => {
+    expect(validateOffice({ ...ok, lat: null }, [])).toBe("Pilih titik kantor di peta.");
+    expect(validateOffice({ ...ok, name: " " }, [])).toBe("Nama kantor wajib diisi.");
+    expect(validateOffice(ok, ["kantor pusat"])).toBe("Nama kantor sudah dipakai kantor lain.");
+    expect(validateOffice({ ...ok, radiusIn: "5" }, [])).toBe(
+      "Isi radius antara 10 dan 1000 meter.",
+    );
+    expect(validateOffice({ ...ok, radiusOut: "1500" }, [])).toBe(
+      "Isi radius antara 10 dan 1000 meter.",
+    );
+    expect(validateOffice(ok, [])).toBeNull();
+  });
+  it("clock in memakai radius clock in, clock out memakai radius clock out, hanya kantor aktif", () => {
+    const office = { lat: -6.1256, lng: 106.6559, radiusIn: 100, radiusOut: 300, active: true };
+    const pos = { lat: -6.1256, lng: 106.6577 }; // sekitar 200 m ke timur
+    expect(Math.round(distanceMeters(office, pos) / 10) * 10).toBe(200);
+    expect(withinOffice(pos, [office], "in")).toBe(false);
+    expect(withinOffice(pos, [office], "out")).toBe(true);
+    expect(withinOffice(pos, [{ ...office, active: false }], "out")).toBe(false);
+  });
+});
+
+describe("Validasi lokasi clock in dan clock out (design-intern.md Draft 2)", () => {
+  const offices = [{ lat: -6.1256, lng: 106.6559, radiusIn: 100, radiusOut: 300, active: true }];
+  const dekat = { lat: -6.1256, lng: 106.6577 };
+  it("posisi 200 m: ditolak saat clock in, diterima saat clock out", () => {
+    expect(checkLocation(dekat, offices, "in")).toBe("di-luar");
+    expect(checkLocation(dekat, offices, "out")).toBe("ok");
+  });
+  it("tanpa kantor aktif tidak bisa clock in", () => {
+    expect(checkLocation(dekat, [{ ...offices[0]!, active: false }], "in")).toBe("tanpa-kantor");
+  });
+  it("pesan mengikuti dokumen", () => {
+    expect(locationMessage("di-luar", "in")).toBe(
+      "Lokasi Anda belum sesuai. Clock in belum bisa dilakukan.",
+    );
+    expect(locationMessage("di-luar", "out")).toBe(
+      "Lokasi Anda belum sesuai. Clock out belum bisa dilakukan.",
+    );
+    expect(locationMessage("ditolak", "out")).toBe(
+      "Izinkan akses lokasi di browser untuk melakukan clock out.",
+    );
+    expect(locationMessage("tanpa-kantor", "in")).toBe(
+      "Belum ada kantor aktif. Clock in belum bisa dilakukan. Hubungi admin.",
+    );
+  });
+  it("batas file 2 MB", () => {
+    expect(validateFileSize(2 * 1024 * 1024)).toBeNull();
+    expect(validateFileSize(2 * 1024 * 1024 + 1)).toBe("Ukuran file maksimal 2 MB.");
   });
 });

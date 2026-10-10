@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { WarningsPage } from "@/components/internspace/admin-pages";
+import { WarningsPage } from "@/components/internspace/admin/warnings";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/warning")({

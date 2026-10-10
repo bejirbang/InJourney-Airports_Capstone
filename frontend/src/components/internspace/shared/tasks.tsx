@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { useSearch } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { Link, useSearch } from "@tanstack/react-router";
 import {
   AlertTriangle,
   Columns3,
@@ -13,6 +11,8 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,12 +23,12 @@ import {
 } from "@/components/ui/dialog";
 import {
   TODAY,
+  type TaskStatus,
   addDays,
   canComment,
   canDeleteTask,
   canDragTask,
   canEditTask,
-  dueOnHoliday,
   formatDateTime,
   formatShort,
   formatShortTime,
@@ -40,13 +40,12 @@ import {
   taskIsLate,
   taskStatuses,
   validateComment,
-  validateRevise,
-  validateSubmission,
-  validateTask,
-  type TaskStatus,
 } from "@/lib/mock-rules";
-import type { PageSearch } from "@/lib/search";
-import { ME, shortName, useMock, type Task } from "./model";
+import { type PageSearch } from "@/lib/search";
+import { SubmitDialog } from "@/components/internspace/intern/task-submit";
+import { TaskForm } from "@/components/internspace/mentor/task-form";
+import { AcceptDialog, ReviseDialog } from "@/components/internspace/mentor/task-review";
+import { ME, type Task, shortName, useMock } from "@/components/internspace/shared/model";
 import {
   Attachment,
   Confirm,
@@ -57,7 +56,7 @@ import {
   Panel,
   Segmented,
   Status,
-} from "./shared";
+} from "@/components/internspace/shared/ui";
 
 type Sort = "tenggat" | "terbaru" | "intern";
 
@@ -442,7 +441,7 @@ export function TasksPage() {
   );
 }
 
-type Update = (id: string, change: (t: Task) => Task) => void;
+export type Update = (id: string, change: (t: Task) => Task) => void;
 
 function TaskDetail({
   task,
@@ -685,370 +684,6 @@ function TaskDetail({
           Task "{task.title}" untuk {task.intern} akan dihapus dan intern menerima notifikasi
           pembatalan. Hanya Task To Do tanpa komentar yang bisa dihapus.
         </Confirm>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SubmitDialog({
-  task,
-  onClose,
-  update,
-}: {
-  task: Task | null;
-  onClose: () => void;
-  update: Update;
-}) {
-  const m = useMock();
-  const [link, setLink] = useState("");
-  const [file, setFile] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setLink("");
-    setFile("");
-    setError(null);
-  }, [task?.id]);
-  if (!task) return <Dialog open={false} />;
-  const replacing = !!(task.link || task.file);
-  const late = m.nowIso() > task.due;
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogTitle>Kumpulkan Hasil - {task.title}</DialogTitle>
-        <DialogDescription>Isi link, file, atau keduanya.</DialogDescription>
-        <form
-          className="form-grid"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (task.status === "Done") return setError("Task ini sudah selesai.");
-            const err = validateSubmission(link, file);
-            setError(err);
-            if (err) return;
-            const wasReview = task.status === "In Review";
-            update(task.id, (t) => {
-              const next: Task = {
-                ...t,
-                status: "In Review",
-                everSubmitted: true,
-                submittedAt: m.nowIso(),
-                revisePending: false,
-              };
-              delete next.link;
-              delete next.file;
-              if (link.trim()) next.link = link.trim();
-              if (file) next.file = file;
-              return next;
-            });
-            m.notify(
-              "Mentor",
-              wasReview
-                ? `${shortName(task.intern)} mengganti hasil Task '${task.title}'.`
-                : `${shortName(task.intern)} mengumpulkan Task '${task.title}'.`,
-              "/task",
-              { open: task.id },
-            );
-            toast.success("Hasil terkumpul. Menunggu pemeriksaan mentor.");
-            onClose();
-          }}
-        >
-          <label className="form-field">
-            Link hasil
-            <input
-              type="url"
-              placeholder="https://"
-              value={link}
-              onChange={(e) => setLink(e.target.value)}
-            />
-          </label>
-          <label className="form-field">
-            File hasil
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0]?.name ?? "")} />
-            <small className="text-muted-foreground">
-              Jenis dan batas ukuran file ditetapkan tim backend (2 MB atau 10 MB, belum
-              diputuskan).
-            </small>
-          </label>
-          {replacing && (
-            <div className="banner warn">
-              Hasil sebelumnya akan diganti dan file lama dihapus permanen.
-            </div>
-          )}
-          {late && (
-            <div className="banner warn">
-              Tenggat sudah lewat. Hasil tetap dapat dikumpulkan, mentor yang memutuskan.
-            </div>
-          )}
-          <FormError text={error} />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Batal
-            </Button>
-            <Button type="submit">Kumpulkan</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ReviseDialog({
-  task,
-  onClose,
-  update,
-}: {
-  task: Task | null;
-  onClose: () => void;
-  update: Update;
-}) {
-  const m = useMock();
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setText("");
-    setError(null);
-  }, [task?.id]);
-  if (!task) return <Dialog open={false} />;
-  const p = m.person(task.intern);
-  const inactive = !!p && !m.isActive(p);
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogTitle>Revise Task - {task.title}</DialogTitle>
-        <DialogDescription>
-          Task akan kembali ke In Progress dan intern diberi tahu.
-        </DialogDescription>
-        {inactive && (
-          <div className="banner warn">
-            Intern sudah nonaktif dan tidak dapat menindaklanjuti revisi.
-          </div>
-        )}
-        <label className="form-field">
-          Komentar revisi *
-          <textarea value={text} onChange={(e) => setText(e.target.value)} />
-        </label>
-        <FormError text={error} />
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Batal
-          </Button>
-          <Button
-            onClick={() => {
-              const err = validateRevise(text);
-              setError(err);
-              if (err) return;
-              update(task.id, (t) => ({
-                ...t,
-                status: "In Progress",
-                revisions: t.revisions + 1,
-                revisePending: true,
-                unread: { ...t.unread, Intern: t.unread.Intern + 1 },
-                comments: [
-                  ...t.comments,
-                  {
-                    id: Date.now(),
-                    author: ME.Mentor,
-                    role: "Mentor",
-                    text: text.trim(),
-                    at: m.nowIso(),
-                    revise: true,
-                  },
-                ],
-              }));
-              if (task.intern === ME.Intern)
-                m.notify("Intern", `Task '${task.title}' perlu direvisi.`, "/task", {
-                  open: task.id,
-                });
-              toast.success("Task dikembalikan ke intern untuk diperbaiki.");
-              onClose();
-            }}
-          >
-            Kirim Revisi
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AcceptDialog({
-  task,
-  onClose,
-  update,
-}: {
-  task: Task | null;
-  onClose: () => void;
-  update: Update;
-}) {
-  const m = useMock();
-  const [text, setText] = useState("");
-  if (!task) return null;
-  return (
-    <Confirm
-      open
-      title={`Accept Task - ${task.title}`}
-      confirmLabel="Accept"
-      onClose={() => {
-        setText("");
-        onClose();
-      }}
-      onConfirm={() => {
-        update(task.id, (t) => ({
-          ...t,
-          status: "Done",
-          doneAt: m.nowIso(),
-          revisePending: false,
-          comments: text.trim()
-            ? [
-                ...t.comments,
-                {
-                  id: Date.now(),
-                  author: ME.Mentor,
-                  role: "Mentor",
-                  text: text.trim(),
-                  at: m.nowIso(),
-                },
-              ]
-            : t.comments,
-        }));
-        if (task.intern === ME.Intern)
-          m.notify("Intern", `Task '${task.title}' diterima.`, "/task", { open: task.id });
-        toast.success("Task diterima dan ditandai Done.");
-        setText("");
-        onClose();
-      }}
-    >
-      <p>Task akan ditandai Done, terkunci, dan intern diberi tahu.</p>
-      <label className="form-field mt-3">
-        Komentar (opsional)
-        <textarea className="!min-h-16" value={text} onChange={(e) => setText(e.target.value)} />
-      </label>
-    </Confirm>
-  );
-}
-
-function TaskForm({ task, onClose }: { task: Task | "new" | null; onClose: () => void }) {
-  const m = useMock();
-  const editing = task && task !== "new" ? task : null;
-  const active = m.internsOf(ME.Mentor).filter((p) => m.isActive(p));
-  const [intern, setIntern] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("17:00");
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setIntern(editing?.intern ?? "");
-    setTitle(editing?.title ?? "");
-    setDescription(editing?.description ?? "");
-    setDate(editing?.due.slice(0, 10) ?? "");
-    setTime(editing?.due.slice(11, 16) ?? "17:00");
-    setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task]);
-  const due = date ? `${date}T${time || "17:00"}` : "";
-  return (
-    <Dialog open={!!task} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogTitle>{editing ? "Ubah Task" : "Buat Task"}</DialogTitle>
-        <DialogDescription>
-          Setiap Task diberikan ke satu intern. Perubahan memberi notifikasi ke intern.
-        </DialogDescription>
-        <form
-          className="form-grid"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const err = validateTask({ intern, title, description, due }, m.nowIso());
-            setError(err);
-            if (err) return;
-            if (editing) {
-              m.setTasks((old) =>
-                old.map((t) =>
-                  t.id === editing.id
-                    ? { ...t, title: title.trim(), description: description.trim(), due }
-                    : t,
-                ),
-              );
-              if (editing.intern === ME.Intern)
-                m.notify("Intern", `Task '${title.trim()}' diubah mentor.`, "/task", {
-                  open: editing.id,
-                });
-              toast.success("Perubahan tersimpan.");
-            } else {
-              const id = `TSK-${String(Math.max(...m.tasks.map((t) => Number(t.id.slice(4)))) + 1).padStart(3, "0")}`;
-              m.setTasks((old) => [
-                ...old,
-                {
-                  id,
-                  title: title.trim(),
-                  description: description.trim(),
-                  intern,
-                  mentor: ME.Mentor,
-                  due,
-                  status: "To Do",
-                  createdAt: m.nowIso(),
-                  everSubmitted: false,
-                  revisions: 0,
-                  comments: [],
-                  unread: { Intern: 0, Mentor: 0 },
-                },
-              ]);
-              if (intern === ME.Intern)
-                m.notify("Intern", `Task baru dari ${ME.Mentor}: ${title.trim()}.`, "/task", {
-                  open: id,
-                });
-              toast.success("Task dibuat. Intern sudah diberi tahu.");
-            }
-            onClose();
-          }}
-        >
-          <label className="form-field">
-            Intern *
-            <select value={intern} disabled={!!editing} onChange={(e) => setIntern(e.target.value)}>
-              <option value="">Pilih intern</option>
-              {active.map((p) => (
-                <option key={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
-            Judul *
-            <input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <label className="form-field">
-            Deskripsi *
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
-          </label>
-          <div className="form-two">
-            <label className="form-field">
-              Tenggat (tanggal) *
-              <input
-                type="date"
-                value={date}
-                min={TODAY}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </label>
-            <label className="form-field">
-              Jam
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-            </label>
-          </div>
-          {dueOnHoliday(due, m.holidayDates) && (
-            <p className="text-[11px] text-warning">
-              Tenggat jatuh pada hari libur. Task tetap bisa disimpan.
-            </p>
-          )}
-          <p className="text-[10px] text-muted-foreground">
-            Lampiran referensi, prioritas, dan label belum termasuk versi ini.
-          </p>
-          <FormError text={error} />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Batal
-            </Button>
-            <Button type="submit">Simpan</Button>
-          </DialogFooter>
-        </form>
       </DialogContent>
     </Dialog>
   );

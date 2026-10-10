@@ -21,16 +21,27 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: router.pathname }),
 }));
 
-const { MockProvider } = await import("@/components/internspace/model");
-const { Workspace } = await import("@/components/internspace/shell");
-const { Dashboard } = await import("@/components/internspace/dashboard");
-const { AttendancePage } = await import("@/components/internspace/attendance");
-const { TasksPage } = await import("@/components/internspace/tasks");
-const { LeavePage, LeaveCalendarPage } = await import("@/components/internspace/leave");
-const { MyInternsPage, PerformancePage } = await import("@/components/internspace/mentor-pages");
-const { ChatPage, ProfilePage } = await import("@/components/internspace/other-pages");
-const admin = await import("@/components/internspace/admin-pages");
-const { LoginPage, ChangePasswordPage } = await import("@/components/internspace/account-pages");
+const { MockProvider } = await import("@/components/internspace/shared/model");
+const { Workspace } = await import("@/components/internspace/shared/shell");
+const { Dashboard, AttendancePage, LeavePage } =
+  await import("@/components/internspace/shared/role-pages");
+const { TasksPage } = await import("@/components/internspace/shared/tasks");
+const { ChatPage } = await import("@/components/internspace/shared/chat");
+const { ProfilePage } = await import("@/components/internspace/shared/profile");
+const { LoginPage, ChangePasswordPage } = await import("@/components/internspace/shared/account");
+const { MyInternsPage } = await import("@/components/internspace/mentor/interns");
+const { PerformancePage } = await import("@/components/internspace/mentor/performance");
+const { LeaveCalendarPage } = await import("@/components/internspace/mentor/leave-calendar");
+const { OfficesPage } = await import("@/components/internspace/admin/offices");
+const admin = {
+  ...(await import("@/components/internspace/admin/users")),
+  ...(await import("@/components/internspace/admin/corrections")),
+  ...(await import("@/components/internspace/admin/warnings")),
+  ...(await import("@/components/internspace/admin/announcements")),
+  ...(await import("@/components/internspace/admin/reports")),
+  ...(await import("@/components/internspace/admin/settings")),
+  ...(await import("@/components/internspace/admin/logs")),
+};
 
 const show = (role: Role, page: ReactNode, path = "/") => {
   router.pathname = path;
@@ -86,6 +97,7 @@ describe("Menu per role", () => {
       "Pengumuman",
       "Laporan",
       "Pengaturan",
+      "Lokasi Kantor",
       "Log Aktivitas",
     ]);
   });
@@ -119,6 +131,7 @@ describe("Setiap halaman dapat dirender", () => {
     ["Admin", "/laporan", <admin.ReportsPage key="r" />, "Buat laporan"],
     ["Admin", "/pengaturan", <admin.SettingsPage key="s" />, "Riwayat jam kerja"],
     ["Admin", "/log", <admin.LogsPage key="g" />, "Waktu"],
+    ["Admin", "/lokasi-kantor", <OfficesPage key="o" />, "Kantor Pusat Terminal 3"],
   ];
   it.each(pages)("%s %s", (role, path, page, text) => {
     show(role, page, path);
@@ -168,6 +181,10 @@ describe("Alur utama", () => {
     fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
     expect(screen.getByText("Belum jam pulang (17:00)")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tetap Clock Out" }));
+    expect(screen.getByRole("button", { name: /Memeriksa lokasi/ })).toBeDisabled();
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(screen.getByText("Hadir, clock out 15:00")).toBeInTheDocument();
     expect(screen.getByText("Laporan terkunci setelah clock out.")).toBeInTheDocument();
   });
@@ -209,5 +226,62 @@ describe("Alur utama", () => {
     show("Admin", <LeavePage />, "/izin");
     expect(screen.getByText(/Admin hanya dapat menolak atau menunggu mentor/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Setujui" })).toBeDisabled();
+  });
+});
+
+describe("Lokasi Kantor", () => {
+  it("menonaktifkan kantor aktif terakhir memberi peringatan dan menampilkan banner", () => {
+    show("Admin", <OfficesPage />, "/lokasi-kantor");
+    fireEvent.keyDown(screen.getByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Nonaktifkan" }));
+    expect(screen.getByText(/Ini kantor aktif terakhir/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+    expect(
+      screen.getByText("Belum ada kantor aktif. Intern tidak bisa clock in."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Intern dan kantor aktif", () => {
+  it("Clock In tidak aktif bila belum ada kantor aktif", () => {
+    show(
+      "Intern",
+      <>
+        <OfficesPage />
+        <AttendancePage />
+      </>,
+      "/absensi",
+    );
+    expect(screen.getByRole("button", { name: /Clock In/ })).toBeEnabled();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Nonaktifkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+    expect(screen.getByRole("button", { name: /Clock In/ })).toBeDisabled();
+    expect(
+      screen.getByText("Belum ada kantor aktif. Clock in belum bisa dilakukan. Hubungi admin."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Simulasi posisi di kartu Hari Ini", () => {
+  it("200 m dari Terminal 3: clock in ditolak", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "Date"] });
+    vi.setSystemTime(new Date(2026, 9, 12, 15, 0));
+    show("Intern", <AttendancePage />, "/absensi");
+    fireEvent.change(screen.getByLabelText("Simulasi posisi intern"), {
+      target: { value: "dekat" },
+    });
+    expect(screen.getByText("Di luar radius")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Clock In/ }));
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(
+      screen.getByText("Lokasi Anda belum sesuai. Clock in belum bisa dilakukan."),
+    ).toBeInTheDocument();
   });
 });

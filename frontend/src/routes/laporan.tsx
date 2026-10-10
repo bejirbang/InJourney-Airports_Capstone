@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ReportsPage } from "@/components/internspace/admin-pages";
+import { ReportsPage } from "@/components/internspace/admin/reports";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/laporan")({

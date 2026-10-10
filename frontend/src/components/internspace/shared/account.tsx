@@ -4,7 +4,7 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { isAutoInactive, notStarted, validatePassword } from "@/lib/mock-rules";
-import { DEMO_PASSWORD, ME, TEMP_PASSWORD, useMock } from "./model";
+import { DEMO_PASSWORD, ME, TEMP_PASSWORD, useMock } from "@/components/internspace/shared/model";
 import airport from "@/assets/airport-banner.jpg";
 
 function AccountLayout({ children }: { children: ReactNode }) {

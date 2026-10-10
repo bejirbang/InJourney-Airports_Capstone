@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LoginPage } from "@/components/internspace/account-pages";
+import { LoginPage } from "@/components/internspace/shared/account";
 
 export const Route = createFileRoute("/login")({
   head: () => ({

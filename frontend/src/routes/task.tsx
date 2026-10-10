@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { TasksPage } from "@/components/internspace/tasks";
+import { TasksPage } from "@/components/internspace/shared/tasks";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/task")({

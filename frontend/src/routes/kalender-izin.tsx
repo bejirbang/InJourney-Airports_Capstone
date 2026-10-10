@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LeaveCalendarPage } from "@/components/internspace/leave";
+import { LeaveCalendarPage } from "@/components/internspace/mentor/leave-calendar";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/kalender-izin")({

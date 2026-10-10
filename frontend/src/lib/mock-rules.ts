@@ -424,3 +424,72 @@ export const formatPercent = (r: number | null) => (r === null ? "—" : `${Math
 /** Hari Izin yang disetujui tidak dihitung sebagai ketidakhadiran. */
 export const attendanceRate = (hadir: number, workdays: number, izin: number) =>
   ratio(hadir, workdays - izin);
+
+// ---- Lokasi kantor (design-admin.md Bagian 9A) ----
+/** Batas radius masih usulan (design-admin.md 17.2 no. 3), belum diputuskan. */
+export const RADIUS_MIN = 10;
+export const RADIUS_MAX = 1000;
+export type OfficeInput = {
+  name: string;
+  lat: number | null;
+  lng: number | null;
+  radiusIn: string;
+  radiusOut: string;
+};
+const radiusValid = (r: string) =>
+  /^\d+$/.test(r.trim()) && Number(r) >= RADIUS_MIN && Number(r) <= RADIUS_MAX;
+export const validateOffice = (input: OfficeInput, otherNames: string[]) => {
+  if (input.lat === null || input.lng === null) return "Pilih titik kantor di peta.";
+  if (!input.name.trim()) return "Nama kantor wajib diisi.";
+  if (otherNames.some((n) => n.trim().toLowerCase() === input.name.trim().toLowerCase()))
+    return "Nama kantor sudah dipakai kantor lain.";
+  if (!radiusValid(input.radiusIn) || !radiusValid(input.radiusOut))
+    return `Isi radius antara ${RADIUS_MIN} dan ${RADIUS_MAX} meter.`;
+  return null;
+};
+/** Jarak dua titik dalam meter (haversine). */
+export const distanceMeters = (
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+) => {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const h =
+    Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+    Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+};
+/** Clock in memakai radius clock in, clock out memakai radius clock out, di kantor aktif mana pun. */
+export const withinOffice = (
+  pos: { lat: number; lng: number },
+  offices: { lat: number; lng: number; radiusIn: number; radiusOut: number; active: boolean }[],
+  kind: "in" | "out",
+) =>
+  offices.some(
+    (o) => o.active && distanceMeters(pos, o) <= (kind === "in" ? o.radiusIn : o.radiusOut),
+  );
+export const formatCoord = (lat: number, lng: number) => `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+/** Hasil pemeriksaan lokasi saat clock in atau clock out (design-intern.md 5.3 dan 7.2). */
+export type LocationResult = "ok" | "di-luar" | "tanpa-kantor" | "ditolak" | "gagal";
+export const checkLocation = (
+  pos: { lat: number; lng: number },
+  offices: { lat: number; lng: number; radiusIn: number; radiusOut: number; active: boolean }[],
+  kind: "in" | "out",
+): LocationResult => {
+  if (!offices.some((o) => o.active)) return "tanpa-kantor";
+  return withinOffice(pos, offices, kind) ? "ok" : "di-luar";
+};
+export const locationMessage = (result: Exclude<LocationResult, "ok">, kind: "in" | "out") => {
+  const act = kind === "in" ? "clock in" : "clock out";
+  const Act = kind === "in" ? "Clock in" : "Clock out";
+  if (result === "tanpa-kantor")
+    return `Belum ada kantor aktif. ${Act} belum bisa dilakukan. Hubungi admin.`;
+  if (result === "ditolak") return `Izinkan akses lokasi di browser untuk melakukan ${act}.`;
+  if (result === "gagal") return "Lokasi tidak dapat dibaca. Coba lagi.";
+  return `Lokasi Anda belum sesuai. ${Act} belum bisa dilakukan.`;
+};
+
+// ---- Batas file (keputusan Draft 2) ----
+export const MAX_FILE_MB = 2;
+export const validateFileSize = (bytes: number) =>
+  bytes > MAX_FILE_MB * 1024 * 1024 ? `Ukuran file maksimal ${MAX_FILE_MB} MB.` : null;

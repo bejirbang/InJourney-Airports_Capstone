@@ -546,3 +546,22 @@ button, input, select, textarea { font: inherit; }
   .calendar-cell { min-height: 58px; padding: 3px; }
   .notification-popup { width: min(340px, calc(100vw - 24px)); }
 }
+
+/* ---- Lokasi kantor (design-admin.md 9A) ---- */
+.office-map-wrap { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.office-map { height: 320px; isolation: isolate; cursor: crosshair; background: var(--muted); }
+.office-map-state { position: absolute; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; gap: 10px; background: color-mix(in srgb, var(--card) 92%, transparent); font-size: 12px; color: var(--muted-foreground); }
+.office-pin span { display: block; width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--primary); border: 3px solid white; box-shadow: 0 2px 6px oklch(0.2 0.02 220 / 35%); }
+.map-legend { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 50%; }
+.map-legend i.in { background: color-mix(in srgb, #00897b 25%, white); border: 2px solid #00897b; }
+.map-legend i.out { border: 2px dashed var(--st-orange); margin-left: 8px; }
+@media (max-width: 760px) { .office-map { height: 240px; } }
+
+/* Kotak simulasi posisi di kartu Hari Ini (khusus prototipe) */
+.sim-box { border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; display: grid; gap: 8px; background: var(--background); }
+.sim-box-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
+.sim-box-head select { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; background: var(--card); font-weight: 400; }
+.sim-box ul { display: grid; gap: 6px; }
+.sim-box li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sim-box p { color: var(--muted-foreground); }

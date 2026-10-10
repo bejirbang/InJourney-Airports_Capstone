@@ -13,8 +13,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { MockProvider } from "@/components/internspace/model";
-import { Workspace } from "@/components/internspace/shell";
+import { MockProvider } from "@/components/internspace/shared/model";
+import { Workspace } from "@/components/internspace/shared/shell";
 
 function NotFoundComponent() {
   return (

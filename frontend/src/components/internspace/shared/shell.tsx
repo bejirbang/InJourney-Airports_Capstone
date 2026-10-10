@@ -15,6 +15,7 @@ import {
   ListTodo,
   LogOut,
   Megaphone,
+  MapPin,
   Menu,
   MessageSquare,
   Plane,
@@ -46,8 +47,15 @@ import {
   type Role,
 } from "@/lib/mock-rules";
 import type { AppPath } from "@/lib/search";
-import { initials, unreadChats, useMock, type LocationSim, type Scenario } from "./model";
-import { ErrorState, LoadingState, NoAccess } from "./shared";
+import {
+  LOCATION_LABELS,
+  initials,
+  unreadChats,
+  useMock,
+  type LocationSim,
+  type Scenario,
+} from "@/components/internspace/shared/model";
+import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
 
 type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 
@@ -66,6 +74,7 @@ const pageLabels: Record<string, string> = {
   "/pengumuman": "Pengumuman",
   "/laporan": "Laporan",
   "/pengaturan": "Pengaturan",
+  "/lokasi-kantor": "Lokasi Kantor",
   "/log": "Log Aktivitas",
   "/profil": "Profil",
 };
@@ -92,6 +101,7 @@ const allowed: Record<Role, AppPath[]> = {
     "/pengumuman",
     "/laporan",
     "/pengaturan",
+    "/lokasi-kantor",
     "/log",
     "/chat",
     "/profil",
@@ -153,6 +163,7 @@ export function Workspace({ children }: { children: ReactNode }) {
             { to: "/pengumuman", label: "Pengumuman", icon: Megaphone },
             { to: "/laporan", label: "Laporan", icon: FileDown },
             { to: "/pengaturan", label: "Pengaturan", icon: Settings },
+            { to: "/lokasi-kantor", label: "Lokasi Kantor", icon: MapPin },
             { to: "/log", label: "Log Aktivitas", icon: History },
           ];
   const canOpen = allowed[m.role].includes(path as AppPath);
@@ -382,12 +393,6 @@ const scenarioLabels: Record<Scenario, string> = {
   izin: "Intern punya izin disetujui hari ini",
   luar: "Intern di luar periode magang",
 };
-const locationLabels: Record<LocationSim, string> = {
-  sesuai: "Lokasi sesuai",
-  "tidak-sesuai": "Lokasi tidak sesuai",
-  ditolak: "Akses lokasi ditolak browser",
-  gagal: "Lokasi gagal dibaca",
-};
 
 /** Kontrol khusus prototipe: berganti role dan mencoba kondisi khusus di dokumen desain. */
 function SimulationControl({
@@ -404,7 +409,7 @@ function SimulationControl({
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="sim-trigger">
           <FlaskConical />
-          <span className="sim-role">{m.role}</span>
+          Simulasi<span className="sim-role">· {m.role}</span>
           <ChevronDown size={12} />
         </Button>
       </PopoverTrigger>
@@ -440,12 +445,12 @@ function SimulationControl({
           </select>
         </label>
         <label className="form-field">
-          Hasil cek lokasi saat clock in
+          Posisi intern saat clock in dan clock out
           <select
             value={m.locationSim}
             onChange={(e) => m.setLocationSim(e.target.value as LocationSim)}
           >
-            {Object.entries(locationLabels).map(([v, l]) => (
+            {Object.entries(LOCATION_LABELS).map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
               </option>

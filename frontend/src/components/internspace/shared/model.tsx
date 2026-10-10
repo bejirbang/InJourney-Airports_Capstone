@@ -28,7 +28,7 @@ export type AttRec = {
   corrected?: boolean;
   report?: Report;
 };
-export type Comment = {
+type Comment = {
   id: number;
   author: string;
   role: Role;
@@ -88,9 +88,18 @@ export type Correction = {
   finalOut?: string;
 };
 export type Holiday = { date: string; name: string };
-export type WorkHours = { start: string; end: string; from: string };
-export type Warn = { id: number; intern: string; text: string; author: string; created: string };
-export type Announcement = {
+export type Office = {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusIn: number;
+  radiusOut: number;
+  active: boolean;
+};
+type WorkHours = { start: string; end: string; from: string };
+type Warn = { id: number; intern: string; text: string; author: string; created: string };
+type Announcement = {
   id: number;
   title: string;
   text: string;
@@ -98,14 +107,14 @@ export type Announcement = {
   date: string;
   author: string;
 };
-export type LogEntry = {
+type LogEntry = {
   time: string;
   admin: string;
   action: string;
   object: string;
   detail: string;
 };
-export type Notice = {
+type Notice = {
   id: number;
   role: Role;
   text: string;
@@ -114,9 +123,23 @@ export type Notice = {
   search?: PageSearch;
   read: boolean;
 };
-export type ChatMsg = { id: number; from: string; to: string; text: string; at: string };
+type ChatMsg = { id: number; from: string; to: string; text: string; at: string };
 export type Scenario = "kerja" | "libur" | "izin" | "luar";
-export type LocationSim = "sesuai" | "tidak-sesuai" | "ditolak" | "gagal";
+export type LocationSim = "kantor" | "dekat" | "jauh" | "gps" | "ditolak" | "gagal";
+export const LOCATION_LABELS: Record<LocationSim, string> = {
+  kantor: "Di Kantor Pusat Terminal 3",
+  dekat: "200 m dari Terminal 3",
+  jauh: "2 km dari kantor",
+  gps: "Lokasi asli perangkat (GPS browser)",
+  ditolak: "Akses lokasi ditolak browser",
+  gagal: "Lokasi gagal dibaca",
+};
+/** Posisi contoh terhadap Kantor Pusat Terminal 3 (-6.1256, 106.6559). */
+export const SIM_POSITIONS: Partial<Record<LocationSim, { lat: number; lng: number }>> = {
+  kantor: { lat: -6.1259, lng: 106.6559 },
+  dekat: { lat: -6.1256, lng: 106.6577 },
+  jauh: { lat: -6.1436, lng: 106.6559 },
+};
 export type Row = {
   intern: string;
   date: string;
@@ -1040,6 +1063,8 @@ type Model = {
   setCorrections: Setter<Correction[]>;
   holidays: Holiday[];
   setHolidays: Setter<Holiday[]>;
+  offices: Office[];
+  setOffices: Setter<Office[]>;
   holidayDates: string[];
   holidayName: (date: string) => string | undefined;
   workHistory: WorkHours[];
@@ -1081,13 +1106,33 @@ export function MockProvider({
 }) {
   const [role, setRole] = useState<Role>(initialRole);
   const [scenario, setScenario] = useState<Scenario>("kerja");
-  const [locationSim, setLocationSim] = useState<LocationSim>("sesuai");
+  const [locationSim, setLocationSim] = useState<LocationSim>("kantor");
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [people, setPeople] = useState(seedPeople);
   const [att, setAtt] = useState(() => seedAttendance(seedPeople));
   const [tasks, setTasks] = useState(seedTasks);
   const [leaves, setLeaves] = useState(seedLeaves);
   const [corrections, setCorrections] = useState(seedCorrections);
+  const [offices, setOffices] = useState<Office[]>([
+    {
+      id: 1,
+      name: "Kantor Pusat Terminal 3",
+      lat: -6.1256,
+      lng: 106.6559,
+      radiusIn: 100,
+      radiusOut: 300,
+      active: true,
+    },
+    {
+      id: 2,
+      name: "Kantor Cabang Terminal 1",
+      lat: -6.1275,
+      lng: 106.6537,
+      radiusIn: 150,
+      radiusOut: 150,
+      active: false,
+    },
+  ]);
   const [holidays, setHolidays] = useState<Holiday[]>([
     { date: "2026-08-17", name: "Hari Kemerdekaan RI" },
     { date: "2026-12-24", name: "Cuti bersama Natal" },
@@ -1334,6 +1379,8 @@ export function MockProvider({
         setCorrections,
         holidays,
         setHolidays,
+        offices,
+        setOffices,
         holidayDates,
         holidayName,
         workHistory,
@@ -1402,3 +1449,5 @@ export const recap = (rows: Row[]) => {
     laporan: final.filter((r) => r.status === "Hadir" && r.report).length,
   };
 };
+/** "Izin Sakit" menjadi "Sakit". */
+export const typeShort = (t: string) => t.replace("Izin ", "");

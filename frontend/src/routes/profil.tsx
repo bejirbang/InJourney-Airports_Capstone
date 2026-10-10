@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ProfilePage } from "@/components/internspace/other-pages";
+import { ProfilePage } from "@/components/internspace/shared/profile";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/profil")({

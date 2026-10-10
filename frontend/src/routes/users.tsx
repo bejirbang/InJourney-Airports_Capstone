@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UsersPage } from "@/components/internspace/admin-pages";
+import { UsersPage } from "@/components/internspace/admin/users";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/users")({

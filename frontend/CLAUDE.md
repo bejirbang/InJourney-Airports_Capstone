@@ -25,8 +25,8 @@ Jalankan `npm run test` dan `npm run lint` sebelum commit.
 
 ## Struktur kode
 
-- `src/routes/*.tsx`: satu file per halaman. Bersama: index (Dashboard), task, izin, chat, profil. Intern: absensi. Mentor: intern-saya, kalender-izin, performa. Admin: absensi, users, koreksi, warning, pengumuman, laporan, pengaturan, log. Akun: login, ganti-password. Halaman yang tidak sesuai role menampilkan "Anda tidak memiliki akses" (daftar izin ada di `shell.tsx`). Parameter URL `tab`, `open`, `to` (`src/lib/search.ts`) dipakai untuk tautan langsung dari bell icon. `routeTree.gen.ts` dibuat otomatis, jangan diedit manual.
-- `src/components/internspace/`: `shell.tsx` (sidebar per role, navbar dengan chat, bell, profil, dan tombol Simulasi untuk ganti role dan kondisi khusus), `model.tsx` (MockProvider: satu sumber data contoh untuk ketiga role, "hari ini" = Sen, 12 Okt 2026), `shared.tsx` (badge status, tab, dialog konfirmasi), lalu halaman: `dashboard.tsx`, `attendance.tsx`, `tasks.tsx`, `leave.tsx` (termasuk Kalender Izin), `mentor-pages.tsx`, `admin-pages.tsx`, `other-pages.tsx` (chat, profil), `account-pages.tsx`.
+- `src/routes/*.tsx`: satu file per halaman. Bersama: index (Dashboard), task, izin, chat, profil. Intern: absensi. Mentor: intern-saya, kalender-izin, performa. Admin: absensi, users, koreksi, warning, pengumuman, laporan, pengaturan, lokasi-kantor, log. Akun: login, ganti-password. Halaman yang tidak sesuai role menampilkan "Anda tidak memiliki akses" (daftar izin ada di `components/internspace/shared/shell.tsx`). Parameter URL `tab`, `open`, `to` (`src/lib/search.ts`) dipakai untuk tautan langsung dari bell icon. `routeTree.gen.ts` dibuat otomatis, jangan diedit manual.
+- `src/components/internspace/`: dikelompokkan per role. `intern/`, `mentor/`, `admin/` berisi menu masing-masing role. `shared/` berisi yang dipakai lebih dari satu role: `model.tsx` (MockProvider, satu sumber data contoh, "hari ini" = Sen, 12 Okt 2026), `shell.tsx` (sidebar, navbar, tombol Simulasi), `ui.tsx` (badge status, tab, dialog konfirmasi, input file), `role-pages.tsx` (memilih halaman per role untuk `/`, `/absensi`, `/izin`), `tasks.tsx` (Kanban Intern dan Mentor), `leave-review.tsx` (proses izin Mentor dan Admin), chat, profil, login. Pemetaan lengkap menu ke file ada di `src/components/internspace/README.md`. Kode yang hanya dipakai satu role masuk folder role itu.
 - `src/lib/mock-rules.ts`: aturan PRD yang aman dipakai di browser. Test: `mock-rules.test.ts`, `admin-rules.test.ts`, `role-rules.test.ts`. `src/test/pages.test.tsx` merender semua halaman per role dan menguji alur utama.
 - `src/components/ui/`: komponen shadcn. Ubah hanya bila perlu.
 - `src/styles.css`: gaya global dan identitas visual InJourney.
@@ -53,7 +53,8 @@ Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-men
 **Kehadiran**
 - Sabtu dan Minggu libur. Admin mengatur hari libur lain dan jam kerja global (dengan tanggal efektif).
 - Status ditentukan otomatis dengan batas 23:59: Hadir, Izin, Tidak Hadir (tanpa clock in), Lupa Clock Out (clock in tanpa clock out). Hari berjalan tampil "Belum Clock In", belum Tidak Hadir.
-- Clock out hanya mensyaratkan Daily Report terkirim. Daily Report dapat diedit sampai clock out. Task dan Daily Report adalah dua hal berbeda.
+- Lokasi divalidasi saat clock in (radius clock in) dan clock out (radius clock out) terhadap kantor aktif yang dibuat admin di menu Lokasi Kantor. Tanpa kantor aktif, intern tidak bisa clock in.
+- Selain lokasi, clock out hanya mensyaratkan Daily Report terkirim. Daily Report dapat diedit sampai clock out. Task dan Daily Report adalah dua hal berbeda.
 
 **Task**
 - Dibuat mentor untuk satu intern (tidak ada assign massal). Status: To Do, In Progress, In Review, Done. Task lewat tenggat diberi tanda Terlambat tetapi tetap bisa dikumpulkan.
@@ -70,4 +71,6 @@ Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-men
 - Warning: catatan sederhana tanpa level, hanya terlihat admin. Pengumuman: admin memilih role penerima. Laporan: hanya admin, hanya PDF.
 - Mentor punya menu Performa Intern (rekap kehadiran dan KPI, bukan nilai). Tidak ada fitur penilaian intern. Admin tidak punya dashboard performa seluruh intern.
 
-**Masih terbuka (menyentuh backend)**: batas ukuran file (2 MB atau 10 MB), jenis file yang diizinkan, rincian validasi lokasi clock in. Jangan mengarang nilainya di kode. Tandai sebagai pengaturan yang nanti diisi tim backend.
+**Sudah diputuskan (Draft 2)**: batas ukuran file 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi. Validasi lokasi memakai radius kantor aktif.
+
+**Masih terbuka**: jenis file yang diizinkan, intern terikat satu kantor atau boleh kantor aktif mana pun (usulan: mana pun), batas radius (usulan 10-1000 m), penanganan GPS kurang akurat dan VPN. Jangan mengarang nilainya di kode. Tandai sebagai pengaturan yang nanti diisi tim backend.

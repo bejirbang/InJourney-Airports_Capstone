@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChangePasswordPage } from "@/components/internspace/account-pages";
+import { ChangePasswordPage } from "@/components/internspace/shared/account";
 
 export const Route = createFileRoute("/ganti-password")({
   head: () => ({

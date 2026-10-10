@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MyInternsPage } from "@/components/internspace/mentor-pages";
+import { MyInternsPage } from "@/components/internspace/mentor/interns";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/intern-saya")({

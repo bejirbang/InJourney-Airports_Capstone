@@ -20,6 +20,7 @@ import { Route as KoreksiRouteImport } from './routes/koreksi'
 import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as LogRouteImport } from './routes/log'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LokasiKantorRouteImport } from './routes/lokasi-kantor'
 import { Route as PengaturanRouteImport } from './routes/pengaturan'
 import { Route as PengumumanRouteImport } from './routes/pengumuman'
 import { Route as PerformaRouteImport } from './routes/performa'
@@ -83,6 +84,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LokasiKantorRoute = LokasiKantorRouteImport.update({
+  id: '/lokasi-kantor',
+  path: '/lokasi-kantor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PengaturanRoute = PengaturanRouteImport.update({
   id: '/pengaturan',
   path: '/pengaturan',
@@ -131,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
+  '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
+  '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
   '/login': typeof LoginRoute
+  '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
@@ -194,6 +203,7 @@ export interface FileRouteTypes {
     | '/laporan'
     | '/log'
     | '/login'
+    | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/laporan'
     | '/log'
     | '/login'
+    | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/laporan'
     | '/log'
     | '/login'
+    | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
     | '/performa'
@@ -255,6 +267,7 @@ export interface RootRouteChildren {
   LaporanRoute: typeof LaporanRoute
   LogRoute: typeof LogRoute
   LoginRoute: typeof LoginRoute
+  LokasiKantorRoute: typeof LokasiKantorRoute
   PengaturanRoute: typeof PengaturanRoute
   PengumumanRoute: typeof PengumumanRoute
   PerformaRoute: typeof PerformaRoute
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lokasi-kantor': {
+      id: '/lokasi-kantor'
+      path: '/lokasi-kantor'
+      fullPath: '/lokasi-kantor'
+      preLoaderRoute: typeof LokasiKantorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pengaturan': {
       id: '/pengaturan'
       path: '/pengaturan'
@@ -407,6 +427,7 @@ const rootRouteChildren: RootRouteChildren = {
   LaporanRoute: LaporanRoute,
   LogRoute: LogRoute,
   LoginRoute: LoginRoute,
+  LokasiKantorRoute: LokasiKantorRoute,
   PengaturanRoute: PengaturanRoute,
   PengumumanRoute: PengumumanRoute,
   PerformaRoute: PerformaRoute,

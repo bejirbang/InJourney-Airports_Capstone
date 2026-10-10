@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LeavePage } from "@/components/internspace/leave";
+import { LeavePage } from "@/components/internspace/shared/role-pages";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/izin")({

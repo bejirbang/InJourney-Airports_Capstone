@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PerformancePage } from "@/components/internspace/mentor-pages";
+import { PerformancePage } from "@/components/internspace/mentor/performance";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/performa")({

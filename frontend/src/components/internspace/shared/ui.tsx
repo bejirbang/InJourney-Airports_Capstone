@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Lock, Paperclip, RotateCw } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,8 +8,15 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TODAY, addMonths, formatDateLong, formatMonth } from "@/lib/mock-rules";
-import { initials } from "./model";
+import {
+  MAX_FILE_MB,
+  TODAY,
+  addMonths,
+  formatDateLong,
+  formatMonth,
+  validateFileSize,
+} from "@/lib/mock-rules";
+import { initials } from "@/components/internspace/shared/model";
 
 export function PageHeading({
   title,
@@ -167,7 +174,7 @@ export function FormError({ text }: { text: string | null | undefined }) {
   );
 }
 
-export function Avatar({ name, blue = false }: { name: string; blue?: boolean }) {
+function Avatar({ name, blue = false }: { name: string; blue?: boolean }) {
   return <span className={`avatar ${blue ? "blue" : ""}`}>{initials(name)}</span>;
 }
 
@@ -323,5 +330,63 @@ export function NoAccess() {
         </p>
       </Panel>
     </>
+  );
+}
+
+/** Input file dengan batas 2 MB (keputusan Draft 2). File yang terlalu besar tidak dipakai. */
+export function FileField({ label, onFile }: { label: string; onFile: (name: string) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <label className="form-field">
+      {label}
+      <input
+        type="file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const err = file ? validateFileSize(file.size) : null;
+          setError(err);
+          if (err) e.target.value = "";
+          onFile(file && !err ? file.name : "");
+        }}
+      />
+      <small className="text-muted-foreground">
+        Maksimal {MAX_FILE_MB} MB. Jenis file yang diizinkan masih ditetapkan tim backend.
+      </small>
+      <FormError text={error} />
+    </label>
+  );
+}
+
+export function SimpleTable({
+  head,
+  rows,
+  empty,
+}: {
+  head: string[];
+  rows: React.ReactNode[][];
+  empty: string;
+}) {
+  if (rows.length === 0) return <Empty>{empty}</Empty>;
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            {head.map((h) => (
+              <th key={h}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              {r.map((cell, j) => (
+                <td key={j}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

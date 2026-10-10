@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SettingsPage } from "@/components/internspace/admin-pages";
+import { SettingsPage } from "@/components/internspace/admin/settings";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/pengaturan")({
