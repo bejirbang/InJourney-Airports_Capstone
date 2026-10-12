@@ -2,12 +2,12 @@ import { Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { TODAY, formatRange, formatShort, taskIsLate, workingDays } from "@/lib/mock-rules";
+import { TODAY, formatShort, taskIsLate } from "@/lib/mock-rules";
 import { recap, useMock } from "@/components/internspace/shared/model";
 import { FormError, PageHeading, Panel, SimpleTable } from "@/components/internspace/shared/ui";
 
-// ---------- Laporan PDF (design-admin.md Alur 10) ----------
-type ReportType = "absensi" | "izin" | "task";
+// ---------- Laporan Excel (design-admin.md Alur 10) ----------
+type ReportType = "absensi" | "task";
 
 export function ReportsPage() {
   const m = useMock();
@@ -41,19 +41,6 @@ export function ReportsPage() {
         .map((p) => ({ p, r: recap(m.rowsFor(p.name, from, to)) }))
         .filter((x) => x.r.hariKerja > 0)
         .map(({ p, r }) => [p.name, r.hadir, r.izin, r.tidakHadir, r.lupa, r.hariKerja]);
-    } else if (type === "izin") {
-      head = ["Intern", "Jenis", "Tanggal", "Hari kerja", "Status", "Pemroses", "Catatan"];
-      rows = m.leaves
-        .filter((l) => names.includes(l.intern) && l.start <= to && l.end >= from)
-        .map((l) => [
-          l.intern,
-          l.type,
-          formatRange(l.start, l.end),
-          workingDays(l.start, l.end, m.holidayDates),
-          l.status,
-          l.by ?? "-",
-          l.note ?? "-",
-        ]);
     } else {
       head = ["Intern", "Mentor", "Judul Task", "Status", "Terlambat"];
       rows = m.tasks
@@ -72,22 +59,23 @@ export function ReportsPage() {
       setPreview(null);
       return setError("Tidak ada data pada periode ini.");
     }
-    const label = { absensi: "Rekap Absensi", izin: "Rekap Izin", task: "Rekap Task" }[type];
+    const label = { absensi: "Rekap Absensi", task: "Rekap Task" }[type];
     setPreview({
       head,
       rows,
       title: `${label} · ${formatShort(from, true)} - ${formatShort(to, true)}`,
     });
-    m.log("Laporan", label, `Export PDF ${formatShort(from, true)} - ${formatShort(to, true)}.`);
-    toast.success("PDF disiapkan.", {
-      description: "Prototipe menampilkan isi laporan. Unduhan PDF dikerjakan tim backend.",
+    m.log("Laporan", label, `Export Excel ${formatShort(from, true)} - ${formatShort(to, true)}.`);
+    toast.success("Excel disiapkan.", {
+      description:
+        "Prototipe menampilkan isi laporan. Unduhan Excel (.xlsx) dikerjakan tim backend.",
     });
   };
   return (
     <>
       <PageHeading
-        title="Laporan (Export PDF)"
-        subtitle="Format PDF saja. Hanya admin yang bisa export."
+        title="Laporan (Export Excel)"
+        subtitle="Format Excel (.xlsx) saja. Hanya admin yang bisa export."
       />
       <Panel title="Buat laporan">
         <div className="form-grid px-5 pb-5 max-w-xl">
@@ -97,7 +85,6 @@ export function ReportsPage() {
               {(
                 [
                   ["absensi", "Rekap Absensi"],
-                  ["izin", "Rekap Izin"],
                   ["task", "Rekap Task"],
                 ] as const
               ).map(([v, l]) => (
@@ -151,7 +138,7 @@ export function ReportsPage() {
           <div className="form-actions">
             <Button onClick={build}>
               <Download />
-              Buat PDF
+              Buat Excel
             </Button>
           </div>
         </div>
@@ -159,7 +146,7 @@ export function ReportsPage() {
       {preview && (
         <div className="mt-5">
           <Panel
-            title={`Pratinjau isi PDF: ${preview.title}`}
+            title={`Pratinjau isi Excel: ${preview.title}`}
             subtitle="InJourney Airports · Intern Management & Attendance System"
           >
             <SimpleTable head={preview.head} rows={preview.rows} empty="" />

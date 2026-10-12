@@ -28,7 +28,7 @@ Satu intern punya tepat satu mentor. Satu mentor bisa membimbing banyak intern.
 | Notifikasi | Lonceng di navbar, real time |
 | Pengumuman | Dari admin ke role yang dipilih |
 | Warning | Catatan admin tentang intern, hanya terlihat oleh admin |
-| Laporan | Export PDF oleh admin |
+| Laporan | Export Excel (Rekap Absensi, Rekap Task) oleh admin |
 | Log aktivitas | Jejak semua tindakan admin |
 
 ## Arsitektur

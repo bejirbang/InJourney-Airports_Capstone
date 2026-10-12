@@ -4,6 +4,7 @@
 - [x] Verify PRD rules and key navigation and form flows.
 - [x] Add mock login and first-login change-password pages (no self-service reset, per docs).
 - [x] Align menus, pages, and flows per role with docs/design-intern.md, design-mentor.md, design-admin.md.
+- [x] Admin Laporan: export changed from PDF to Excel (.xlsx) only; Rekap Izin removed (12 Oct 2026).
 - [ ] Visual check of every page in a browser (desktop and phone width).
 
-Scope: prototype only. Real accounts, location validation, uploads, persistence, and PDF downloads are not connected.
+Scope: prototype only. Real accounts, location validation, uploads, persistence, and Excel downloads are not connected.

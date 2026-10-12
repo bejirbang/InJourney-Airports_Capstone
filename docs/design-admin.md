@@ -3,6 +3,7 @@
 Sistem: Web Intern Management dan Attendance System
 Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026
 Perubahan Draft 2: menu Lokasi Kantor (Bagian 9A), batas file 2 MB, validasi lokasi saat clock in dan clock out.
+Pembaruan 12 Oktober 2026: export laporan diubah dari PDF ke **Excel (.xlsx)**, dan laporan Rekap Izin dihapus (Bagian 12).
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
@@ -27,7 +28,7 @@ Isi:
 9A. Alur 7B - Lokasi kantor
 10. Alur 8 - Catatan warning
 11. Alur 9 - Pengumuman
-12. Alur 10 - Export laporan PDF
+12. Alur 10 - Export laporan Excel
 13. Alur 11 - Log aktivitas, chat, profil
 14. Notifikasi Admin (bell icon)
 15. Aturan tampilan (status, warna, pesan)
@@ -75,7 +76,7 @@ Angka kecil di sebelah Koreksi dan Izin adalah jumlah yang menunggu diproses.
 | Izin | Semua pengajuan izin, proses yang Pending | /admin/leaves |
 | Warning | Catatan peringatan per intern | /admin/warnings |
 | Pengumuman | Buat dan kelola pengumuman per role | /admin/announcements |
-| Laporan | Export PDF | /admin/reports |
+| Laporan | Export Excel | /admin/reports |
 | Pengaturan | Jam kerja dan kalender libur | /admin/settings |
 | Lokasi Kantor | Daftar kantor, titik di peta, radius clock in dan clock out | /admin/offices |
 | Log Aktivitas | Jejak tindakan admin | /admin/audit-log |
@@ -793,11 +794,12 @@ Validasi: judul dan isi wajib, minimal satu penerima dipilih (pesan "Pilih minim
 
 ---
 
-## 12. Alur 10 - Export Laporan PDF
+## 12. Alur 10 - Export Laporan Excel
 
 **Tujuan:** menghasilkan laporan resmi untuk perusahaan atau kampus.
 **Halaman:** Laporan.
-**Aturan:** format **PDF saja**, dan hanya admin yang bisa export (mentor tidak). **[Keputusan]**
+**Aturan:** format **Excel (.xlsx) saja**, dan hanya admin yang bisa export (mentor tidak). **[Keputusan]** Per 12 Oktober 2026 format diubah dari PDF ke Excel sesuai kebutuhan perusahaan saat ini. **[Keputusan]**
+**Jenis laporan:** Rekap Absensi dan Rekap Task. Rekap Izin dihapus per 12 Oktober 2026. **[Keputusan]**
 
 ### 12.1 Langkah
 
@@ -805,24 +807,23 @@ Validasi: judul dan isi wajib, minimal satu penerima dipilih (pesan "Pilih minim
 |---|---|---|
 | 1 | Memilih jenis laporan | Filter yang relevan tampil |
 | 2 | Mengisi periode dan filter | - |
-| 3 | Klik **Buat PDF** | Sistem menyusun laporan |
-| 4 | - | PDF terunduh. Jika tidak ada data, pesan "Tidak ada data pada periode ini." |
+| 3 | Klik **Buat Excel** | Sistem menyusun laporan |
+| 4 | - | File Excel (.xlsx) terunduh. Jika tidak ada data, pesan "Tidak ada data pada periode ini." |
 | 5 | - | Export masuk log (jenis laporan, periode, admin) |
 
 ### 12.2 Layar
 
 ```
 +--------------------------------------------------------------+
-| Laporan (Export PDF)                                         |
+| Laporan (Export Excel)                                       |
 |                                                              |
 | Jenis laporan *   ( ) Rekap Absensi                          |
-|                   ( ) Rekap Izin                             |
 |                   ( ) Rekap Task                             |
 | Periode *         [__/__/____] s/d [__/__/____]              |
 | Intern            [Semua v]                                  |
 | Mentor            [Semua v]                                  |
 |                                                              |
-|                                  [ Buat PDF ]                |
+|                                  [ Buat Excel ]              |
 +--------------------------------------------------------------+
 ```
 
@@ -831,7 +832,6 @@ Validasi: judul dan isi wajib, minimal satu penerima dipilih (pesan "Pilih minim
 | Laporan | Kolom utama |
 |---|---|
 | Rekap Absensi | Intern, jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, total hari kerja |
-| Rekap Izin | Intern, jenis, tanggal, hari kerja, status, pemroses, catatan |
 | Rekap Task | Intern, mentor, judul Task, status (To Do, In Progress, In Review, Done), tanda Terlambat |
 
 Kolom di atas **[Usulan]**, tim boleh menyesuaikan.
@@ -869,7 +869,7 @@ Jenis aksi yang dicatat:
 | Lokasi kantor | Tambah, ubah titik atau radius, nonaktifkan, aktifkan |
 | Warning | Tambah catatan |
 | Pengumuman | Buat, ubah, hapus |
-| Laporan | Export PDF |
+| Laporan | Export Excel |
 
 Karena semua admin berhak sama, kolom **Admin** menunjukkan siapa yang melakukan tiap tindakan.
 
@@ -968,7 +968,7 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 | Pengumuman | Buat, ubah, hapus, pilih role penerima | - |
 | Kalender dan jam kerja | Mengatur libur dan jam kerja | Mengubah batas 23:59 |
 | Lokasi kantor | Menambah, mengubah, menonaktifkan, mengaktifkan kantor dan radiusnya | Menghapus kantor |
-| Laporan | Export PDF | Export format lain |
+| Laporan | Export Excel (Rekap Absensi, Rekap Task) | Export format lain (termasuk PDF), export Rekap Izin |
 | Chat | Chat dengan semua orang | Membaca chat orang lain |
 | Task | Ikut dalam export Task | Membuat atau menilai Task (hak mentor) |
 | Performa | - | Dashboard performa seluruh intern |

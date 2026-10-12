@@ -6,7 +6,7 @@ Panduan untuk Claude Code saat bekerja di folder `frontend/`. Aturan prototipe y
 
 ## Proyek
 
-Prototipe **Web Intern Management dan Attendance System** untuk InJourney Airports (capstone). Tiga role: **Intern, Mentor, Admin**. Saat ini berupa prototipe interaktif sisi klien dengan data contoh yang hidup selama sesi. Belum ada autentikasi, penyimpanan, unggah file, validasi lokasi, atau PDF yang sungguhan. Itu urusan tim backend (`backend/`, Laravel) dan tidak dikerjakan dari sini kecuali diminta.
+Prototipe **Web Intern Management dan Attendance System** untuk InJourney Airports (capstone). Tiga role: **Intern, Mentor, Admin**. Saat ini berupa prototipe interaktif sisi klien dengan data contoh yang hidup selama sesi. Belum ada autentikasi, penyimpanan, unggah file, validasi lokasi, atau unduhan Excel yang sungguhan. Itu urusan tim backend (`backend/`, Laravel) dan tidak dikerjakan dari sini kecuali diminta.
 
 ## Stack dan perintah
 
@@ -46,7 +46,7 @@ Repo ini tersambung dua arah ke Lovable (branch `main`).
 - Jangan force push, rebase, atau amend commit yang sudah di-push. Itu menghapus riwayat project di Lovable.
 - Jangan memindahkan folder `frontend/` atau menghapus `frontend/package.json`. Preview Lovable diduga bermasalah sejak refactor ke subfolder (belum terbukti). Ubah struktur repo hanya setelah dikonfirmasi.
 
-## Ringkasan keputusan produk (per 10 Oktober 2026)
+## Ringkasan keputusan produk (per 12 Oktober 2026)
 
 Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-mentor.md`, dan `docs/design-admin.md` (path dari root repo; salin ke sana bila belum ada). Bila dokumen bertentangan dengan kode, dokumen menjadi acuan. Tanyakan bila ragu.
 
@@ -68,7 +68,7 @@ Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-men
 **Lain-lain**
 - Login memakai email internal yang dibuat admin, tanpa Google OAuth. Tidak ada ganti password mandiri (hanya saat login pertama dan reset oleh admin).
 - Notifikasi hanya lewat bell icon di navbar, tanpa halaman notifikasi. Chat: semua bisa chat dengan semua, admin tidak bisa membaca chat orang lain.
-- Warning: catatan sederhana tanpa level, hanya terlihat admin. Pengumuman: admin memilih role penerima. Laporan: hanya admin, hanya PDF.
+- Warning: catatan sederhana tanpa level, hanya terlihat admin. Pengumuman: admin memilih role penerima. Laporan: hanya admin, hanya Excel (.xlsx), jenisnya Rekap Absensi dan Rekap Task (Rekap Izin dihapus per 12 Okt 2026).
 - Mentor punya menu Performa Intern (rekap kehadiran dan KPI, bukan nilai). Tidak ada fitur penilaian intern. Admin tidak punya dashboard performa seluruh intern.
 
 **Sudah diputuskan (Draft 2)**: batas ukuran file 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi. Validasi lokasi memakai radius kantor aktif.

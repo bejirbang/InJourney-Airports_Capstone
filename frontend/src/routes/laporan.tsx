@@ -7,9 +7,9 @@ export const Route = createFileRoute("/laporan")({
   head: () => ({
     meta: [
       { title: "Laporan | InternSpace InJourney Airports" },
-      { name: "description", content: "Export laporan PDF." },
+      { name: "description", content: "Export laporan Excel." },
       { property: "og:title", content: "Laporan | InternSpace InJourney Airports" },
-      { property: "og:description", content: "Export laporan PDF." },
+      { property: "og:description", content: "Export laporan Excel." },
     ],
   }),
   component: ReportsPage,
