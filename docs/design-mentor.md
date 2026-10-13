@@ -5,7 +5,7 @@ Versi: Draft 1 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026 da
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
-- **[Usulan]** = pilihan desain dari saya. Per 10 Oktober 2026 semua usulan di dokumen ini **diikuti**, kecuali hal yang menyentuh sistem backend (batas ukuran file, jenis file, rincian validasi lokasi). Hal itu tetap terbuka di Bagian 17.
+- **[Usulan]** = pilihan desain dari saya. Per 10 Oktober 2026 semua usulan di dokumen ini **diikuti**, kecuali hal yang menyentuh sistem backend. Per 13 Oktober 2026 batas ukuran file (2 MB) dan jenis file sudah diputuskan. Rincian validasi lokasi tetap terbuka di Bagian 17.
 
 ---
 
@@ -488,7 +488,7 @@ Accept dan Revise juga dapat dilakukan dari Kanban dengan menyeret kartu dari ko
 
 - Pengumpulan ulang oleh intern **menggantikan** hasil sebelumnya. File lama dihapus, **tanpa riwayat versi**. **[Keputusan]** Mentor hanya melihat hasil terbaru.
 - Karena tidak ada riwayat versi, komentar revisi menjadi satu-satunya jejak tentang apa yang pernah diminta. Itu alasan komentar revisi diwajibkan. **[Usulan berdasar keputusan di atas]**
-- Pengumpulan menerima **link dan unggah file**. **[Keputusan]** Batas ukuran file belum diputuskan (2 MB atau 10 MB), dibahas dengan tim.
+- Pengumpulan menerima **link dan unggah file**. **[Keputusan]** File maksimal **2 MB** dan hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Hasil berjenis lain dikumpulkan intern lewat link. **[Keputusan]**
 
 ### 8.6 Kondisi khusus
 
@@ -873,11 +873,11 @@ Per 10 Oktober 2026, usulan berikut dianggap disepakati.
 | 10 | Catatan pada keputusan | Komentar revisi wajib. Catatan wajib pada keputusan izin |
 | 11 | Mentor lama setelah pergantian | Intern dapat dilihat hanya baca lewat filter "Pernah dibimbing" |
 | 12 | Komentar | Tidak bisa diedit atau dihapus. Thread terkunci saat Task Done |
+| 13 | Batas ukuran file hasil Task | Maksimal 2 MB (keputusan Draft 2, sama dengan `design-admin.md`) |
+| 14 | Jenis file hasil Task | Hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Jenis lain dikirim lewat link (13 Oktober 2026) |
 
 ### 17.2 Hal yang masih terbuka (menyentuh backend)
 
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Batas ukuran file hasil Task | 2 MB atau 10 MB, dibahas dengan tim. Berdampak pada pratinjau dan unduh di layar periksa Task |
-| 2 | Jenis file yang diizinkan | Untuk hasil Task. Usulan awal: PDF, DOCX, XLSX, PPTX, JPG, PNG |
-| 3 | Rincian validasi lokasi clock in | Metode sudah diputuskan, rincian pada tahap teknis. Memengaruhi label "Dikoreksi admin" di rekap absensi |
+| 1 | Rincian validasi lokasi clock in | Metode sudah diputuskan, rincian pada tahap teknis. Memengaruhi label "Dikoreksi admin" di rekap absensi |
