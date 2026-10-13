@@ -140,7 +140,7 @@ cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate --seed
+php artisan migrate --seed   # akun contoh: admin@, mentor@, intern@injourney.test, password "password"
 php artisan serve          # API
 php artisan reverb:start   # WebSocket
 php artisan queue:work     # antrean
@@ -148,6 +148,8 @@ php artisan test
 ```
 
 Isi `.env` dengan koneksi PostgreSQL lokal sebelum menjalankan migrate.
+
+Autentikasi memakai Sanctum dengan Bearer token: login di `POST /api/auth/login`, lalu kirim header `Authorization: Bearer <token>`. Rincian endpoint ada di `backend/CLAUDE.md`, dan progres backend di `backend/progress.md`. Admin pertama di production dibuat dengan `php artisan app:create-admin {email} {nama}`.
 
 ## Deployment
 
