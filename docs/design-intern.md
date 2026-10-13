@@ -3,6 +3,7 @@
 Sistem: Web Intern Management dan Attendance System
 Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026, design-admin.md (Draft 2), dan design-mentor.md
 Perubahan Draft 2: validasi lokasi saat clock in dan clock out memakai radius kantor aktif (menu Lokasi Kantor di sisi admin), batas file 2 MB.
+Pembaruan 13 Oktober 2026: jenis file diputuskan (PDF, Word, Excel, PowerPoint; lainnya lewat link), intern boleh memilih kantor aktif mana pun untuk clock in dan clock out, dan besar radius ditentukan admin.
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD atau di percakapan.
@@ -186,7 +187,8 @@ Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Al
 **Aturan:**
 - Sistem memvalidasi lokasi saat clock in. Clock in diterima bila posisi intern berada dalam **radius clock in** salah satu **kantor aktif**. **[Keputusan]**
 - Kantor dan radiusnya dibuat admin di menu Lokasi Kantor (lihat `design-admin.md`, Bagian 9A). **[Keputusan]**
-- Intern boleh clock in di kantor aktif mana pun, tidak terikat satu kantor. **[Usulan, belum diputuskan]**
+- Intern boleh memilih kantor aktif mana pun untuk clock in, tidak terikat satu kantor. **[Keputusan]**
+- Besar radius tiap kantor ditentukan admin. **[Keputusan]**
 
 ### 5.1 Langkah
 
@@ -224,7 +226,7 @@ Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Al
 | Akses lokasi ditolak di browser | "Izinkan akses lokasi di browser untuk melakukan clock in." |
 | Gagal mengambil lokasi | "Lokasi tidak dapat dibaca. Coba lagi." |
 
-Batas jarak memakai radius tiap kantor yang diatur admin. Penanganan kasus khusus (GPS kurang akurat, VPN) ditentukan tim teknis, lihat Bagian 20.
+Batas jarak memakai radius tiap kantor yang ditentukan admin, tanpa rentang tetap dari sistem. Penanganan kasus khusus (GPS kurang akurat, VPN) ditentukan tim teknis, lihat Bagian 20.
 
 ### 5.4 Aturan
 
@@ -346,6 +348,7 @@ Pesan validasi lokasi saat clock out sama dengan 5.3, dengan kata "clock out":
 - Selain lokasi, clock out **hanya** mensyaratkan Daily Report terkirim. Tidak ada syarat menyelesaikan Task atau pekerjaan harian. **[Keputusan]**
 - Clock out sebelum jam pulang diperbolehkan setelah konfirmasi. **[Usulan]**
 - Lokasi divalidasi juga saat clock out, memakai **radius clock out** kantor aktif. Radius clock out boleh berbeda dari radius clock in. **[Keputusan]**
+- Intern boleh clock out di kantor aktif mana pun, tidak harus sama dengan kantor saat clock in. **[Keputusan]**
 - Jika tidak bisa clock out karena lokasi sampai 23:59, status hari itu menjadi **Lupa Clock Out**. Perbaikan lewat koreksi absensi (Alur 7).
 - Jika sampai 23:59 ada clock in tanpa clock out, status hari itu menjadi **Lupa Clock Out**. **[Keputusan]**
 - Setelah clock out, tidak ada clock in kedua pada hari yang sama. **[Usulan]**
@@ -456,7 +459,7 @@ Daftar permintaan:
 | Membatalkan | Intern dapat membatalkan permintaan yang masih **Pending**. **[Usulan, sama dengan aturan izin]** |
 | Setelah diproses | Tidak bisa dibuka ulang. Jika masih salah, ajukan permintaan baru. **[Usulan, sama dengan sisi admin]** |
 | Catatan admin | Selalu tampil pada status Disetujui maupun Ditolak. **[Keputusan]** soal status dan catatan alasan |
-| Bukti | Opsional, maksimal **2 MB**. Pesan: "Ukuran file maksimal 2 MB." Jenis file belum ditentukan (Bagian 20) |
+| Bukti | Opsional, maksimal **2 MB**, hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Pesan: "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." |
 
 ---
 
@@ -573,6 +576,7 @@ Tombol di detail menyesuaikan status:
 **Tujuan:** menyerahkan hasil Task ke mentor dan memperbaikinya bila diminta.
 **Aturan:**
 - Pengumpulan lewat **link** dan **unggah file**. **[Keputusan]** Ukuran file maksimal **2 MB**. **[Keputusan]**
+- File yang boleh diunggah hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Hasil berjenis lain (gambar, ZIP, video, kode, dan sebagainya) dikumpulkan lewat **link**. **[Keputusan]**
 - Pengumpulan ulang **menggantikan** hasil sebelumnya. File lama dihapus, **tanpa riwayat versi**. **[Keputusan]**
 - Mentor menekan **Accept** (Task menjadi Done) atau **Revise** (Task kembali ke In Progress dengan komentar). Intern mendapat notifikasi pada kedua kasus. **[Keputusan]**
 - Pengumpulan wajib lewat web. **[Keputusan]**
@@ -611,7 +615,7 @@ Tombol di detail menyesuaikan status:
 |---|---|---|
 | Link dan file | Minimal salah satu terisi | "Isi link atau pilih file." |
 | Link | Harus diawali http:// atau https:// | "Format link tidak valid." |
-| File | Maksimal 2 MB, jenis sesuai batas sistem | "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan." (jenis file ditentukan di Bagian 20) |
+| File | Maksimal 2 MB, hanya PDF, Word, Excel, atau PowerPoint | "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint, atau kirim lewat link." |
 
 ### 11.4 Mengganti hasil (pengumpulan ulang)
 
@@ -727,7 +731,7 @@ Task menjadi **Done** dan terkunci. Intern menerima notifikasi. Hasil dan koment
 | Tanggal | Harus mengandung minimal satu hari kerja | "Tanggal yang dipilih tidak mengandung hari kerja." |
 | Tanggal | Tidak tumpang tindih dengan izin lain yang Pending atau Disetujui | "Sudah ada izin pada tanggal ini." |
 | Alasan | Wajib | "Alasan wajib diisi." |
-| Lampiran | Opsional, maksimal 2 MB. Jenis file belum ditentukan (Bagian 20) | "Ukuran file maksimal 2 MB." |
+| Lampiran | Opsional, maksimal 2 MB, hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx) | "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." |
 
 ### 13.4 Aturan tanggal
 
@@ -950,7 +954,7 @@ Dipakai untuk tindakan yang berdampak: clock out sebelum jam pulang, mengganti h
 
 ## 19. Keputusan Tambahan (Mengikuti Usulan)
 
-Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikuti usulan, nomor 16 dan 17 adalah keputusan baru dari Draft 2. Hal yang masih terbuka ada di Bagian 20.
+Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikuti usulan, nomor 16 dan 17 adalah keputusan Draft 2, dan nomor 18 sampai 20 diputuskan 13 Oktober 2026. Hal yang masih terbuka ada di Bagian 20.
 
 | No | Topik | Keputusan |
 |---|---|---|
@@ -971,17 +975,17 @@ Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikut
 | 15 | Nonaktif akun | Berlaku mulai hari setelah tanggal selesai magang |
 | 16 | Lokasi kantor | Admin membuat kantor lewat peta dengan radius clock in dan radius clock out. Clock in memakai radius clock in, clock out memakai radius clock out |
 | 17 | Batas ukuran file | Maksimal 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi |
+| 18 | Jenis file | Hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx) untuk hasil Task, lampiran izin, dan bukti koreksi. Jenis lain dikirim lewat link |
+| 19 | Intern dan kantor | Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out |
+| 20 | Batas radius | Ditentukan admin per kantor, tanpa rentang tetap dari sistem |
 
 ---
 
 ## 20. Hal yang Masih Terbuka
 
-Batas ukuran file (2 MB) dan validasi lokasi (radius kantor aktif) sudah diputuskan di Draft 2. Hal berikut masih terbuka.
+Batas ukuran file (2 MB) dan validasi lokasi (radius kantor aktif) sudah diputuskan di Draft 2. Jenis file, pilihan kantor, dan batas radius sudah diputuskan 13 Oktober 2026 (Bagian 19 nomor 18 sampai 20). Hal berikut masih terbuka.
 
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Jenis file yang diizinkan | Untuk hasil Task, lampiran izin, dan bukti koreksi. Usulan awal: PDF, DOCX, XLSX, PPTX, JPG, PNG untuk Task, dan PDF, JPG, PNG untuk lampiran izin dan koreksi |
-| 2 | Intern dan kantor | Intern terikat satu kantor, atau boleh memakai kantor aktif mana pun (usulan: mana pun) |
-| 3 | Batas radius | Usulan 10 sampai 1000 meter, belum diputuskan (sama dengan `design-admin.md` 17.2) |
-| 4 | Kasus khusus lokasi | Penanganan GPS kurang akurat dan VPN, ditentukan tim teknis |
-| 5 | Penyimpanan dan penghapusan file lama | Saat hasil diganti, file lama dihapus permanen. Cara dan waktu penghapusan ditentukan tim teknis |
+| 1 | Kasus khusus lokasi | Penanganan GPS kurang akurat dan VPN, ditentukan tim teknis |
+| 2 | Penyimpanan dan penghapusan file lama | Saat hasil diganti, file lama dihapus permanen. Cara dan waktu penghapusan ditentukan tim teknis |

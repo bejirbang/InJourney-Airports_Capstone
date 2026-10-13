@@ -4,6 +4,7 @@ Sistem: Web Intern Management dan Attendance System
 Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026
 Perubahan Draft 2: menu Lokasi Kantor (Bagian 9A), batas file 2 MB, validasi lokasi saat clock in dan clock out.
 Pembaruan 12 Oktober 2026: export laporan diubah dari PDF ke **Excel (.xlsx)**, dan laporan Rekap Izin dihapus (Bagian 12).
+Pembaruan 13 Oktober 2026: jenis file diputuskan (PDF, Word, Excel, PowerPoint; lainnya lewat link), intern boleh memilih kantor aktif mana pun, dan besar radius ditentukan admin tanpa rentang tetap (Bagian 17).
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
@@ -498,7 +499,7 @@ Jenis izin hanya **Sakit** dan **Urgent**. **[Keputusan]** Jumlah hari kerja dih
 | Setelah izin disetujui | Absensi pada hari kerja yang tercakup berubah menjadi Izin. Hari non-kerja tidak ikut dihitung |
 
 Catatan wajib diisi untuk Setujui maupun Tolak. **[Usulan]**
-Lampiran izin maksimal 2 MB per file. **[Keputusan]**
+Lampiran izin maksimal 2 MB per file, berjenis PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). **[Keputusan]**
 
 ---
 
@@ -690,13 +691,14 @@ Formulir **Ubah** memakai layar yang sama dengan data terisi.
 |---|---|---|
 | Pin | Wajib dipasang di peta | "Pilih titik kantor di peta." |
 | Nama | Wajib, belum dipakai kantor lain | "Nama kantor wajib diisi." |
-| Radius clock in | Wajib, angka 10 sampai 1000 **[Usulan]** | "Isi radius antara 10 dan 1000 meter." |
-| Radius clock out | Wajib, angka 10 sampai 1000 **[Usulan]** | "Isi radius antara 10 dan 1000 meter." |
+| Radius clock in | Wajib, angka bulat lebih dari 0 (meter). Besarnya ditentukan admin, tanpa rentang tetap dari sistem **[Keputusan]** | "Isi radius dalam meter, lebih dari 0." |
+| Radius clock out | Wajib, angka bulat lebih dari 0 (meter). Besarnya ditentukan admin, tanpa rentang tetap dari sistem **[Keputusan]** | "Isi radius dalam meter, lebih dari 0." |
 
 ### 9A.5 Aturan
 
 - Clock in diterima bila posisi intern berada dalam **radius clock in** salah satu kantor aktif. Clock out memakai **radius clock out**. **[Keputusan]**
-- Intern boleh memakai kantor aktif mana pun, tidak terikat satu kantor. **[Usulan, belum diputuskan]**
+- Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out, tidak terikat satu kantor. Kantor clock out tidak harus sama dengan kantor clock in. **[Keputusan]**
+- Besar radius clock in dan clock out ditentukan admin per kantor. Sistem tidak memasang batas bawah atau atas selain harus lebih dari 0. **[Keputusan]**
 - Kantor tidak dihapus, hanya dinonaktifkan, agar riwayat absensi tetap menunjuk kantornya. **[Usulan]**
 - Mengubah titik atau radius hanya berlaku untuk clock in dan clock out berikutnya. Absensi lama tidak berubah. **[Usulan]**
 - Peta memakai **Leaflet dengan OpenStreetMap**, gratis dan tanpa API key. Pencarian alamat memakai Nominatim. **[Usulan]**
@@ -980,7 +982,7 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 
 ### 17.1 Keputusan tambahan
 
-Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikuti usulan, nomor 11 sampai 13 adalah keputusan baru.
+Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikuti usulan, nomor 11 sampai 13 adalah keputusan Draft 2, dan nomor 14 sampai 16 diputuskan 13 Oktober 2026.
 
 | No | Topik | Keputusan |
 |---|---|---|
@@ -997,11 +999,10 @@ Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikut
 | 11 | Lokasi kantor | Admin membuat kantor lewat peta, dengan nama, radius clock in, dan radius clock out yang boleh berbeda |
 | 12 | Batas ukuran file | Maksimal 2 MB, berlaku untuk lampiran izin, bukti koreksi, dan hasil Task |
 | 13 | Validasi lokasi | Berlaku saat clock in dan clock out, memakai radius kantor aktif |
+| 14 | Jenis file | Hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx), untuk lampiran izin, bukti koreksi, dan hasil Task. Jenis lain dikirim lewat link |
+| 15 | Intern dan kantor | Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out |
+| 16 | Batas radius | Ditentukan admin per kantor, tanpa rentang tetap dari sistem (harus lebih dari 0 meter) |
 
 ### 17.2 Hal yang masih terbuka
 
-| No | Topik | Keterangan |
-|---|---|---|
-| 1 | Jenis file lampiran | Usulan awal: PDF, JPG, PNG |
-| 2 | Intern dan kantor | Intern terikat satu kantor, atau boleh memakai kantor aktif mana pun (usulan: mana pun) |
-| 3 | Batas radius | Usulan 10 sampai 1000 meter, belum diputuskan |
+Tidak ada. Tiga hal yang sebelumnya terbuka (jenis file, intern dan kantor, batas radius) sudah diputuskan di 17.1 nomor 14 sampai 16.

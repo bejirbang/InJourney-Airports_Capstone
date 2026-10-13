@@ -53,7 +53,7 @@ Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-men
 **Kehadiran**
 - Sabtu dan Minggu libur. Admin mengatur hari libur lain dan jam kerja global (dengan tanggal efektif).
 - Status ditentukan otomatis dengan batas 23:59: Hadir, Izin, Tidak Hadir (tanpa clock in), Lupa Clock Out (clock in tanpa clock out). Hari berjalan tampil "Belum Clock In", belum Tidak Hadir.
-- Lokasi divalidasi saat clock in (radius clock in) dan clock out (radius clock out) terhadap kantor aktif yang dibuat admin di menu Lokasi Kantor. Tanpa kantor aktif, intern tidak bisa clock in.
+- Lokasi divalidasi saat clock in (radius clock in) dan clock out (radius clock out) terhadap kantor aktif yang dibuat admin di menu Lokasi Kantor. Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out. Besar radius ditentukan admin (harus lebih dari 0 meter, tanpa rentang tetap). Tanpa kantor aktif, intern tidak bisa clock in.
 - Selain lokasi, clock out hanya mensyaratkan Daily Report terkirim. Daily Report dapat diedit sampai clock out. Task dan Daily Report adalah dua hal berbeda.
 
 **Task**
@@ -73,4 +73,6 @@ Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-men
 
 **Sudah diputuskan (Draft 2)**: batas ukuran file 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi. Validasi lokasi memakai radius kantor aktif.
 
-**Masih terbuka**: jenis file yang diizinkan, intern terikat satu kantor atau boleh kantor aktif mana pun (usulan: mana pun), batas radius (usulan 10-1000 m), penanganan GPS kurang akurat dan VPN. Jangan mengarang nilainya di kode. Tandai sebagai pengaturan yang nanti diisi tim backend.
+**Sudah diputuskan (13 Oktober 2026)**: jenis file hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx); jenis lain lewat link. Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out. Besar radius ditentukan admin, tanpa rentang tetap.
+
+**Masih terbuka**: penanganan GPS kurang akurat dan VPN. Jangan mengarang nilainya di kode. Tandai sebagai pengaturan yang nanti diisi tim backend.

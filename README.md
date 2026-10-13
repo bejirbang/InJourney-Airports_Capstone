@@ -18,12 +18,12 @@ Satu intern punya tepat satu mentor. Satu mentor bisa membimbing banyak intern.
 
 | Fitur | Ringkasan |
 |---|---|
-| Absensi | Clock in dan clock out dengan validasi lokasi kantor. Status kehadiran dihitung otomatis dengan batas 23:59 |
+| Absensi | Clock in dan clock out di kantor aktif mana pun yang dipilih intern, dengan validasi radius kantor. Status kehadiran dihitung otomatis dengan batas 23:59 |
 | Daily Report | Laporan harian intern, wajib dikirim sebelum clock out |
-| Task | Papan Kanban (To Do, In Progress, In Review, Done), pengumpulan lewat link atau file, komentar dua arah |
+| Task | Papan Kanban (To Do, In Progress, In Review, Done), pengumpulan lewat link atau file (PDF, Word, Excel, PowerPoint), komentar dua arah |
 | Izin | Izin Sakit dan Izin Urgent dengan bukti. Disetujui mentor, atau admin bila mentor tidak merespons |
 | Koreksi absensi | Intern mengajukan, admin memverifikasi lalu memutuskan |
-| Lokasi kantor | Admin memilih titik di peta dan mengatur radius clock in dan clock out |
+| Lokasi kantor | Admin memilih titik di peta dan menentukan sendiri radius clock in dan clock out |
 | Chat | Satu lawan satu, real time |
 | Notifikasi | Lonceng di navbar, real time |
 | Pengumuman | Dari admin ke role yang dipilih |
@@ -140,7 +140,7 @@ cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate --seed
+php artisan migrate --seed   # akun contoh: admin@, mentor@, intern@injourney.test, password "password"
 php artisan serve          # API
 php artisan reverb:start   # WebSocket
 php artisan queue:work     # antrean
@@ -148,6 +148,8 @@ php artisan test
 ```
 
 Isi `.env` dengan koneksi PostgreSQL lokal sebelum menjalankan migrate.
+
+Autentikasi memakai Sanctum dengan Bearer token: login di `POST /api/auth/login`, lalu kirim header `Authorization: Bearer <token>`. Rincian endpoint ada di `backend/CLAUDE.md`, dan progres backend di `backend/progress.md`. Admin pertama di production dibuat dengan `php artisan app:create-admin {email} {nama}`.
 
 ## Deployment
 
@@ -165,9 +167,11 @@ Reverb adalah proses yang harus menyala terus, jadi dijalankan bersama API di ho
 - Jam kerja berlaku sama untuk semua intern.
 - Tanpa clock in sampai 23:59 berarti Tidak Hadir. Clock in tanpa clock out berarti Lupa Clock Out.
 - Akun dibuat admin dengan email internal. Tidak ada Google OAuth. Reset password oleh admin.
-- Akun tidak pernah dihapus, hanya dinonaktifkan.
+- Akun dinonaktifkan, bukan dihapus. Database sudah menyiapkan soft delete sebagai cadangan jika nanti penghapusan akun dibutuhkan.
 - Intern hanya punya Izin Sakit dan Izin Urgent, tidak ada cuti.
 - Admin tidak bisa membaca chat orang lain.
+- File yang boleh diunggah hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx), maksimal 2 MB. Jenis lain dikirim lewat link.
+- Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out. Besar radius tiap kantor ditentukan admin.
 - Tidak ada penilaian intern. Halaman Performa hanya untuk pemantauan.
 
 ## Dokumentasi
@@ -181,8 +185,10 @@ Reverb adalah proses yang harus menyala terus, jadi dijalankan bersama API di ho
 | Arsitektur Backend & Desain Data | Stack, ERD, 18 tabel, dan arti tiap kolom |
 | `frontend/CLAUDE.md`, `backend/CLAUDE.md` | Panduan untuk asisten AI saat mengerjakan tiap bagian |
 
-## Hal yang masih terbuka
+## Keputusan 13 Oktober 2026
 
-- Jenis file yang boleh diunggah.
-- Intern terikat pada satu kantor, atau boleh clock in di kantor aktif mana pun.
-- Batas radius kantor (usulan 10 sampai 1000 meter).
+Tiga hal yang sebelumnya terbuka sudah diputuskan:
+
+- **Jenis file**: hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Jenis lain (gambar, ZIP, video, dan sebagainya) dikirim lewat link.
+- **Lokasi clock in dan clock out**: intern tidak terikat satu kantor. Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out.
+- **Batas radius**: ditentukan admin per kantor di menu Lokasi Kantor. Sistem tidak memasang rentang tetap.
