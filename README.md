@@ -165,7 +165,7 @@ Reverb adalah proses yang harus menyala terus, jadi dijalankan bersama API di ho
 - Jam kerja berlaku sama untuk semua intern.
 - Tanpa clock in sampai 23:59 berarti Tidak Hadir. Clock in tanpa clock out berarti Lupa Clock Out.
 - Akun dibuat admin dengan email internal. Tidak ada Google OAuth. Reset password oleh admin.
-- Akun tidak pernah dihapus, hanya dinonaktifkan.
+- Akun dinonaktifkan, bukan dihapus. Database sudah menyiapkan soft delete sebagai cadangan jika nanti penghapusan akun dibutuhkan.
 - Intern hanya punya Izin Sakit dan Izin Urgent, tidak ada cuti.
 - Admin tidak bisa membaca chat orang lain.
 - File yang boleh diunggah hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx), maksimal 2 MB. Jenis lain dikirim lewat link.
