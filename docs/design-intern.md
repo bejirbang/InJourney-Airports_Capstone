@@ -4,6 +4,7 @@ Sistem: Web Intern Management dan Attendance System
 Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026, design-admin.md (Draft 2), dan design-mentor.md
 Perubahan Draft 2: validasi lokasi saat clock in dan clock out memakai radius kantor aktif (menu Lokasi Kantor di sisi admin), batas file 2 MB.
 Pembaruan 13 Oktober 2026: jenis file diputuskan (PDF, Word, Excel, PowerPoint; lainnya lewat link), intern boleh memilih kantor aktif mana pun untuk clock in dan clock out, dan besar radius ditentukan admin.
+Pembaruan 17 Oktober 2026: clock in lewat jam masuk diberi tanda Terlambat (bukan status), dan clock out sebelum jam pulang tidak diperbolehkan (5.4, 7.1, 7.3, 19).
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD atau di percakapan.
@@ -156,7 +157,7 @@ Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Al
 |---|---|---|
 | Banner Daily Report | Muncul jika sudah clock in tetapi Daily Report hari ini belum terkirim | Daily Report wajib sebelum clock out. **[Keputusan]** Banner hilang setelah laporan terkirim |
 | Kartu Hari Ini | Status hari ini dan tombol aksi | Tombol berubah sesuai kondisi: **Clock In**, **Clock Out**, atau tanpa tombol (lihat tabel 4.3) |
-| Rekap bulan ini | Jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, hari kerja berjalan | **[Keputusan]** Memakai status final yang sudah ditetapkan sistem. Hari berjalan belum dihitung sampai lewat 23:59 |
+| Rekap bulan ini | Jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, hari kerja berjalan, dan jumlah hari Terlambat | **[Keputusan]** Memakai status final yang sudah ditetapkan sistem. Hari berjalan belum dihitung sampai lewat 23:59. Terlambat hanya informasi, bukan status (lihat 5.4). **[Keputusan 17 Okt 2026]** |
 | Task aktif | Jumlah Task per status dan tenggat terdekat | Task Terlambat ditandai merah dan dihitung terpisah. Klik membuka halaman Task |
 | Periode magang dan mentor | Informasi saja | **[Usulan]** |
 
@@ -220,7 +221,8 @@ Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Al
 | Situasi | Pesan |
 |---|---|
 | Sedang memeriksa | "Memeriksa lokasi..." |
-| Lokasi sesuai | "Clock in berhasil pukul 08:02." |
+| Lokasi sesuai | "Clock in berhasil pukul 08:00." |
+| Lokasi sesuai, lewat jam masuk | "Clock in berhasil pukul 08:15. Anda terlambat 15 menit." Durasi 60 menit atau lebih ditulis dalam jam, misalnya "1 jam 1 menit". **[Keputusan 17 Okt 2026]** |
 | Di luar radius clock in semua kantor aktif | "Lokasi Anda belum sesuai. Clock in belum bisa dilakukan." dan tombol **Coba lagi** |
 | Belum ada kantor aktif | "Belum ada kantor aktif. Clock in belum bisa dilakukan. Hubungi admin." Tombol Clock In tidak aktif |
 | Akses lokasi ditolak di browser | "Izinkan akses lokasi di browser untuk melakukan clock in." |
@@ -232,7 +234,11 @@ Batas jarak memakai radius tiap kantor yang ditentukan admin, tanpa rentang teta
 
 - Clock in hanya pada **hari kerja** dalam **periode magang**. **[Keputusan]**
 - Satu hari hanya satu kali clock in. Setelah berhasil, tombol Clock In hilang. **[Usulan]**
-- Clock in tidak dibatasi jam tertentu. Jam clock in tersimpan apa adanya dan dapat dilihat mentor dan admin. Sistem **tidak** memberi status "terlambat" pada absensi, karena status kehadiran hanya Hadir, Izin, Tidak Hadir, dan Lupa Clock Out. **[Usulan berdasar daftar status di PRD]**
+- Clock in tidak dibatasi jam tertentu. Jam clock in tersimpan apa adanya dan dapat dilihat mentor dan admin.
+- Clock in yang lewat **jam masuk** (Pengaturan Jam Kerja admin yang berlaku hari itu, saat ini 08:00) diberi tanda **Terlambat** beserta lamanya. Dihitung per menit: 08:00 tepat waktu, 08:01 terlambat 1 menit. **[Keputusan 17 Okt 2026]**
+- Terlambat adalah **tanda**, bukan status kehadiran. Status tetap Hadir, Izin, Tidak Hadir, dan Lupa Clock Out, sehingga rekap Hadir dan KPI tidak berubah rumusnya. **[Keputusan 17 Okt 2026]**
+- Tanda Terlambat terlihat oleh intern (pesan clock in dan dashboard) dan admin (Absensi, Laporan, Dashboard, Warning). Mentor tidak melihat tanda ini. **[Keputusan 17 Okt 2026]**
+- Jika admin mengoreksi jam clock in, tanda Terlambat dihitung ulang otomatis.
 - Batas penetapan status otomatis adalah 23:59. Tanpa clock in sampai 23:59, status hari itu menjadi **Tidak Hadir**. **[Keputusan]**
 
 ### 5.5 Kondisi khusus
@@ -317,9 +323,9 @@ Dua kolom isian (pekerjaan dan kendala) adalah **[Usulan]**. Mentor dan admin ha
 |---|---|---|
 | 1 | Menekan **Clock Out** | Sistem memeriksa apakah Daily Report hari ini sudah terkirim |
 | 2a | Jika **belum** terkirim | Dialog: "Daily Report belum dikirim. Isi dulu sebelum clock out." dengan tombol **Isi Daily Report** |
-| 2b | Jika sudah terkirim dan sebelum jam pulang | Dialog konfirmasi: "Belum jam pulang (17:00). Tetap clock out?" |
+| 2b | Jika sudah terkirim dan sebelum jam pulang | Clock out ditolak: "Belum saatnya clock out, tunggu 45 menit lagi." Sisa waktu 60 menit atau lebih ditulis dalam jam, misalnya "tunggu 1 jam 1 menit lagi". **[Keputusan 17 Okt 2026]** |
 | 2c | Jika sudah terkirim dan sudah jam pulang | Lanjut ke pemeriksaan lokasi (langkah 3) |
-| 3 | Setelah langkah 2b dikonfirmasi atau langkah 2c | Sistem memeriksa lokasi terhadap **radius clock out** kantor aktif. Jika di dalam radius, clock out tercatat |
+| 3 | Setelah langkah 2c | Sistem memeriksa lokasi terhadap **radius clock out** kantor aktif. Jika di dalam radius, clock out tercatat |
 | 4 | - | Tampil ringkasan: clock in, clock out, status **Hadir**. Daily Report terkunci |
 
 ### 7.2 Layar dialog
@@ -346,7 +352,8 @@ Pesan validasi lokasi saat clock out sama dengan 5.3, dengan kata "clock out":
 ### 7.3 Aturan
 
 - Selain lokasi, clock out **hanya** mensyaratkan Daily Report terkirim. Tidak ada syarat menyelesaikan Task atau pekerjaan harian. **[Keputusan]**
-- Clock out sebelum jam pulang diperbolehkan setelah konfirmasi. **[Usulan]**
+- Clock out sebelum **jam pulang** (Pengaturan Jam Kerja admin yang berlaku hari itu) **tidak diperbolehkan**. Tidak ada dialog konfirmasi. **[Keputusan 17 Okt 2026, menggantikan usulan konfirmasi]**
+- Jika intern harus pulang lebih awal (misalnya sakit di tengah hari), hari itu menjadi **Lupa Clock Out** setelah 23:59. Intern lalu mengajukan koreksi absensi ke admin dengan alasan (Alur 7). **[Keputusan 17 Okt 2026]**
 - Lokasi divalidasi juga saat clock out, memakai **radius clock out** kantor aktif. Radius clock out boleh berbeda dari radius clock in. **[Keputusan]**
 - Intern boleh clock out di kantor aktif mana pun, tidak harus sama dengan kantor saat clock in. **[Keputusan]**
 - Jika tidak bisa clock out karena lokasi sampai 23:59, status hari itu menjadi **Lupa Clock Out**. Perbaikan lewat koreksi absensi (Alur 7).
@@ -916,7 +923,7 @@ Warna tidak boleh menjadi satu-satunya penanda. Selalu sertakan teks pada badge.
 
 ### 17.4 Dialog konfirmasi
 
-Dipakai untuk tindakan yang berdampak: clock out sebelum jam pulang, mengganti hasil Task, membatalkan izin, membatalkan koreksi. Isinya menjelaskan **dampaknya** dalam kalimat biasa, dan tombol konfirmasi memakai kata kerja jelas (contoh: "Ya, batalkan", bukan "OK").
+Dipakai untuk tindakan yang berdampak: mengganti hasil Task, membatalkan izin, membatalkan koreksi. Isinya menjelaskan **dampaknya** dalam kalimat biasa, dan tombol konfirmasi memakai kata kerja jelas (contoh: "Ya, batalkan", bukan "OK").
 
 ### 17.5 Pesan sistem penting
 
@@ -924,7 +931,9 @@ Dipakai untuk tindakan yang berdampak: clock out sebelum jam pulang, mengganti h
 |---|---|
 | Berhasil disimpan | "Perubahan tersimpan." |
 | Clock in berhasil | "Clock in berhasil pukul 08:02." |
+| Clock in terlambat | "Clock in berhasil pukul 08:15. Anda terlambat 15 menit." |
 | Clock out berhasil | "Clock out berhasil pukul 17:03. Terima kasih." |
+| Clock out sebelum jam pulang | "Belum saatnya clock out, tunggu 1 jam 1 menit lagi." |
 | Daily Report terkirim | "Daily Report terkirim." |
 | Hasil Task terkumpul | "Hasil terkumpul. Menunggu pemeriksaan mentor." |
 | Izin terkirim | "Izin diajukan. Menunggu mentor." |
@@ -954,15 +963,15 @@ Dipakai untuk tindakan yang berdampak: clock out sebelum jam pulang, mengganti h
 
 ## 19. Keputusan Tambahan (Mengikuti Usulan)
 
-Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikuti usulan, nomor 16 dan 17 adalah keputusan Draft 2, dan nomor 18 sampai 20 diputuskan 13 Oktober 2026. Hal yang masih terbuka ada di Bagian 20.
+Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikuti usulan, nomor 16 dan 17 adalah keputusan Draft 2, dan nomor 18 sampai 20 diputuskan 13 Oktober 2026. Nomor 4 dan 5 diubah 17 Oktober 2026. Hal yang masih terbuka ada di Bagian 20.
 
 | No | Topik | Keputusan |
 |---|---|---|
 | 1 | Login | Email internal, akun dibuat admin, tanpa Google OAuth |
 | 2 | Ganti password | Tidak ada ganti password mandiri. Hanya saat login pertama dan reset oleh admin |
 | 3 | Kanban | Drag and drop didukung dengan aturan perpindahan di 10.2. Tombol di detail Task tetap tersedia |
-| 4 | Status keterlambatan clock in | Tidak ada. Jam clock in tersimpan apa adanya |
-| 5 | Clock out sebelum jam pulang | Boleh, setelah konfirmasi |
+| 4 | Keterlambatan clock in | Tanda Terlambat (bukan status) jika clock in lewat jam masuk, dihitung per menit. Terlihat oleh intern dan admin, tidak oleh mentor. **Diubah 17 Okt 2026** |
+| 5 | Clock out sebelum jam pulang | Tidak boleh. Pesan "Belum saatnya clock out, tunggu ... lagi." Pulang lebih awal menjadi Lupa Clock Out lalu koreksi. **Diubah 17 Okt 2026** |
 | 6 | Validasi lokasi | Pada clock in dan clock out, memakai radius kantor aktif (diubah di Draft 2, lihat nomor 16) |
 | 7 | Daily Report | Dua kolom: pekerjaan (wajib) dan kendala (opsional) |
 | 8 | Mengganti hasil Task | Boleh saat In Review dan setelah Revise. Hasil lama dihapus, tanpa versi |

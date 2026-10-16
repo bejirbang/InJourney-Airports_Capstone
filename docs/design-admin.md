@@ -5,6 +5,7 @@ Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026
 Perubahan Draft 2: menu Lokasi Kantor (Bagian 9A), batas file 2 MB, validasi lokasi saat clock in dan clock out.
 Pembaruan 12 Oktober 2026: export laporan diubah dari PDF ke **Excel (.xlsx)**, dan laporan Rekap Izin dihapus (Bagian 12).
 Pembaruan 13 Oktober 2026: jenis file diputuskan (PDF, Word, Excel, PowerPoint; lainnya lewat link), intern boleh memilih kantor aktif mana pun, dan besar radius ditentukan admin tanpa rentang tetap (Bagian 17).
+Pembaruan 17 Oktober 2026: tanda Terlambat clock in untuk admin (Absensi, Dashboard, Warning, Laporan) dan clock out sebelum jam pulang tidak diperbolehkan (Bagian 2.2, 5, 9.1, 10, 12.3, 15.1, 17.1).
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
@@ -72,7 +73,7 @@ Angka kecil di sebelah Koreksi dan Izin adalah jumlah yang menunggu diproses.
 |---|---|---|
 | Dashboard | Ringkasan hari ini dan pengingat | /admin/dashboard |
 | Pengguna | Daftar akun, tambah, ubah, nonaktif, reset password, ganti mentor | /admin/users |
-| Absensi | Data absensi dan rekap bulanan | /admin/attendance |
+| Absensi | Data absensi dan rekap bulanan, termasuk tanda Terlambat per baris dan jumlah hari Terlambat per intern | /admin/attendance |
 | Koreksi | Permintaan koreksi absensi dari intern | /admin/corrections |
 | Izin | Semua pengajuan izin, proses yang Pending | /admin/leaves |
 | Warning | Catatan peringatan per intern | /admin/warnings |
@@ -311,8 +312,8 @@ Aturan:
 +------------------------------------------------------------------------+
 | Dashboard                                      Senin, 12 Okt 2026      |
 |                                                                        |
-| [Sudah Clock In] [Izin]   [Belum Clock In]                             |
-|      18            2           4                                       |
+| [Sudah Clock In] [Izin]   [Belum Clock In]   [Terlambat]               |
+|      18            2           4                 3                     |
 | Status final (Tidak Hadir, Lupa Clock Out) ditetapkan setelah 23:59.   |
 | Kemarin: Hadir 20 | Izin 2 | Tidak Hadir 1 | Lupa Clock Out 1          |
 |                                                                        |
@@ -337,7 +338,8 @@ Aturan:
 | Bagian | Isi | Aturan |
 |---|---|---|
 | Kartu hari ini | Jumlah Sudah Clock In, Izin, Belum Clock In | Pada hari berjalan intern yang belum clock in disebut "Belum Clock In", bukan "Tidak Hadir", karena status final baru ditetapkan setelah 23:59. **[Usulan berdasar aturan cut-off]** |
-| Ringkasan kemarin | Hadir, Izin, Tidak Hadir, Lupa Clock Out | Memakai status final yang sudah ditetapkan sistem |
+| Kartu Terlambat | Jumlah intern yang clock in lewat jam masuk hari ini. Klik membuka daftar nama, jam clock in, dan lama terlambat | **[Keputusan 17 Okt 2026]** soal tanda Terlambat untuk admin. Bentuk kartu **[Usulan]** |
+| Ringkasan kemarin | Hadir, Izin, Tidak Hadir, Lupa Clock Out | Memakai status final yang sudah ditetapkan sistem. Terlambat bukan status, jadi tidak masuk ringkasan ini |
 | Izin pending > 24 jam | Izin yang belum diproses mentor lebih dari 24 jam | **[Keputusan]** Menampilkan jenis izin dan lama pending. Tombol **Buka** menuju Alur 5 |
 | Permintaan koreksi | Permintaan koreksi absensi yang menunggu | Tombol **Buka** menuju Alur 4 |
 | Magang berakhir dalam 7 hari | Intern yang tanggal selesainya H-7 sampai hari H | **[Keputusan]** Tombol **Tanya mentor** dan **Perpanjang** menuju Alur 6 |
@@ -575,6 +577,8 @@ Dialog perpanjang:
 - Jam kerja bersifat **global**. **[Keputusan]**
 - Batas penetapan status 23:59 hanya ditampilkan sebagai informasi (tidak bisa diubah). **[Keputusan]**
 - Jam pulang harus setelah jam masuk.
+- **Jam masuk** menjadi batas tanda Terlambat: clock in lewat jam masuk ditandai Terlambat, dihitung per menit (08:00 tepat waktu, 08:01 terlambat 1 menit). Terlambat adalah tanda, bukan status kehadiran. **[Keputusan 17 Okt 2026]**
+- **Jam pulang** menjadi batas clock out: intern tidak bisa clock out sebelum jam pulang. Intern yang harus pulang lebih awal menjadi Lupa Clock Out lalu mengajukan koreksi (Alur 4). **[Keputusan 17 Okt 2026]**
 - Perubahan jam kerja berlaku mulai **tanggal efektif** yang dipilih admin dan **tidak mengubah** data absensi sebelumnya. **[Usulan, diikuti]**
 
 ### 9.2 Tab Kalender Libur
@@ -749,6 +753,8 @@ Formulir **Ubah** memakai layar yang sama dengan data terisi.
 
 Label "Hanya terlihat oleh admin" selalu tampil agar tidak salah paham.
 
+Di atas riwayat catatan tampil jumlah hari Terlambat intern itu pada bulan berjalan (misalnya "Terlambat bulan ini: 3 kali") sebagai bahan pertimbangan. Sistem **tidak** membuat warning otomatis dari keterlambatan; admin tetap menulis catatan sendiri. **[Keputusan 17 Okt 2026]** soal tanda Terlambat untuk admin, tampilan **[Usulan]**
+
 Kondisi kosong: "Belum ada catatan untuk intern ini."
 Admin yang membuat catatan boleh **mengubahnya dalam 24 jam**. Setelah itu catatan terkunci dan tidak bisa dihapus. Setiap perubahan masuk Log Aktivitas. **[Usulan, diikuti]**
 
@@ -833,7 +839,7 @@ Validasi: judul dan isi wajib, minimal satu penerima dipilih (pesan "Pilih minim
 
 | Laporan | Kolom utama |
 |---|---|
-| Rekap Absensi | Intern, jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, total hari kerja |
+| Rekap Absensi | Intern, jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, jumlah hari Terlambat, total hari kerja |
 | Rekap Task | Intern, mentor, judul Task, status (To Do, In Progress, In Review, Done), tanda Terlambat |
 
 Kolom di atas **[Usulan]**, tim boleh menyesuaikan.
@@ -919,6 +925,7 @@ Warna tidak boleh menjadi satu-satunya penanda. Selalu sertakan teks pada badge.
 | Lupa Clock Out | Absensi | Oranye (#EF6C00) |
 | Libur | Absensi | Abu-abu (#757575) |
 | Dikoreksi admin | Label kecil pada absensi | Abu-abu gelap |
+| Terlambat 15 menit | Label kecil pada absensi (tanda, bukan status) | Merah gelap (#AD1457) **[Usulan]** |
 | Pending | Izin, koreksi | Kuning (#F9A825) |
 | Disetujui | Izin, koreksi | Hijau |
 | Ditolak | Izin, koreksi | Merah |
@@ -982,7 +989,7 @@ Dipakai untuk tindakan yang berdampak: nonaktifkan akun, ganti mentor, reset pas
 
 ### 17.1 Keputusan tambahan
 
-Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikuti usulan, nomor 11 sampai 13 adalah keputusan Draft 2, dan nomor 14 sampai 16 diputuskan 13 Oktober 2026.
+Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikuti usulan, nomor 11 sampai 13 adalah keputusan Draft 2, nomor 14 sampai 16 diputuskan 13 Oktober 2026, dan nomor 17 dan 18 diputuskan 17 Oktober 2026.
 
 | No | Topik | Keputusan |
 |---|---|---|
@@ -1002,6 +1009,8 @@ Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 10 mengikut
 | 14 | Jenis file | Hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx), untuk lampiran izin, bukti koreksi, dan hasil Task. Jenis lain dikirim lewat link |
 | 15 | Intern dan kantor | Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out |
 | 16 | Batas radius | Ditentukan admin per kantor, tanpa rentang tetap dari sistem (harus lebih dari 0 meter) |
+| 17 | Terlambat clock in | Clock in lewat jam masuk diberi tanda Terlambat (bukan status), dihitung per menit. Terlihat oleh intern dan admin (Absensi, Dashboard, Warning, Laporan), tidak oleh mentor. Diputuskan 17 Oktober 2026 |
+| 18 | Clock out sebelum jam pulang | Tidak diperbolehkan. Pulang lebih awal menjadi Lupa Clock Out lalu koreksi. Diputuskan 17 Oktober 2026 |
 
 ### 17.2 Hal yang masih terbuka
 

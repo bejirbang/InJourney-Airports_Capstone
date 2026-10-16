@@ -2,6 +2,7 @@
 
 Sistem: Web Intern Management dan Attendance System
 Versi: Draft 1 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026 dan design-admin.md
+Pembaruan 17 Oktober 2026: tanda Terlambat clock in tidak ditampilkan untuk mentor, dan intern tidak bisa clock out sebelum jam pulang (Bagian 5.3 dan 11.3).
 
 Tanda yang dipakai di dokumen ini:
 - **[Keputusan]** = sudah disepakati di PRD.
@@ -225,6 +226,8 @@ Tidak ada tab **Warning** untuk mentor. **[Keputusan]**
 ```
 
 - Status memakai aturan otomatis sistem (batas 23:59). **[Keputusan]**
+- Tanda **Terlambat** clock in (lewat jam masuk) hanya untuk intern dan admin. Mentor tetap melihat jam clock in apa adanya, tanpa label Terlambat dan tanpa jumlah terlambat di ringkasan. **[Keputusan 17 Okt 2026]**
+- Intern tidak bisa clock out sebelum jam pulang. Intern yang pulang lebih awal tampil sebagai Lupa Clock Out sampai admin menyetujui koreksinya. **[Keputusan 17 Okt 2026]**
 - Baris yang dikoreksi admin diberi label "Dikoreksi admin". **[Usulan, sama dengan sisi admin]**
 - Sabtu, Minggu, dan hari libur tidak dihitung hari kerja. **[Keputusan]**
 
@@ -674,6 +677,7 @@ Aturan umum:
 - Angka KPI bersifat **informasi pemantauan**, bukan nilai akhir dan bukan penilaian intern. **[Keputusan]** soal tidak ada grading, **[Usulan]** soal penegasan ini pada layar.
 - Intern dengan data kurang dari satu minggu menampilkan "Data belum cukup" alih-alih persentase. **[Usulan]**
 - Sabtu, Minggu, dan hari libur tidak dihitung. **[Keputusan]**
+- Keterlambatan clock in **tidak** menjadi indikator KPI. Hari terlambat tetap dihitung Hadir. **[Keputusan 17 Okt 2026]**
 - Pada layar ditampilkan catatan kecil: "KPI hanya untuk pemantauan dan bukan nilai intern."
 
 ### 11.4 Kondisi khusus
