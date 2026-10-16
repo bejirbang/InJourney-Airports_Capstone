@@ -272,17 +272,19 @@ export function Workspace({ children }: { children: ReactNode }) {
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
-                <span className="avatar">{initials(m.me.name)}</span>
+                <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
                 <span className="profile-name">
-                  <strong className="text-[11px]">{m.me.name}</strong>
+                  <strong className="text-[11px]">{auth.user?.name ?? m.me.name}</strong>
                   <small>{m.role}</small>
                 </span>
                 <ChevronDown size={12} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>
-                  {m.me.name}
-                  <small className="block font-normal text-muted-foreground">{m.me.email}</small>
+                  {auth.user?.name ?? m.me.name}
+                  <small className="block font-normal text-muted-foreground">
+                    {auth.user?.email ?? m.me.email}
+                  </small>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
