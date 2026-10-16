@@ -56,6 +56,8 @@ import {
   type Scenario,
 } from "@/components/internspace/shared/model";
 import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
+import { useAuth } from "@/lib/auth";
+import icon from "@/assets/icon.png";
 
 type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 
@@ -110,14 +112,17 @@ const allowed: Record<Role, AppPath[]> = {
 
 export function Workspace({ children }: { children: ReactNode }) {
   const m = useMock();
+  const auth = useAuth();
   const path = useLocation().pathname;
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
   const [dataState, setDataState] = useState<"normal" | "memuat" | "gagal">("normal");
 
+  // Kunci di ganti-password selama akun wajib ganti password (mock atau sesi API).
+  const needPasswordChange = m.mustChangePassword || auth.user?.must_change_password === true;
   useEffect(() => {
-    if (m.mustChangePassword) void navigate({ to: "/ganti-password" });
-  }, [m.mustChangePassword, navigate]);
+    if (needPasswordChange) void navigate({ to: "/ganti-password" });
+  }, [needPasswordChange, navigate]);
 
   const myInterns = m.internsOf(m.me.name).map((p) => p.name);
   const nav: NavItem[] =
@@ -181,11 +186,7 @@ export function Workspace({ children }: { children: ReactNode }) {
     <div className={`workspace role-${m.role.toLowerCase()}`}>
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <div className="brand">
-          <span className="brand-symbol" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img className="brand-mark" src={icon} alt="Logo InJourney Airports" />
           <div className="brand-word">
             InJourney<span>airports</span>
           </div>
@@ -271,17 +272,19 @@ export function Workspace({ children }: { children: ReactNode }) {
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
-                <span className="avatar">{initials(m.me.name)}</span>
+                <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
                 <span className="profile-name">
-                  <strong className="text-[11px]">{m.me.name}</strong>
+                  <strong className="text-[11px]">{auth.user?.name ?? m.me.name}</strong>
                   <small>{m.role}</small>
                 </span>
                 <ChevronDown size={12} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>
-                  {m.me.name}
-                  <small className="block font-normal text-muted-foreground">{m.me.email}</small>
+                  {auth.user?.name ?? m.me.name}
+                  <small className="block font-normal text-muted-foreground">
+                    {auth.user?.email ?? m.me.email}
+                  </small>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
@@ -290,11 +293,17 @@ export function Workspace({ children }: { children: ReactNode }) {
                     Profil Saya
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/login">
-                    <LogOut />
-                    Keluar
-                  </Link>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void (async () => {
+                      await auth.logout();
+                      m.setMustChangePassword(false);
+                      await navigate({ to: "/login" });
+                    })();
+                  }}
+                >
+                  <LogOut />
+                  Keluar
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

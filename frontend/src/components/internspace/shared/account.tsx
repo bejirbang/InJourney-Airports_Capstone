@@ -3,9 +3,12 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { isAutoInactive, notStarted, validatePassword } from "@/lib/mock-rules";
-import { DEMO_PASSWORD, ME, TEMP_PASSWORD, useMock } from "@/components/internspace/shared/model";
+import { validatePassword } from "@/lib/mock-rules";
+import { ApiError, toMockRole } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { useMock } from "@/components/internspace/shared/model";
 import airport from "@/assets/airport-banner.jpg";
+import icon from "@/assets/icon.png";
 
 function AccountLayout({ children }: { children: ReactNode }) {
   return (
@@ -14,11 +17,7 @@ function AccountLayout({ children }: { children: ReactNode }) {
       <div className="account-wash" />
       <div className="account-content">
         <Link to="/login" className="brand account-brand" aria-label="InJourney Airports">
-          <span className="brand-symbol" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img className="brand-mark" src={icon} alt="Logo InJourney Airports" />
           <div className="brand-word">
             InJourney<span>airports</span>
           </div>
@@ -81,20 +80,21 @@ function PasswordField({
 }
 
 const demoAccounts = [
-  { email: "nabila.putri@example.com", note: "Intern" },
-  { email: "budi.santoso@example.com", note: "Mentor" },
-  { email: "ayu.wulandari@example.com", note: "Admin" },
-  { email: "dimas.arya@example.com", note: "magang sudah selesai" },
-  { email: "hana.kusuma@example.com", note: "magang belum dimulai" },
+  { email: "admin@injourney.test", note: "Admin" },
+  { email: "mentor@injourney.test", note: "Mentor" },
+  { email: "intern@injourney.test", note: "Intern" },
+  { email: "intern.baru@injourney.test", note: "login pertama (wajib ganti password)" },
 ];
 
-/** Login dengan email internal buatan admin. Tanpa Google OAuth dan tanpa pemulihan mandiri. */
+/** Login lewat API Laravel. Tanpa Google OAuth dan tanpa pemulihan mandiri. */
 export function LoginPage() {
+  const auth = useAuth();
   const m = useMock();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   return (
     <AccountLayout>
       <span className="account-eyebrow">
@@ -106,24 +106,36 @@ export function LoginPage() {
         className="account-fields"
         onSubmit={(e) => {
           e.preventDefault();
-          const person = m.people.find((p) => p.email.toLowerCase() === email.trim().toLowerCase());
-          if (!person || (password !== DEMO_PASSWORD && password !== TEMP_PASSWORD))
-            return setError("Email atau password salah.");
-          if (person.role === "Intern" && notStarted(person.start))
-            return setError("Masa magang Anda belum dimulai.");
-          if (!person.active || (person.role === "Intern" && isAutoInactive(person.end)))
-            return setError("Akun Anda tidak aktif. Hubungi admin.");
-          if (ME[person.role] !== person.name)
-            return setError(
-              `Prototipe hanya membuka tampilan ${ME[person.role]} untuk role ${person.role}.`,
-            );
+          const value = email.trim();
+          if (!value) return setError("Email wajib diisi.");
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+            return setError("Format email tidak valid.");
+          if (!password) return setError("Password wajib diisi.");
           setError("");
-          setPassword("");
-          m.setRole(person.role);
-          if (password === TEMP_PASSWORD) {
-            m.setMustChangePassword(true);
-            void navigate({ to: "/ganti-password" });
-          } else void navigate({ to: "/" });
+          setBusy(true);
+          void (async () => {
+            try {
+              const user = await auth.login(value, password);
+              setPassword("");
+              // Samakan role tampilan prototipe dengan role akun yang sebenarnya.
+              m.setRole(toMockRole[user.role]);
+              if (user.must_change_password) {
+                m.setMustChangePassword(true);
+                await navigate({ to: "/ganti-password" });
+              } else {
+                m.setMustChangePassword(false);
+                await navigate({ to: "/" });
+              }
+            } catch (err) {
+              setError(
+                err instanceof ApiError
+                  ? err.message
+                  : "Tidak bisa menghubungi server. Periksa koneksi dan API.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          })();
         }}
       >
         <label className="account-field">
@@ -151,16 +163,15 @@ export function LoginPage() {
             {error}
           </p>
         )}
-        <Button type="submit" className="account-submit">
-          Masuk <ArrowRight size={17} />
+        <Button type="submit" className="account-submit" disabled={busy}>
+          {busy ? "Memeriksa..." : "Masuk"} <ArrowRight size={17} />
         </Button>
         <p className="text-xs text-muted-foreground">Lupa password? Hubungi admin.</p>
       </form>
       <details className="demo-box">
-        <summary>Akun contoh untuk mencoba prototipe</summary>
+        <summary>Akun contoh untuk mencoba</summary>
         <p>
-          Password <code>{DEMO_PASSWORD}</code>. Pakai <code>{TEMP_PASSWORD}</code> untuk mencoba
-          alur login pertama (ganti password).
+          Password <code>password</code> untuk semua akun di bawah.
         </p>
         <ul>
           {demoAccounts.map((a) => (
@@ -179,11 +190,13 @@ export function LoginPage() {
 
 /** Ganti password wajib saat login pertama dan setelah reset oleh admin. */
 export function ChangePasswordPage() {
+  const auth = useAuth();
   const m = useMock();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   return (
     <AccountLayout>
       <div className="account-icon">
@@ -197,14 +210,29 @@ export function ChangePasswordPage() {
         className="account-fields"
         onSubmit={(e) => {
           e.preventDefault();
-          const err = validatePassword(password, confirmation, TEMP_PASSWORD);
+          // Cek "sama dengan password sementara" dilakukan server; di sini cukup "".
+          const err = validatePassword(password, confirmation, "");
           if (err) return setError(err);
           setError("");
-          setPassword("");
-          setConfirmation("");
-          m.setMustChangePassword(false);
-          toast.success("Password tersimpan.");
-          void navigate({ to: "/" });
+          setBusy(true);
+          void (async () => {
+            try {
+              await auth.changePassword(password, confirmation);
+              setPassword("");
+              setConfirmation("");
+              m.setMustChangePassword(false);
+              toast.success("Password tersimpan.");
+              await navigate({ to: "/" });
+            } catch (submitErr) {
+              setError(
+                submitErr instanceof ApiError
+                  ? submitErr.message
+                  : "Tidak bisa menghubungi server. Periksa koneksi dan API.",
+              );
+            } finally {
+              setBusy(false);
+            }
+          })();
         }}
       >
         <PasswordField
@@ -229,11 +257,11 @@ export function ChangePasswordPage() {
             {error}
           </p>
         )}
-        <Button type="submit" className="account-submit">
-          Simpan Password <ArrowRight size={17} />
+        <Button type="submit" className="account-submit" disabled={busy}>
+          {busy ? "Menyimpan..." : "Simpan Password"} <ArrowRight size={17} />
         </Button>
       </form>
-      <p className="account-notice">Prototipe · Password tidak disimpan.</p>
+      <p className="account-notice">Password tersimpan aman di server.</p>
     </AccountLayout>
   );
 }

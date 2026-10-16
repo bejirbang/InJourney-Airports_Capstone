@@ -5,6 +5,7 @@ import {
   createRootRouteWithContext,
   useRouter,
   useLocation,
+  useNavigate,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -14,6 +15,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { MockProvider } from "@/components/internspace/shared/model";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { Workspace } from "@/components/internspace/shared/shell";
 
 function NotFoundComponent() {
@@ -122,21 +124,58 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const path = useLocation().pathname;
-  const accountPage = ["/login", "/ganti-password"].includes(path);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <MockProvider>
-        {accountPage ? (
-          <Outlet />
-        ) : (
-          <Workspace>
-            <Outlet />
-          </Workspace>
-        )}
-      </MockProvider>
+      <AuthProvider>
+        <MockProvider>
+          <AuthGate />
+        </MockProvider>
+      </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+/**
+ * Penjaga sesi: tamu hanya boleh membuka /login dan /ganti-password,
+ * pengguna yang sudah masuk tidak perlu kembali ke /login, dan akun yang
+ * wajib ganti password dikunci di /ganti-password sampai selesai.
+ */
+function AuthGate() {
+  const auth = useAuth();
+  const path = useLocation().pathname;
+  const navigate = useNavigate();
+  const accountPage = ["/login", "/ganti-password"].includes(path);
+
+  useEffect(() => {
+    if (auth.status === "loading") return;
+    if (auth.status === "guest" && !accountPage) {
+      void navigate({ to: "/login" });
+    } else if (auth.status === "authed" && path === "/login") {
+      void navigate({ to: "/" });
+    } else if (
+      auth.status === "authed" &&
+      auth.user?.must_change_password &&
+      path !== "/ganti-password"
+    ) {
+      void navigate({ to: "/ganti-password" });
+    }
+  }, [auth.status, auth.user?.must_change_password, path, accountPage, navigate]);
+
+  if (auth.status === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <p className="text-sm text-muted-foreground">Memeriksa sesi...</p>
+      </div>
+    );
+  }
+
+  return accountPage ? (
+    <Outlet />
+  ) : (
+    <Workspace>
+      <Outlet />
+    </Workspace>
   );
 }
