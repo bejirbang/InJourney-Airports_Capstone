@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\Office;
 use App\Models\User;
+use App\Models\WorkHourSetting;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use RuntimeException;
@@ -46,6 +48,22 @@ class DatabaseSeeder extends Seeder
             'name' => 'Intern Baru',
             'email' => 'intern.baru@injourney.test',
             'title' => 'Backend Intern',
+        ]);
+
+        // Sama dengan data contoh frontend. Tanpa kantor aktif, intern tidak bisa clock in.
+        Office::factory()->create([
+            'name' => 'Kantor Pusat Terminal 3',
+            'latitude' => -6.1256,
+            'longitude' => 106.6559,
+            'clock_in_radius_meters' => 100,
+            'clock_out_radius_meters' => 300,
+        ]);
+
+        // Jam kerja global sama dengan prototipe. Di production diatur admin lewat menu Pengaturan.
+        WorkHourSetting::factory()->create([
+            'start_time' => '08:00:00',
+            'end_time' => '17:00:00',
+            'effective_from' => now()->startOfYear()->toDateString(),
         ]);
     }
 }
