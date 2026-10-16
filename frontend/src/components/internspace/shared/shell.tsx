@@ -56,6 +56,7 @@ import {
   type Scenario,
 } from "@/components/internspace/shared/model";
 import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
+import { useAuth } from "@/lib/auth";
 import icon from "@/assets/icon.png";
 
 type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
@@ -111,14 +112,17 @@ const allowed: Record<Role, AppPath[]> = {
 
 export function Workspace({ children }: { children: ReactNode }) {
   const m = useMock();
+  const auth = useAuth();
   const path = useLocation().pathname;
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
   const [dataState, setDataState] = useState<"normal" | "memuat" | "gagal">("normal");
 
+  // Kunci di ganti-password selama akun wajib ganti password (mock atau sesi API).
+  const needPasswordChange = m.mustChangePassword || auth.user?.must_change_password === true;
   useEffect(() => {
-    if (m.mustChangePassword) void navigate({ to: "/ganti-password" });
-  }, [m.mustChangePassword, navigate]);
+    if (needPasswordChange) void navigate({ to: "/ganti-password" });
+  }, [needPasswordChange, navigate]);
 
   const myInterns = m.internsOf(m.me.name).map((p) => p.name);
   const nav: NavItem[] =
@@ -287,11 +291,17 @@ export function Workspace({ children }: { children: ReactNode }) {
                     Profil Saya
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/login">
-                    <LogOut />
-                    Keluar
-                  </Link>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void (async () => {
+                      await auth.logout();
+                      m.setMustChangePassword(false);
+                      await navigate({ to: "/login" });
+                    })();
+                  }}
+                >
+                  <LogOut />
+                  Keluar
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

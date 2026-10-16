@@ -22,6 +22,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const { MockProvider } = await import("@/components/internspace/shared/model");
+const { AuthProvider } = await import("@/lib/auth");
 const { Workspace } = await import("@/components/internspace/shared/shell");
 const { Dashboard, AttendancePage, LeavePage } =
   await import("@/components/internspace/shared/role-pages");
@@ -46,9 +47,11 @@ const admin = {
 const show = (role: Role, page: ReactNode, path = "/") => {
   router.pathname = path;
   return render(
-    <MockProvider initialRole={role}>
-      <Workspace>{page}</Workspace>
-    </MockProvider>,
+    <AuthProvider>
+      <MockProvider initialRole={role}>
+        <Workspace>{page}</Workspace>
+      </MockProvider>
+    </AuthProvider>,
   );
 };
 
@@ -139,15 +142,19 @@ describe("Setiap halaman dapat dirender", () => {
   });
   it("halaman akun", () => {
     render(
-      <MockProvider>
-        <LoginPage />
-      </MockProvider>,
+      <AuthProvider>
+        <MockProvider>
+          <LoginPage />
+        </MockProvider>
+      </AuthProvider>,
     );
     expect(screen.getByText("Lupa password? Hubungi admin.")).toBeInTheDocument();
     render(
-      <MockProvider>
-        <ChangePasswordPage />
-      </MockProvider>,
+      <AuthProvider>
+        <MockProvider>
+          <ChangePasswordPage />
+        </MockProvider>
+      </AuthProvider>,
     );
     expect(screen.getByText("Simpan Password")).toBeInTheDocument();
   });

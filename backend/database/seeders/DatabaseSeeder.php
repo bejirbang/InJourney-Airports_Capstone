@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
         $mentor = User::factory()->mentor()->create([
             'name' => 'Mentor Contoh',
             'email' => 'mentor@injourney.test',
-            'title' => 'Senior Engineer',
+            'title' => 'Mentor unit',
         ]);
 
         User::factory()->intern(['mentor_id' => $mentor->id])->create([
