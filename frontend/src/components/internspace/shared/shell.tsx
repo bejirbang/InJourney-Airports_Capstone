@@ -56,6 +56,7 @@ import {
   type Scenario,
 } from "@/components/internspace/shared/model";
 import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
+import icon from "@/assets/icon.png";
 
 type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 
@@ -181,11 +182,7 @@ export function Workspace({ children }: { children: ReactNode }) {
     <div className={`workspace role-${m.role.toLowerCase()}`}>
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <div className="brand">
-          <span className="brand-symbol" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img className="brand-mark" src={icon} alt="Logo InJourney Airports" />
           <div className="brand-word">
             InJourney<span>airports</span>
           </div>

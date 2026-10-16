@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { isAutoInactive, notStarted, validatePassword } from "@/lib/mock-rules";
 import { DEMO_PASSWORD, ME, TEMP_PASSWORD, useMock } from "@/components/internspace/shared/model";
 import airport from "@/assets/airport-banner.jpg";
+import icon from "@/assets/icon.png";
 
 function AccountLayout({ children }: { children: ReactNode }) {
   return (
@@ -14,11 +15,7 @@ function AccountLayout({ children }: { children: ReactNode }) {
       <div className="account-wash" />
       <div className="account-content">
         <Link to="/login" className="brand account-brand" aria-label="InJourney Airports">
-          <span className="brand-symbol" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </span>
+          <img className="brand-mark" src={icon} alt="Logo InJourney Airports" />
           <div className="brand-word">
             InJourney<span>airports</span>
           </div>
