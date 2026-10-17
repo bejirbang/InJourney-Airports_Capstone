@@ -216,7 +216,9 @@ it('cannot cancel a leave that was decided or already cancelled', function () {
 it('hides other interns’ leaves', function () {
     $other = leaveFor(User::factory()->intern()->create(), ['evidence_path' => 'leaves/99/x.pdf']);
 
-    asLeaveIntern('GET', "/api/intern/leaves/{$other->id}")->assertForbidden();
+    asLeaveIntern('GET', "/api/intern/leaves/{$other->id}")
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Anda tidak memiliki akses ke izin ini.');
     asLeaveIntern('POST', "/api/intern/leaves/{$other->id}/cancel")->assertForbidden();
     asLeaveIntern('GET', "/api/intern/leaves/{$other->id}/evidence")->assertForbidden();
 

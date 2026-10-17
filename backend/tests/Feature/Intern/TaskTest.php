@@ -144,8 +144,10 @@ it('shows the detail with description, submission, revise banner, and the commen
         ->assertJsonPath('data.revise_pending', true)
         ->assertJsonPath('data.submission', [
             'link' => 'https://drive.example.com/erd',
-            'has_file' => false,
+            'file' => null,
             'submitted_at' => '2026-10-09T15:00:00+07:00',
+            'submitted_late' => false,
+            'late_hours' => null,
         ])
         ->assertJsonPath('data.can_comment', true)
         ->assertJsonPath('data.comments.0.author', ['id' => $this->mentor->id, 'name' => 'Sari Wijaya', 'role' => 'mentor'])
@@ -221,7 +223,9 @@ it('validates the target status', function () {
 it('hides other interns’ tasks', function () {
     $other = Task::factory()->create();
 
-    asTaskIntern('GET', "/api/intern/tasks/{$other->id}")->assertForbidden();
+    asTaskIntern('GET', "/api/intern/tasks/{$other->id}")
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Anda tidak memiliki akses ke Task ini.');
     asTaskIntern('POST', "/api/intern/tasks/{$other->id}/move", ['to' => 'in_progress'])->assertForbidden();
 
     expect($other->refresh()->status)->toBe(TaskStatus::Todo);

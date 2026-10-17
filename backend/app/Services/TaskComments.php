@@ -17,8 +17,6 @@ use Illuminate\Support\Facades\DB;
  */
 class TaskComments
 {
-    public const LOCKED = 'Task sudah selesai dan terkunci.';
-
     public function __construct(private Notifier $notifier) {}
 
     /**
@@ -31,7 +29,7 @@ class TaskComments
             $task = Task::query()->lockForUpdate()->findOrFail($task->id);
 
             if ($task->status === TaskStatus::Done) {
-                throw new ActionRejected(self::LOCKED, 'done_locked');
+                throw new ActionRejected(Task::DONE_LOCKED, 'done_locked');
             }
 
             $comment = $task->comments()->create([

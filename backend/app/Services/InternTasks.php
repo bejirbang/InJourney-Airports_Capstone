@@ -5,13 +5,10 @@ namespace App\Services;
 use App\Enums\TaskStatus;
 use App\Exceptions\ActionRejected;
 use App\Models\Task;
-use App\Models\TaskComment;
-use App\Models\TaskRead;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * Task dari sisi intern (docs/design-intern.md, Alur 8): daftar atau Kanban, detail, dan perpindahan status.
@@ -19,13 +16,6 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  */
 class InternTasks
 {
-    /**
-     * Kolom Done menampilkan 30 hari terakhir secara default (10.2).
-     */
-    public const DONE_DAYS = 30;
-
-    public const STALE = 'Status Task sudah berubah. Muat ulang.';
-
     /**
      * @param  array{status?: string|null, late?: bool, q?: string|null, sort?: string|null, include_older_done?: bool}  $filters
      * @return array{tasks: Collection<int, Task>, hidden_done: int}
@@ -46,15 +36,7 @@ class InternTasks
             $tasks = $tasks->filter(fn (Task $task): bool => $task->isLate($now))->values();
         }
 
-        $since = $now->copy()->subDays(self::DONE_DAYS);
-        $isOldDone = fn (Task $task): bool => $task->status === TaskStatus::Done
-            && $task->done_at !== null && $task->done_at->lt($since);
-        $hidden = ($filters['include_older_done'] ?? false) ? 0 : $tasks->filter($isOldDone)->count();
-
-        return [
-            'tasks' => $hidden === 0 ? $tasks : $tasks->reject($isOldDone)->values(),
-            'hidden_done' => $hidden,
-        ];
+        return Task::withoutOldDone($tasks, $filters['include_older_done'] ?? false, $now);
     }
 
     /**
@@ -68,19 +50,7 @@ class InternTasks
         $task = $this->query($intern)->with(['comments' => fn ($q) => $q->with('author:id,name,role')->oldest()->oldest('id')])
             ->findOrFail($task->id);
 
-        $lastRead = TaskRead::query()->where('task_id', $task->id)->where('user_id', $intern->id)->value('last_read_at');
-        $unread = array_values($task->comments
-            ->filter(fn (TaskComment $c): bool => $c->user_id !== $intern->id
-                && ($lastRead === null || $c->created_at?->gt($lastRead)))
-            ->map(fn (TaskComment $c): int => $c->id)
-            ->all());
-
-        TaskRead::query()->updateOrCreate(
-            ['task_id' => $task->id, 'user_id' => $intern->id],
-            ['last_read_at' => $now],
-        );
-
-        return ['task' => $task, 'unread_ids' => $unread];
+        return ['task' => $task, 'unread_ids' => $task->markCommentsRead($intern, $now)];
     }
 
     /**
@@ -95,7 +65,7 @@ class InternTasks
         $from = $task->status;
 
         if ($expected !== null && $expected !== $from) {
-            throw new ActionRejected(self::STALE, 'stale');
+            throw new ActionRejected(Task::STALE, 'stale');
         }
 
         if ($from === $to) {
@@ -104,7 +74,7 @@ class InternTasks
 
         [$message, $reason] = match (true) {
             $from === TaskStatus::InReview => ['Task sedang diperiksa mentor.', 'in_review_locked'],
-            $from === TaskStatus::Done => ['Task sudah selesai dan terkunci.', 'done_locked'],
+            $from === TaskStatus::Done => [Task::DONE_LOCKED, 'done_locked'],
             $to === TaskStatus::Done => ['Hanya mentor yang bisa menandai Done lewat Accept.', 'mentor_only'],
             $to === TaskStatus::InReview && $from === TaskStatus::Todo => ['Mulai kerjakan Task dulu sebelum mengumpulkan.', 'not_started'],
             $to === TaskStatus::InReview => ['Kumpulkan hasil untuk memindahkan Task ke In Review.', 'submission_required'],
@@ -120,7 +90,7 @@ class InternTasks
         $updated = Task::query()->whereKey($task->id)->where('status', $from)->update(['status' => $to]);
 
         if ($updated === 0) {
-            throw new ActionRejected(self::STALE, 'stale');
+            throw new ActionRejected(Task::STALE, 'stale');
         }
 
         return $task->refresh();
@@ -136,14 +106,6 @@ class InternTasks
         return $intern->assignedTasks()
             ->getQuery()
             ->with('mentor:id,name')
-            ->withCount(['comments as unread_comments_count' => fn (Builder $q) => $q
-                ->where(fn (Builder $q) => $q->whereNull('user_id')->orWhere('user_id', '!=', $intern->id))
-                ->whereNotExists(fn (QueryBuilder $read) => $read
-                    ->selectRaw('1')
-                    ->from('task_reads')
-                    ->whereColumn('task_reads.task_id', 'task_comments.task_id')
-                    ->where('task_reads.user_id', $intern->id)
-                    ->whereColumn('task_reads.last_read_at', '>=', 'task_comments.created_at')),
-            ]);
+            ->withCount(['comments as unread_comments_count' => fn (Builder $q) => $q->unreadFor($intern->id)]);
     }
 }

@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Intern;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Intern\AttendanceHistoryRequest;
 use App\Http\Requests\Intern\ClockRequest;
 use App\Http\Requests\Intern\DailyReportRequest;
+use App\Http\Requests\Shared\AttendanceHistoryRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Http\Resources\DailyReportResource;
 use App\Models\User;

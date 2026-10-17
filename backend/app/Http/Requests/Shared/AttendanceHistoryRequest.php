@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Http\Requests\Intern;
+namespace App\Http\Requests\Shared;
 
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Balasan komentar Task. Pesan sama dengan validateComment di frontend/src/lib/mock-rules.ts.
- * Isian yang hanya spasi menjadi kosong lewat middleware TrimStrings, jadi ikut ditolak.
+ * Bulan riwayat absensi (`?month=2026-10`). Tanpa parameter, bulan berjalan.
+ * Dipakai intern (Riwayat Absensi) dan mentor (Intern Saya: Rekap Absensi dan Daily Report).
  */
-class TaskCommentRequest extends FormRequest
+class AttendanceHistoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -21,7 +21,7 @@ class TaskCommentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string'],
+            'month' => ['sometimes', 'date_format:Y-m'],
         ];
     }
 
@@ -31,7 +31,7 @@ class TaskCommentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'body.*' => 'Tulis komentar dulu.',
+            'month.date_format' => 'Format bulan tidak valid.',
         ];
     }
 }
