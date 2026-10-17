@@ -525,8 +525,25 @@ Daftar dan Kanban Task mentor (tempat tombol Buat Task, Ubah, dan Hapus) ada di 
 - [ ] Sambungkan frontend: simpan token, kirim header `Authorization: Bearer <token>`, arahkan ke Ganti Password jika `must_change_password`, kembali ke login saat respons 401 atau 403 akun nonaktif.
 - [ ] Kelola akun oleh admin: tambah (password sementara tampil sekali), ubah, nonaktifkan/aktifkan, ganti mentor. Pakai `AuditLog::record()`.
 
+## Keputusan pemilik repo
+
+Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). Kode **tidak diubah**; tinjau lagi setelah frontend tersambung (lihat bagian berikut).
+
+- **Ubah Task yang lewat tenggat: tetap seperti sekarang.** Tenggat yang tidak diubah boleh tetap lewat, jadi Task terlambat masih bisa diperbaiki judul dan deskripsinya. Tenggat yang diubah harus setelah waktu sekarang. (Prototipe `validateTask` selalu mewajibkan tenggat setelah sekarang.)
+- **Lupa Clock Out tidak dihitung Hadir di KPI Kehadiran.** Sama dengan prototipe (`attendanceRate`). Perbaikannya lewat koreksi absensi: setelah admin menyetujui, hari itu menjadi Hadir dan KPI ikut berubah karena dihitung saat dibaca. Di rekap, Lupa Clock Out tetap kolom sendiri, tidak masuk Tidak Hadir.
+- **Notifikasi keputusan izin tetap singkat**: "Izin Sakit 13-14 Okt disetujui." tanpa catatan mentor. Catatan dibaca intern di detail izin. (design-mentor.md 9.1 menyebut notifikasi berisi catatan; design-intern.md 16 memakai teks singkat.)
+
+## Ditinjau setelah integrasi frontend
+
+Perubahan yang muncul dari keputusan di atas atau dari integrasi dicatat di sini dulu, lalu dikerjakan pada pengembangan berikutnya setelah tim frontend menyambungkan API. Jangan langsung mengubah kode.
+
+- [ ] Samakan aturan tenggat saat Ubah Task di frontend (`validateTask` di `frontend/src/lib/mock-rules.ts` masih menolak tenggat lampau yang tidak diubah), atau sebaliknya jika tim memilih aturan prototipe.
+- [ ] Pastikan teks bantuan KPI di halaman Performa menjelaskan bahwa Lupa Clock Out tidak dihitung hadir sampai dikoreksi.
+- [ ] Cek ulang bentuk respons yang berubah saat penyeragaman (`submission.file` menggantikan `has_file`, `unread_comments` di kotak Dashboard mentor) terhadap kode frontend.
+
 ## Perlu diputuskan
 
+- [ ] Pengingat Task terlambat (design-mentor.md 7.6) saat ini **tidak** dikirim untuk Task milik intern nonaktif, karena intern itu tidak bisa mengumpulkan lagi. Dokumen tidak membahasnya.
 - [ ] Masa berlaku token. Saat ini `expiration` di `config/sanctum.php` bernilai `null`, jadi token berlaku sampai logout, direset admin, atau akun dinonaktifkan.
 
 ## Masih terbuka
