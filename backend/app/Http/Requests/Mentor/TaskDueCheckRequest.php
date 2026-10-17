@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Requests\Intern;
+namespace App\Http\Requests\Mentor;
 
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Bulan riwayat absensi (`?month=2026-10`). Tanpa parameter, bulan berjalan.
+ * Pemeriksaan tenggat sebelum simpan (`?due_at=2026-10-17 17:00`), untuk peringatan hari libur.
  */
-class AttendanceHistoryRequest extends FormRequest
+class TaskDueCheckRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -20,7 +20,7 @@ class AttendanceHistoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'month' => ['sometimes', 'date_format:Y-m'],
+            'due_at' => ['required', 'date'],
         ];
     }
 
@@ -30,7 +30,7 @@ class AttendanceHistoryRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'month.date_format' => 'Format bulan tidak valid.',
+            'due_at.*' => TaskFormRequest::DUE_INVALID,
         ];
     }
 }

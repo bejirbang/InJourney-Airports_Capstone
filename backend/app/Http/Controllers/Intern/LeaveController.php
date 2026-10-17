@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Intern\LeaveIndexRequest;
 use App\Http\Requests\Intern\LeaveRequestForm;
 use App\Http\Requests\Intern\LeaveWorkingDaysRequest;
-use App\Http\Resources\LeaveRequestResource;
+use App\Http\Resources\InternLeaveResource;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\AttendanceCalendar;
@@ -39,7 +39,7 @@ class LeaveController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        return LeaveRequestResource::collection($leaves);
+        return InternLeaveResource::collection($leaves);
     }
 
     /**
@@ -66,15 +66,15 @@ class LeaveController extends Controller
 
         return response()->json([
             'message' => 'Izin diajukan. Menunggu mentor.',
-            'data' => new LeaveRequestResource($leave),
+            'data' => new InternLeaveResource($leave),
         ], Response::HTTP_CREATED);
     }
 
-    public function show(LeaveRequest $leave): LeaveRequestResource
+    public function show(LeaveRequest $leave): InternLeaveResource
     {
         Gate::authorize('view', $leave);
 
-        return new LeaveRequestResource($leave->load('decider:id,name,role'));
+        return new InternLeaveResource($leave->load('decider:id,name,role'));
     }
 
     public function cancel(Request $request, LeaveRequest $leave, InternLeaves $leaves): JsonResponse
@@ -86,7 +86,7 @@ class LeaveController extends Controller
 
         return response()->json([
             'message' => 'Pengajuan izin dibatalkan.',
-            'data' => new LeaveRequestResource($leaves->cancel($intern, $leave)),
+            'data' => new InternLeaveResource($leaves->cancel($intern, $leave)),
         ]);
     }
 
@@ -100,6 +100,6 @@ class LeaveController extends Controller
         $path = $leave->evidence_path;
         abort_if($path === null || ! Storage::exists($path), 404, 'Lampiran tidak ditemukan.');
 
-        return Storage::download($path, "lampiran-izin-{$leave->start_date->toDateString()}.".pathinfo($path, PATHINFO_EXTENSION));
+        return Storage::download($path, $leave->evidenceFileName());
     }
 }

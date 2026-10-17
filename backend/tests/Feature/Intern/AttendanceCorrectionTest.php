@@ -205,7 +205,9 @@ it('cannot cancel a correction that was already decided or cancelled', function 
 it('hides other interns’ corrections', function () {
     $other = AttendanceCorrection::factory()->create(['evidence_path' => 'attendance-corrections/99/x.pdf']);
 
-    asIntern('GET', "/api/intern/attendance-corrections/{$other->id}")->assertForbidden();
+    asIntern('GET', "/api/intern/attendance-corrections/{$other->id}")
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Anda tidak memiliki akses ke permintaan koreksi ini.');
     asIntern('POST', "/api/intern/attendance-corrections/{$other->id}/cancel")->assertForbidden();
     asIntern('GET', "/api/intern/attendance-corrections/{$other->id}/evidence")->assertForbidden();
 

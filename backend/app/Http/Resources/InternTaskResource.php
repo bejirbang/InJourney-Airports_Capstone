@@ -54,11 +54,8 @@ class InternTaskResource extends JsonResource
                 TaskStatus::Done => null,
             },
             'description' => $this->when($this->relationLoaded('comments'), fn () => $this->description),
-            'submission' => $this->when($this->relationLoaded('comments'), fn () => $this->submitted_at === null ? null : [
-                'link' => $this->submission_link,
-                'has_file' => $this->submission_file_path !== null,
-                'submitted_at' => $this->submitted_at->toIso8601String(),
-            ]),
+            // Bentuk sama dengan detail Task mentor: link, file {name, size}, submitted_at, submitted_late, late_hours.
+            'submission' => $this->when($this->relationLoaded('comments'), fn () => $this->submissionData()),
             // Thread terkunci pada Task Done.
             'can_comment' => $this->when($this->relationLoaded('comments'), fn () => $this->status !== TaskStatus::Done),
             'comments' => $this->when($this->relationLoaded('comments'), fn () => $this->comments

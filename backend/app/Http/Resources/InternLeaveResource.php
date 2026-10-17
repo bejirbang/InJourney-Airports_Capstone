@@ -9,9 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
+ * Izin dari sisi intern: riwayat, detail, dan hasil ajukan atau batal (docs/design-intern.md, Alur 11).
+ *
  * @mixin LeaveRequest
  */
-class LeaveRequestResource extends JsonResource
+class InternLeaveResource extends JsonResource
 {
     /**
      * @return array<string, mixed>

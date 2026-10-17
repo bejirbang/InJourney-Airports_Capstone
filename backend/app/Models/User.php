@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -26,6 +28,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property Role $role
  * @property string $title
  * @property string|null $phone
+ * @property string|null $photo_path
  * @property bool $is_active
  * @property bool $must_change_password
  * @property Carbon|null $created_at
@@ -37,8 +40,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, Task> $assignedTasks
  * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
  */
-#[Fillable(['name', 'email', 'password', 'role', 'title', 'phone', 'is_active', 'must_change_password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'email', 'password', 'role', 'title', 'phone', 'photo_path', 'is_active', 'must_change_password'])]
+#[Hidden(['password', 'remember_token', 'photo_path'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -122,6 +125,24 @@ class User extends Authenticatable
     public function assignedTasks(): HasMany
     {
         return $this->hasMany(Task::class, 'intern_id');
+    }
+
+    /**
+     * Alamat foto profil yang bisa langsung dipakai di <img> tanpa header Authorization.
+     * Alamat bertanda tangan dan sama sepanjang hari, jadi browser dapat menyimpannya di cache.
+     * Berlaku 24 sampai 48 jam; ambil ulang lewat /api/auth/me saat aplikasi dibuka.
+     */
+    public function photoUrl(): ?string
+    {
+        if ($this->photo_path === null) {
+            return null;
+        }
+
+        return URL::temporarySignedRoute(
+            'users.photo',
+            Date::today()->addDays(2),
+            ['user' => $this->id, 'v' => substr(md5($this->photo_path), 0, 8)],
+        );
     }
 
     public function hasRole(Role $role): bool

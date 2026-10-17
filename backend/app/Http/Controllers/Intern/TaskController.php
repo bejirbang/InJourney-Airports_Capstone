@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Intern;
 
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Intern\TaskCommentRequest;
 use App\Http\Requests\Intern\TaskIndexRequest;
 use App\Http\Requests\Intern\TaskMoveRequest;
 use App\Http\Requests\Intern\TaskSubmissionRequest;
+use App\Http\Requests\Shared\TaskCommentRequest;
 use App\Http\Resources\InternTaskResource;
 use App\Http\Resources\TaskCommentResource;
 use App\Models\Task;
@@ -123,6 +123,6 @@ class TaskController extends Controller
         $path = $task->submission_file_path;
         abort_if($path === null || ! Storage::exists($path), 404, 'File hasil tidak ditemukan.');
 
-        return Storage::download($path, "hasil-{$task->code}.".pathinfo($path, PATHINFO_EXTENSION));
+        return Storage::download($path, $task->submissionFileName());
     }
 }

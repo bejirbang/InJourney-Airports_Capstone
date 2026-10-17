@@ -13,7 +13,8 @@ use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Riwayat absensi dan rekap bulanan milik intern sendiri (docs/design-intern.md, Alur 6).
+ * Riwayat absensi dan rekap bulanan milik intern sendiri (docs/design-intern.md, Alur 6),
+ * dan versi hanya baca untuk mentor di Intern Saya (docs/design-mentor.md, Alur 3).
  */
 class AttendanceHistory
 {
@@ -57,15 +58,8 @@ class AttendanceHistory
      */
     public function month(User $intern, ?string $month, CarbonInterface $now): array
     {
-        $months = $this->selectableMonths($intern, $now);
-        $month ??= $months['last'] ?? $now->format('Y-m');
-
-        if ($months === null || $month < $months['first'] || $month > $months['last']) {
-            throw ValidationException::withMessages(['month' => self::MONTH_OUTSIDE_PERIOD]);
-        }
-
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
         [$from, $to] = AttendanceCalendar::monthRange($month);
-        $days = $this->calendar->days($intern, $from, $to, $now);
         $today = $now->toDateString();
 
         // Satu tanggal hanya boleh punya satu koreksi Pending.
@@ -127,6 +121,121 @@ class AttendanceHistory
                 'sent_at' => $report->sent_at->toIso8601String(),
             ],
         ];
+    }
+
+    /**
+     * Tab Rekap Absensi di Intern Saya (docs/design-mentor.md 5.3). Hanya baca.
+     * Tanda Terlambat tidak ditampilkan untuk mentor (keputusan 17 Okt 2026), jadi `late_minutes`
+     * dan `recap.late` tidak dikirim. Tidak ada kolom koreksi karena koreksi hak intern dan admin.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function monthForMentor(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+
+        $recap = $this->calendar->recap($days, $month, $now);
+        unset($recap['late']);
+
+        $rows = [];
+
+        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
+            $rows[] = self::withoutLate($this->dayFields($date, $day));
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'recap' => $recap,
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * Tab Daily Report di Intern Saya (docs/design-mentor.md 5.4): satu baris per hari kerja, terbaru lebih dulu.
+     * `report_missing` true untuk hari yang sudah clock in tetapi tanpa laporan ("Belum ada laporan").
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function dailyReports(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+
+        $rows = [];
+
+        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
+            if ($day['status'] === AttendanceStatus::Holiday) {
+                continue;
+            }
+
+            $report = $day['attendance']?->dailyReport;
+
+            $rows[] = [
+                'date' => $date,
+                'status' => $day['status']->value,
+                'leave_type' => $day['status'] === AttendanceStatus::Leave ? $day['leave']?->type->value : null,
+                'report' => $report === null ? null : [
+                    'work' => $report->work,
+                    'notes' => $report->notes,
+                    'sent_at' => $report->sent_at->toIso8601String(),
+                ],
+                'report_missing' => $report === null && $day['attendance'] !== null,
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * Detail satu hari untuk mentor: sama dengan day() tanpa tanda Terlambat.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function dayForMentor(User $intern, string $date, CarbonInterface $now): array
+    {
+        return self::withoutLate($this->day($intern, $date, $now));
+    }
+
+    /**
+     * Bulan yang diminta (default bulan terakhir yang bisa dipilih), rentang pilihan, dan status tiap tanggal.
+     *
+     * @return array{0: string, 1: array{first: string, last: string}, 2: array<string, array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}>}
+     *
+     * @throws ValidationException
+     */
+    private function resolveMonth(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        $months = $this->selectableMonths($intern, $now);
+        $month ??= $months['last'] ?? $now->format('Y-m');
+
+        if ($months === null || $month < $months['first'] || $month > $months['last']) {
+            throw ValidationException::withMessages(['month' => self::MONTH_OUTSIDE_PERIOD]);
+        }
+
+        [$from, $to] = AttendanceCalendar::monthRange($month);
+
+        return [$month, $months, $this->calendar->days($intern, $from, $to, $now)];
+    }
+
+    /**
+     * @param  array<string, mixed>  $fields
+     * @return array<string, mixed>
+     */
+    private static function withoutLate(array $fields): array
+    {
+        unset($fields['late_minutes']);
+
+        return $fields;
     }
 
     /**
