@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Requests\Mentor;
+namespace App\Http\Requests\Shared;
 
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Setujui atau Tolak izin. Catatan wajib (docs/design-mentor.md 9.4).
+ * Setujui atau Tolak izin oleh mentor atau admin. Catatan wajib (docs/design-mentor.md 9.4, design-admin.md 7.4).
+ * Admin juga mengirim `evidence_checked` (centang "Saya sudah memeriksa bukti"); syaratnya diperiksa di LeaveDecisions.
  */
 class LeaveDecisionRequest extends FormRequest
 {
@@ -21,6 +22,7 @@ class LeaveDecisionRequest extends FormRequest
     {
         return [
             'note' => ['required', 'string', 'max:1000'],
+            'evidence_checked' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -33,6 +35,7 @@ class LeaveDecisionRequest extends FormRequest
             'note.required' => 'Catatan wajib diisi.',
             'note.string' => 'Catatan wajib diisi.',
             'note.max' => 'Catatan maksimal 1000 karakter.',
+            'evidence_checked.boolean' => 'Isian pemeriksaan bukti tidak valid.',
         ];
     }
 }

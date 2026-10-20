@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Mentor;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Mentor\LeaveDecisionRequest;
-use App\Http\Requests\Mentor\LeaveIndexRequest;
+use App\Http\Requests\Shared\LeaveDecisionRequest;
+use App\Http\Requests\Shared\ReviewerLeaveIndexRequest;
 use App\Http\Resources\MentorLeaveResource;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -25,7 +25,7 @@ class LeaveController extends Controller
 {
     public function __construct(private MentorLeaves $leaves) {}
 
-    public function index(LeaveIndexRequest $request): JsonResponse
+    public function index(ReviewerLeaveIndexRequest $request): JsonResponse
     {
         /** @var User $mentor */
         $mentor = $request->user();
