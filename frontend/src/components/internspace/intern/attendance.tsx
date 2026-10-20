@@ -332,7 +332,10 @@ export function TodayCard({ large = false }: { large?: boolean }) {
     setLocError(null);
     setBusy(action);
     const call = action === "in" ? attendanceApi.clockIn : attendanceApi.clockOut;
-    void call(internToken(), p)
+    // Token diambil di dalam rantai promise: kalau sesi sudah habis, error-nya
+    // masuk ke catch dan tombol tidak menggantung di keadaan "Memeriksa lokasi...".
+    void Promise.resolve()
+      .then(() => call(internToken(), p))
       .then(async (result) => {
         await queryClient.invalidateQueries({ queryKey: ["intern"] });
         if (action === "in") {

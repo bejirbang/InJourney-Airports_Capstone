@@ -23,6 +23,13 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 // Leaflet butuh SVG renderer yang tidak ada di jsdom, jadi peta absensi di-stub.
+// Spy dipakai untuk memeriksa isi peta: lingkaran radius kantor dan marker posisi user.
+const leafletSpy = vi.hoisted(() => ({
+  circle: vi.fn(),
+  circleMarker: vi.fn(),
+  fitBounds: vi.fn(),
+}));
+
 vi.mock("leaflet", () => {
   const layer = {
     addTo: () => layer,
@@ -30,19 +37,19 @@ vi.mock("leaflet", () => {
     on: () => layer,
     getBounds: () => ({ extend: () => ({}) }),
   };
+  leafletSpy.circle.mockImplementation(() => layer);
+  leafletSpy.circleMarker.mockImplementation(() => layer);
+  const instance = {
+    setView: () => instance,
+    remove: () => undefined,
+    fitBounds: leafletSpy.fitBounds,
+    invalidateSize: () => undefined,
+  };
   const L = {
-    map: () => {
-      const instance = {
-        setView: () => instance,
-        remove: () => undefined,
-        fitBounds: () => undefined,
-        invalidateSize: () => undefined,
-      };
-      return instance;
-    },
+    map: () => instance,
     tileLayer: () => layer,
-    circle: () => layer,
-    circleMarker: () => layer,
+    circle: leafletSpy.circle,
+    circleMarker: leafletSpy.circleMarker,
     latLng: (lat: number, lng: number) => ({ lat, lng }),
     latLngBounds: () => ({ extend: () => ({}) }),
   };
@@ -110,12 +117,24 @@ const KANTOR_T3: OfficeMock = {
   clock_out_radius_meters: 300,
 };
 
+/** Kantor kedua, dipakai untuk menguji dropdown kantor. */
+const KANTOR_T2: OfficeMock = {
+  id: 2,
+  name: "Kantor Terminal 2",
+  latitude: -6.1314,
+  longitude: 106.6559,
+  clock_in_radius_meters: 80,
+  clock_out_radius_meters: 150,
+};
+
 const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
   report: null as ReportMock | null,
   clockInResult: null as null | { status: number; body: unknown },
   clockOutResult: null as null | { status: number; body: unknown },
+  /** Clock in yang tidak pernah selesai, untuk menguji tombol nonaktif saat request berjalan. */
+  clockInPending: false,
 };
 
 const resetApi = () => {
@@ -134,6 +153,7 @@ const resetApi = () => {
   apiState.report = null;
   apiState.clockInResult = null;
   apiState.clockOutResult = null;
+  apiState.clockInPending = false;
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -189,6 +209,9 @@ const installFetch = () => {
       if (url.endsWith("/api/intern/attendance/clock-in")) {
         if (apiState.clockInResult)
           return jsonResponse(apiState.clockInResult.body, apiState.clockInResult.status);
+        if (apiState.clockInPending)
+          // Request ditahan: tombol harus tetap nonaktif sampai ada jawaban server.
+          return new Promise<Response>(() => {});
         apiState.today = { ...apiState.today, state: "clocked_in", clock_in_at: "15:00" };
         return jsonResponse(
           {
@@ -283,6 +306,9 @@ beforeEach(() => {
   geoBehavior = "ok";
   geoPosition = { lat: KANTOR_T3.latitude, lng: KANTOR_T3.longitude };
   localStorage.setItem("internspace_token", "token-uji");
+  leafletSpy.circle.mockClear();
+  leafletSpy.circleMarker.mockClear();
+  leafletSpy.fitBounds.mockClear();
   installGeolocation();
   installFetch();
 });
@@ -511,22 +537,9 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
     };
     show("Intern", <AttendancePage />, "/absensi");
     // Tunggu tombol Clock In aktif (lokasi & kantor sudah dimuat).
-    await waitFor(
-      () => {
-        const btn = screen.queryByRole("button", { name: /Clock In/ });
-        console.log("POLL:", btn ? `${btn.textContent}|${btn.disabled}` : "none");
-        expect(btn).toBeEnabled();
-      },
-      { timeout: 3000, interval: 100 },
-    );
-    const clickBtn = screen.queryByRole("button", { name: /Clock In/ });
-    console.log(
-      "BEFORE CLICK:",
-      clickBtn ? `${clickBtn.textContent}|${clickBtn.disabled}` : "none",
-      "| all:",
-      screen.queryAllByRole("button").map((b) => b.textContent),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Clock In/ }));
+    const clockIn = await screen.findByRole("button", { name: /Clock In/ });
+    await waitFor(() => expect(clockIn).toBeEnabled());
+    fireEvent.click(clockIn);
     expect(
       await screen.findByText("Lokasi Anda belum sesuai. Clock in belum bisa dilakukan."),
     ).toBeInTheDocument();
@@ -542,5 +555,103 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Cara mengaktifkan/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Coba lagi/ })).toBeInTheDocument();
+  });
+
+  it("Gagal membaca lokasi menampilkan pesan dan tombol Coba lagi", async () => {
+    geoBehavior = "gagal";
+    show("Intern", <AttendancePage />, "/absensi");
+    expect(await screen.findByText("Lokasi tidak dapat dibaca. Coba lagi.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Coba lagi/ })).toBeInTheDocument();
+  });
+
+  it("Kantor yang dipilih di dropdown mengubah peta, jarak, dan radius", async () => {
+    apiState.offices = [KANTOR_T3, KANTOR_T2];
+    show("Intern", <AttendancePage />, "/absensi");
+    const select = await screen.findByLabelText("Kantor untuk absensi");
+    // Kantor terdekat dari posisi(user) terpilih otomatis.
+    expect(await screen.findByText(/Jarak ke Kantor Pusat Terminal 3/)).toBeInTheDocument();
+    expect(screen.getByText(/radius clock in 100 m/)).toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: String(KANTOR_T2.id) } });
+
+    expect(await screen.findByText(/Jarak ke Kantor Terminal 2/)).toBeInTheDocument();
+    expect(screen.getByText(/radius clock in 80 m/)).toBeInTheDocument();
+  });
+
+  it("Tombol Clock In nonaktif selama request berjalan (cegah klik ganda)", async () => {
+    apiState.clockInPending = true;
+    show("Intern", <AttendancePage />, "/absensi");
+    const clockIn = await screen.findByRole("button", { name: /Clock In/ });
+    await waitFor(() => expect(clockIn).toBeEnabled());
+
+    fireEvent.click(clockIn);
+
+    const busy = await screen.findByRole("button", { name: /Memeriksa lokasi/ });
+    expect(busy).toBeDisabled();
+    // Klik kedua tidak mengirim request lagi.
+    fireEvent.click(busy);
+    expect(await screen.findByRole("button", { name: /Memeriksa lokasi/ })).toBeDisabled();
+    const clockInCalls = vi
+      .mocked(fetch)
+      .mock.calls.filter(([input]) => String(input).endsWith("/api/intern/attendance/clock-in"));
+    expect(clockInCalls).toHaveLength(1);
+  });
+
+  it("Clock Out ditolak server karena Daily Report belum dikirim dan membuka dialog laporan", async () => {
+    apiState.today = {
+      ...apiState.today,
+      state: "clocked_in",
+      clock_in_at: "08:00",
+      daily_report_sent: true,
+    };
+    apiState.clockOutResult = {
+      status: 422,
+      body: {
+        message: "Daily Report belum dikirim. Isi dulu sebelum clock out.",
+        reason: "daily_report_missing",
+      },
+    };
+    show("Intern", <AttendancePage />, "/absensi");
+    const clockOut = await screen.findByRole("button", { name: /Clock Out/ });
+    await waitFor(() => expect(clockOut).toBeEnabled());
+
+    fireEvent.click(clockOut);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Daily Report belum dikirim")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Isi Daily Report" })).toBeInTheDocument();
+  });
+
+  it("Peta kecil menampilkan lingkaran radius kantor dan posisi user", async () => {
+    // Posisi user ~67 m dari kantor, supaya marker user dan kantor bisa dibedakan.
+    geoPosition = { lat: -6.125, lng: 106.6559 };
+    show("Intern", <AttendancePage />, "/absensi");
+    expect(await screen.findByLabelText("Peta kantor dan posisi Anda")).toBeInTheDocument();
+
+    // Lingkaran radius mengikuti kantor terpilih dan jenis aksi (clock in).
+    await waitFor(() =>
+      expect(leafletSpy.circle).toHaveBeenCalledWith(
+        [KANTOR_T3.latitude, KANTOR_T3.longitude],
+        expect.objectContaining({ radius: KANTOR_T3.clock_in_radius_meters }),
+      ),
+    );
+    // Posisi user digambar sebagai marker tersendiri.
+    await waitFor(() =>
+      expect(leafletSpy.circleMarker).toHaveBeenCalledWith(
+        expect.objectContaining({ lat: geoPosition.lat, lng: geoPosition.lng }),
+        expect.anything(),
+      ),
+    );
+  });
+
+  it("Pengguna bisa memilih kantor lain dari dropdown kantor aktif", async () => {
+    apiState.offices = [KANTOR_T3, KANTOR_T2];
+    show("Intern", <AttendancePage />, "/absensi");
+    const select = await screen.findByLabelText("Kantor untuk absensi");
+    expect(select).toHaveValue(String(KANTOR_T3.id));
+    expect(
+      within(select).getByRole("option", { name: "Kantor Pusat Terminal 3" }),
+    ).toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "Kantor Terminal 2" })).toBeInTheDocument();
   });
 });
