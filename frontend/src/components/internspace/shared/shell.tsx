@@ -272,7 +272,11 @@ export function Workspace({ children }: { children: ReactNode }) {
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
-                <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
+                {auth.user?.photo_url ? (
+                  <img className="avatar" src={auth.user.photo_url} alt="" />
+                ) : (
+                  <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
+                )}
                 <span className="profile-name">
                   <strong className="text-[11px]">{auth.user?.name ?? m.me.name}</strong>
                   <small>{m.role}</small>

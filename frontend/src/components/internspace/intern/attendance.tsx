@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { LogIn, LogOut, MapPin, Pencil } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LogIn, LogOut, MapPin, Pencil, RotateCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   TODAY,
-  checkLocation,
-  clockOutCheck,
   distanceMeters,
   formatDate,
   formatDateLong,
@@ -21,23 +20,21 @@ import {
   locationMessage,
   validateReport,
 } from "@/lib/mock-rules";
+import {
+  ApiError,
+  attendanceApi,
+  getToken,
+  type ApiTodayState,
+  type DailyReportData,
+  type GeoPosition,
+  type OfficeInfo,
+} from "@/lib/api";
 import { type PageSearch } from "@/lib/search";
 import { CorrectionTab } from "@/components/internspace/intern/correction";
+import { AttendanceMap } from "@/components/internspace/intern/attendance-map";
 import { DayDetail, RecapStrip } from "@/components/internspace/shared/attendance-parts";
+import { ME, type Row, recap, useMock } from "@/components/internspace/shared/model";
 import {
-  LOCATION_LABELS,
-  type LocationSim,
-  ME,
-  type Report,
-  type Row,
-  SIM_POSITIONS,
-  type Task,
-  recap,
-  useMock,
-} from "@/components/internspace/shared/model";
-import { Dashboard } from "@/components/internspace/shared/role-pages";
-import {
-  Confirm,
   DetailList,
   Empty,
   FormError,
@@ -111,213 +108,464 @@ function useLiveClock() {
     .join(":");
 }
 
-/** Posisi intern: posisi contoh dari tombol Simulasi, atau GPS browser yang asli. */
-function readPosition(
-  sim: LocationSim,
-): Promise<{ lat: number; lng: number } | "ditolak" | "gagal"> {
-  if (sim === "ditolak" || sim === "gagal")
-    return new Promise((done) => setTimeout(() => done(sim), 900));
-  if (sim === "gps")
-    return new Promise((done) => {
-      if (!navigator.geolocation) return done("gagal");
-      navigator.geolocation.getCurrentPosition(
-        (p) => done({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        (err) => done(err.code === err.PERMISSION_DENIED ? "ditolak" : "gagal"),
-        { enableHighAccuracy: true, timeout: 10000 },
-      );
-    });
-  const pos = SIM_POSITIONS[sim];
-  return new Promise((done) => setTimeout(() => done(pos ?? "gagal"), 900));
+const internToken = (): string => {
+  const token = getToken();
+  if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
+  return token;
+};
+
+const EMPTY_OFFICES: OfficeInfo[] = [];
+
+/** Status hari ini dari API: dipakai kartu Hari Ini, Daily Report, dan banner dashboard intern. */
+export function useTodayStatus() {
+  return useQuery({
+    queryKey: ["intern", "today"],
+    queryFn: () => attendanceApi.dashboard(internToken()),
+    retry: false,
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
+  });
 }
 
-/** Kontrol simulasi posisi di kartu Hari Ini, dengan jarak ke tiap kantor aktif dan radiusnya. */
-function LocationSimBox({ kind }: { kind: "in" | "out" }) {
-  const m = useMock();
-  const pos = SIM_POSITIONS[m.locationSim];
-  const active = m.offices.filter((o) => o.active);
+function useOffices() {
+  return useQuery({
+    queryKey: ["intern", "offices"],
+    queryFn: () => attendanceApi.offices(internToken()),
+    retry: false,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function useDailyReport() {
+  return useQuery({
+    queryKey: ["intern", "daily-report"],
+    queryFn: () => attendanceApi.dailyReport(internToken()),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+const STATE_LABEL: Record<ApiTodayState, string> = {
+  not_clocked_in: "Belum Clock In",
+  clocked_in: "Sudah Clock In",
+  clocked_out: "Sudah Clock Out",
+  holiday: "Libur",
+  on_leave: "Izin",
+  outside_period: "Di luar periode",
+};
+
+type GeoState = "idle" | "membaca" | "siap" | "ditolak" | "gagal";
+
+const nearestOffice = (list: OfficeInfo[], p: GeoPosition): OfficeInfo =>
+  [...list].sort(
+    (a, b) =>
+      distanceMeters(p, { lat: a.latitude, lng: a.longitude }) -
+      distanceMeters(p, { lat: b.latitude, lng: b.longitude }),
+  )[0] ?? list[0]!;
+
+const formatDistance = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`);
+
+/**
+ * Kotak lokasi untuk tombol Clock In/Clock Out: pilih kantor, lihat peta radius dan
+ * perkiraan jarak dari GPS browser. Angka di sini hanya perkiraan; server yang memutuskan.
+ */
+function GeoBox({
+  kind,
+  offices,
+  officeId,
+  onOfficeChange,
+  position,
+  geo,
+  onRetry,
+}: {
+  kind: "in" | "out";
+  offices: OfficeInfo[];
+  officeId: number | null;
+  onOfficeChange: (id: number) => void;
+  position: GeoPosition | null;
+  geo: GeoState;
+  onRetry: () => void;
+}) {
+  const selected = offices.find((o) => o.id === officeId) ?? offices[0] ?? null;
+  const radius = selected
+    ? kind === "in"
+      ? selected.clock_in_radius_meters
+      : selected.clock_out_radius_meters
+    : 0;
+  const officePoint = useMemo(
+    () => (selected ? { lat: selected.latitude, lng: selected.longitude } : null),
+    [selected],
+  );
+  const distance =
+    position && selected
+      ? Math.round(distanceMeters(position, { lat: selected.latitude, lng: selected.longitude }))
+      : null;
   return (
-    <div className="sim-box">
-      <label className="sim-box-head">
-        <span className="tag st-dark">Simulasi prototipe</span>
-        Posisi intern
+    <div className="geo-box">
+      <label className="form-field">
+        Kantor
         <select
-          aria-label="Simulasi posisi intern"
-          value={m.locationSim}
-          onChange={(e) => m.setLocationSim(e.target.value as LocationSim)}
+          aria-label="Kantor untuk absensi"
+          value={selected?.id ?? ""}
+          onChange={(e) => onOfficeChange(Number(e.target.value))}
         >
-          {Object.entries(LOCATION_LABELS).map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
+          {offices.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
             </option>
           ))}
         </select>
       </label>
-      {active.length === 0 ? null : pos ? (
-        <ul>
-          {active.map((o) => {
-            const d = Math.round(distanceMeters(pos, o));
-            const radius = kind === "in" ? o.radiusIn : o.radiusOut;
-            return (
-              <li key={o.id}>
-                <span>
-                  {o.name}: <strong>{d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${d} m`}</strong>{" "}
-                  (radius clock {kind} {radius} m)
-                </span>
-                <Status
-                  status={d <= radius ? "Aktif" : "Ditolak"}
-                  label={d <= radius ? "Dalam radius" : "Di luar radius"}
-                />
-              </li>
-            );
-          })}
-        </ul>
+      <AttendanceMap office={officePoint} radius={radius} user={position} />
+      {geo === "ditolak" ? (
+        <div className="geo-denied" role="alert">
+          <strong>{locationMessage("ditolak", kind)}</strong>
+          <p>
+            Cara mengaktifkan: klik ikon gembok di bilah alamat, pilih Setelan situs, ubah Lokasi
+            menjadi Izinkan, lalu tekan Coba lagi. Firefox: Pengaturan → Privasi &amp; Keamanan →
+            Setelan Situs → Lokasi.
+          </p>
+          <div>
+            <Button size="sm" variant="outline" onClick={onRetry}>
+              <RotateCw />
+              Coba lagi
+            </Button>
+          </div>
+        </div>
+      ) : geo === "gagal" ? (
+        <div className="loc-error" role="alert">
+          <span>{locationMessage("gagal", kind)}</span>
+          <Button size="sm" variant="outline" onClick={onRetry}>
+            Coba lagi
+          </Button>
+        </div>
+      ) : geo === "siap" && distance !== null && selected ? (
+        <div className="geo-distance">
+          <span>
+            Jarak ke {selected.name}: <strong>{formatDistance(distance)}</strong> · radius clock{" "}
+            {kind} {radius} m
+          </span>
+          <Status
+            status={distance <= radius ? "Aktif" : "Ditolak"}
+            label={distance <= radius ? "Perkiraan dalam radius" : "Perkiraan di luar radius"}
+          />
+        </div>
       ) : (
-        <p>
-          {m.locationSim === "gps"
-            ? "Posisi dibaca dari browser saat tombol ditekan. Browser akan meminta izin lokasi."
-            : "Pemeriksaan akan gagal dengan pesan sesuai dokumen."}
+        <p className="attendance-note">
+          <MapPin size={11} />
+          Membaca lokasi dari browser...
         </p>
       )}
+      <p className="attendance-note">
+        <MapPin size={11} />
+        Perkiraan di atas dihitung di browser; keputusan lokasi ada di server.
+      </p>
     </div>
   );
 }
 
 /** Kartu Hari Ini (dipakai di Dashboard dan tab Hari Ini). Tabel kondisi: design-intern.md 4.3. */
 export function TodayCard({ large = false }: { large?: boolean }) {
-  const m = useMock();
   const navigate = useNavigate();
-  const clock = useLiveClock();
-  const { state, rec, leave } = m.today(ME.Intern);
-  const [checking, setChecking] = useState<"in" | "out" | null>(null);
+  const clockText = useLiveClock();
+  const queryClient = useQueryClient();
+  const todayQuery = useTodayStatus();
+  const officesQuery = useOffices();
+  const today = todayQuery.data?.today;
+  const date = todayQuery.data?.date ?? TODAY;
+  const offices = officesQuery.data ?? EMPTY_OFFICES;
+  const [busy, setBusy] = useState<"in" | "out" | null>(null);
+  const [geo, setGeo] = useState<GeoState>("idle");
+  const [position, setPosition] = useState<GeoPosition | null>(null);
   const [locError, setLocError] = useState<{ kind: "in" | "out"; text: string } | null>(null);
   const [needReport, setNeedReport] = useState(false);
-  const [early, setEarly] = useState(false);
-  const reportSent = !!rec?.report;
-  const noOffice = !m.offices.some((o) => o.active);
+  const [officeId, setOfficeId] = useState<number | null>(null);
+  const locatingRef = useRef(false);
 
-  /** Cek posisi terhadap radius kantor aktif. Clock in memakai radius clock in, clock out radius clock out. */
-  const verify = (kind: "in" | "out", onOk: () => void) => {
+  const kind: "in" | "out" = today?.state === "clocked_in" ? "out" : "in";
+  const actionable = today?.state === "not_clocked_in" || today?.state === "clocked_in";
+
+  /** Baca GPS browser. `after` dipanggil dengan posisi bila berhasil. */
+  const readLocation = useCallback((after?: (p: GeoPosition) => void) => {
+    if (locatingRef.current) return;
+    if (!("geolocation" in navigator)) {
+      setGeo("gagal");
+      return;
+    }
+    locatingRef.current = true;
+    setGeo("membaca");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        locatingRef.current = false;
+        const next = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setPosition(next);
+        setGeo("siap");
+        after?.(next);
+      },
+      (err) => {
+        locatingRef.current = false;
+        setGeo(err.code === err.PERMISSION_DENIED ? "ditolak" : "gagal");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+    );
+  }, []);
+
+  // Minta izin lokasi begitu kartu aksi tampil, supaya peta langsung menunjukkan posisi Anda.
+  useEffect(() => {
+    if (actionable) readLocation();
+  }, [actionable, readLocation]);
+
+  // Kantor terdekat dari posisi Anda; kantor pertama bila posisi belum terbaca.
+  useEffect(() => {
+    if (offices.length === 0) return;
+    setOfficeId((prev) => {
+      if (prev !== null && offices.some((o) => o.id === prev)) return prev;
+      const first = offices[0];
+      if (!first) return prev;
+      return position ? nearestOffice(offices, position).id : first.id;
+    });
+  }, [offices, position]);
+
+  const submit = (action: "in" | "out", p: GeoPosition) => {
+    if (busy) return;
     setLocError(null);
-    setChecking(kind);
-    void readPosition(m.locationSim).then((pos) => {
-      setChecking(null);
-      const result = typeof pos === "string" ? pos : checkLocation(pos, m.offices, kind);
-      if (result === "ok") onOk();
-      else setLocError({ kind, text: locationMessage(result, kind) });
-    });
+    setBusy(action);
+    const call = action === "in" ? attendanceApi.clockIn : attendanceApi.clockOut;
+    // Token diambil di dalam rantai promise: kalau sesi sudah habis, error-nya
+    // masuk ke catch dan tombol tidak menggantung di keadaan "Memeriksa lokasi...".
+    void Promise.resolve()
+      .then(() => call(internToken(), p))
+      .then(async (result) => {
+        await queryClient.invalidateQueries({ queryKey: ["intern"] });
+        if (action === "in") {
+          toast.success(result.message, { description: "Jangan lupa mengisi Daily Report." });
+        } else {
+          toast.success(result.message);
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ApiError) {
+          if (err.reason === "daily_report_missing") setNeedReport(true);
+          setLocError({ kind: action, text: err.message });
+        } else {
+          setLocError({
+            kind: action,
+            text: "Tidak bisa menghubungi server. Periksa koneksi dan API.",
+          });
+        }
+      })
+      .finally(() => setBusy(null));
   };
-  const clockIn = () =>
-    verify("in", () => {
-      const time = m.nowTime();
-      m.setAtt((old) => [...old, { intern: ME.Intern, date: TODAY, clockIn: time, clockOut: "" }]);
-      toast.success(`Clock in berhasil pukul ${time}.`, {
-        description: "Jangan lupa mengisi Daily Report.",
-      });
-    });
-  const doClockOut = () => {
-    setEarly(false);
-    verify("out", () => {
-      const time = m.nowTime();
-      m.setAtt((old) =>
-        old.map((r) => (r.intern === ME.Intern && r.date === TODAY ? { ...r, clockOut: time } : r)),
-      );
-      toast.success(`Clock out berhasil pukul ${time}. Terima kasih.`);
-    });
+
+  const doAction = (action: "in" | "out") => {
+    if (busy || locatingRef.current) return;
+    setLocError(null);
+    readLocation((p) => submit(action, p));
   };
-  const clockOut = () => {
-    const check = clockOutCheck(reportSent, m.nowTime(), m.workHours.end);
-    if (check === "need-report") setNeedReport(true);
-    else if (check === "confirm-early") setEarly(true);
-    else doClockOut();
-  };
-  // Hasil cek lama tidak berlaku lagi setelah posisi simulasi diganti.
-  useEffect(() => setLocError(null), [m.locationSim]);
-  const errorBox = (kind: "in" | "out") =>
-    locError?.kind === kind && (
+
+  const errorBox = (action: "in" | "out") =>
+    locError?.kind === action && (
       <div className="loc-error" role="alert">
         <span>{locError.text}</span>
-        <Button size="sm" variant="outline" onClick={kind === "in" ? clockIn : doClockOut}>
+        <Button size="sm" variant="outline" onClick={() => doAction(action)}>
           Coba lagi
         </Button>
       </div>
     );
 
-  const statusLine =
-    state === "Sudah Clock Out"
-      ? `Hadir, clock out ${rec?.clockOut}`
-      : state === "Libur"
-        ? `Hari ini libur: ${m.holidayName(TODAY) ?? "akhir pekan"}`
-        : state === "Izin"
-          ? `Izin hari ini (${leave?.type.replace("Izin ", "")})`
-          : state === "Di luar periode"
+  const statusLine = !today
+    ? "Memuat status hari ini..."
+    : today.state === "clocked_out"
+      ? `Hadir, clock out ${today.clock_out_at ?? ""}`
+      : today.state === "holiday"
+        ? `Hari ini libur: ${today.holiday_name ?? "akhir pekan"}`
+        : today.state === "on_leave"
+          ? `Izin hari ini (${today.leave_type === "sick" ? "sakit" : "urgent"})`
+          : today.state === "outside_period"
             ? "Di luar periode magang."
-            : state;
+            : STATE_LABEL[today.state];
 
   return (
     <section className={`panel today-card ${large ? "large" : ""}`}>
       <header className="panel-head">
         <div>
           <h2>Hari Ini</h2>
-          <p>{formatDateLong(TODAY)}</p>
+          <p>{formatDateLong(date)}</p>
         </div>
         <span className="text-[11px] text-muted-foreground">
-          Jam kerja: {m.workHours.start} - {m.workHours.end}
+          Jam kerja:{" "}
+          {today?.work_hours ? `${today.work_hours.start} - ${today.work_hours.end}` : "Belum diatur"}
         </span>
       </header>
       <div className="attendance-body">
-        {large && <div className="time-display">{clock}</div>}
-        <div className="attendance-state">
-          <span>Status</span>
-          <Status status={state === "Sudah Clock Out" ? "Hadir" : state} label={statusLine} />
-        </div>
-        {rec && (
-          <div className="clock-times">
-            <div>
-              <small>Clock in</small>
-              <strong>{rec.clockIn}</strong>
-            </div>
-            <div>
-              <small>Clock out</small>
-              <strong>{rec.clockOut || "--:--"}</strong>
-            </div>
+        {large && <div className="time-display">{clockText}</div>}
+        {todayQuery.isPending && (
+          <p className="attendance-note">Memuat status hari ini dari server...</p>
+        )}
+        {todayQuery.isError && (
+          <div className="loc-error" role="alert">
+            <span>
+              {todayQuery.error instanceof ApiError
+                ? todayQuery.error.message
+                : "Tidak bisa memuat status hari ini."}
+            </span>
+            <Button size="sm" variant="outline" onClick={() => void todayQuery.refetch()}>
+              Coba lagi
+            </Button>
           </div>
         )}
-        {state === "Belum Clock In" && (
+        {today && (
           <>
-            <Button className="clock-button" onClick={clockIn} disabled={!!checking || noOffice}>
-              <LogIn />
-              {checking === "in" ? "Memeriksa lokasi..." : "Clock In"}
-            </Button>
-            {noOffice ? (
-              <div className="loc-error" role="alert">
-                <span>{locationMessage("tanpa-kantor", "in")}</span>
+            <div className="attendance-state">
+              <span>Status</span>
+              <Status
+                status={today.state === "clocked_out" ? "Hadir" : STATE_LABEL[today.state]}
+                label={statusLine}
+              />
+            </div>
+            {(today.clock_in_at || today.clock_out_at) && (
+              <div className="clock-times">
+                <div>
+                  <small>Clock in</small>
+                  <strong>{today.clock_in_at ?? "--:--"}</strong>
+                </div>
+                <div>
+                  <small>Clock out</small>
+                  <strong>{today.clock_out_at ?? "--:--"}</strong>
+                </div>
               </div>
-            ) : (
-              errorBox("in") || (
-                <p className="attendance-note">
-                  <MapPin size={11} />
-                  Lokasi Anda akan diperiksa saat tombol ditekan.
-                </p>
-              )
             )}
-          </>
-        )}
-        {state === "Sudah Clock In" && (
-          <>
-            <Button className="clock-button" onClick={clockOut} disabled={!!checking}>
-              <LogOut />
-              {checking === "out" ? "Memeriksa lokasi..." : "Clock Out"}
-            </Button>
-            {errorBox("out") || (
-              <p className="attendance-note">
-                <MapPin size={11} />
-                Lokasi diperiksa lagi saat clock out (radius clock out).
-              </p>
+            {officesQuery.isError &&
+              (today.state === "not_clocked_in" || today.state === "clocked_in") && (
+                <div className="loc-error" role="alert">
+                  <span>
+                    {officesQuery.error instanceof ApiError
+                      ? officesQuery.error.message
+                      : "Gagal memuat daftar kantor."}
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => void officesQuery.refetch()}>
+                    Coba lagi
+                  </Button>
+                </div>
+              )}
+            {today.state === "not_clocked_in" && (
+              <>
+                {offices.length > 0 && (
+                  <GeoBox
+                    kind="in"
+                    offices={offices}
+                    officeId={officeId}
+                    onOfficeChange={setOfficeId}
+                    position={position}
+                    geo={geo}
+                    onRetry={() => readLocation()}
+                  />
+                )}
+                <Button
+                  className="clock-button"
+                  onClick={() => doAction("in")}
+                  disabled={
+                    !!busy ||
+                    geo === "membaca" ||
+                    !today.has_active_office ||
+                    officesQuery.isPending
+                  }
+                >
+                  <LogIn />
+                  {busy === "in"
+                    ? "Memeriksa lokasi..."
+                    : geo === "membaca"
+                      ? "Membaca lokasi..."
+                      : "Clock In"}
+                </Button>
+                {!today.has_active_office ? (
+                  <div className="loc-error" role="alert">
+                    <span>{locationMessage("tanpa-kantor", "in")}</span>
+                  </div>
+                ) : (
+                  errorBox("in") || (
+                    <p className="attendance-note">
+                      <MapPin size={11} />
+                      Lokasi Anda diperiksa server saat tombol ditekan.
+                    </p>
+                  )
+                )}
+              </>
             )}
+            {today.state === "clocked_in" && (
+              <>
+                {!today.daily_report_sent ? (
+                  <>
+                    <Button className="clock-button" disabled>
+                      <LogOut />
+                      Clock Out
+                    </Button>
+                    <div className="banner warn">
+                      <span className="mr-auto">Isi Daily Report dulu sebelum clock out.</span>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          void navigate({
+                            to: "/absensi",
+                            search: { tab: "hari-ini", open: "report" },
+                          })
+                        }
+                      >
+                        Isi Daily Report
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {offices.length > 0 && (
+                      <GeoBox
+                        kind="out"
+                        offices={offices}
+                        officeId={officeId}
+                        onOfficeChange={setOfficeId}
+                        position={position}
+                        geo={geo}
+                        onRetry={() => readLocation()}
+                      />
+                    )}
+                    <Button
+                      className="clock-button"
+                      onClick={() => doAction("out")}
+                      disabled={
+                        !!busy ||
+                        geo === "membaca" ||
+                        !today.has_active_office ||
+                        officesQuery.isPending
+                      }
+                    >
+                      <LogOut />
+                      {busy === "out"
+                        ? "Memeriksa lokasi..."
+                        : geo === "membaca"
+                          ? "Membaca lokasi..."
+                          : "Clock Out"}
+                    </Button>
+                    {!today.has_active_office ? (
+                      <div className="loc-error" role="alert">
+                        <span>{locationMessage("tanpa-kantor", "out")}</span>
+                      </div>
+                    ) : (
+                      errorBox("out") || (
+                        <p className="attendance-note">
+                          <MapPin size={11} />
+                          Lokasi diperiksa lagi saat clock out (radius clock out).
+                        </p>
+                      )
+                    )}
+                  </>
+                )}
+              </>
+            )}
+            {(today.state === "holiday" ||
+              today.state === "on_leave" ||
+              today.state === "outside_period") && <p className="attendance-note">{statusLine}</p>}
           </>
-        )}
-        {(state === "Belum Clock In" || state === "Sudah Clock In") && (
-          <LocationSimBox kind={state === "Belum Clock In" ? "in" : "out"} />
         )}
       </div>
       <Dialog open={needReport} onOpenChange={setNeedReport}>
@@ -339,120 +587,137 @@ export function TodayCard({ large = false }: { large?: boolean }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Confirm
-        open={early}
-        title={`Belum jam pulang (${m.workHours.end})`}
-        confirmLabel="Tetap Clock Out"
-        onConfirm={doClockOut}
-        onClose={() => setEarly(false)}
-      >
-        Tetap clock out sekarang? Setelah clock out, Daily Report terkunci dan tidak ada clock in
-        kedua hari ini.
-      </Confirm>
     </section>
   );
 }
 
 function DailyReportCard({ focus }: { focus: boolean }) {
-  const m = useMock();
-  const { state, rec } = m.today(ME.Intern);
+  const queryClient = useQueryClient();
+  const todayQuery = useTodayStatus();
+  const reportQuery = useDailyReport();
+  const today = todayQuery.data?.today;
+  const date = todayQuery.data?.date ?? TODAY;
+  const report: DailyReportData | null = reportQuery.data ?? null;
   const ref = useRef<HTMLElement>(null);
   const [editing, setEditing] = useState(false);
-  const [work, setWork] = useState(rec?.report?.work ?? "");
-  const [notes, setNotes] = useState(rec?.report?.notes ?? "");
+  const [work, setWork] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     if (focus) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [focus]);
-  const sent = !!rec?.report;
-  const locked = state === "Sudah Clock Out";
-  const save = () => {
+
+  // Form mengikuti laporan terbaru dari server (struktur identik dijaga react-query).
+  useEffect(() => {
+    if (report) {
+      setWork(report.work);
+      setNotes(report.notes ?? "");
+    }
+  }, [report]);
+
+  const state = today?.state;
+  const sent = report !== null;
+  const locked = report !== null && !report.editable;
+  const save = (e: FormEvent) => {
+    e.preventDefault();
     const err = validateReport(work);
     setError(err);
     if (err) return;
-    m.setAtt((old) =>
-      old.map((r) =>
-        r.intern === ME.Intern && r.date === TODAY
-          ? { ...r, report: { work: work.trim(), notes: notes.trim(), sentAt: m.nowIso() } }
-          : r,
-      ),
-    );
-    setEditing(false);
-    toast.success(sent ? "Perubahan tersimpan." : "Daily Report terkirim.");
+    setBusy(true);
+    attendanceApi
+      .saveDailyReport(internToken(), { work: work.trim(), notes: notes.trim() })
+      .then(async (result) => {
+        await queryClient.invalidateQueries({ queryKey: ["intern"] });
+        setEditing(false);
+        toast.success(result.message);
+      })
+      .catch((saveErr: unknown) => {
+        setError(
+          saveErr instanceof ApiError
+            ? saveErr.message
+            : "Tidak bisa menghubungi server. Periksa koneksi dan API.",
+        );
+      })
+      .finally(() => setBusy(false));
   };
   return (
     <section className="panel" ref={ref}>
       <header className="panel-head">
         <div>
-          <h2>Daily Report - {formatDate(TODAY)}</h2>
+          <h2>Daily Report - {formatDate(date)}</h2>
           <p>Laporan tentang apa yang Anda kerjakan hari ini. Berbeda dari Task.</p>
         </div>
-        {(state === "Sudah Clock In" || state === "Sudah Clock Out") && (
+        {(state === "clocked_in" || state === "clocked_out") && (
           <Status status={sent ? "Terkirim" : "Belum dikirim"} />
         )}
       </header>
       <div className="px-5 pb-5">
-        {state === "Belum Clock In" && <Empty>Clock in dulu untuk mengisi Daily Report.</Empty>}
-        {(state === "Libur" || state === "Izin" || state === "Di luar periode") && (
+        {todayQuery.isPending || reportQuery.isPending ? (
+          <p className="text-[11px] text-muted-foreground">Memuat laporan hari ini...</p>
+        ) : state === "not_clocked_in" ? (
+          <Empty>Clock in dulu untuk mengisi Daily Report.</Empty>
+        ) : state === "holiday" || state === "on_leave" || state === "outside_period" ? (
           <Empty>Tidak ada Daily Report hari ini.</Empty>
-        )}
-        {(state === "Sudah Clock In" || state === "Sudah Clock Out") &&
-          (sent && !editing ? (
-            <div className="grid gap-3">
-              <DetailList
-                items={[
-                  ["Yang saya kerjakan", rec?.report?.work],
-                  ["Kendala atau catatan", rec?.report?.notes || "-"],
-                  ["Terakhir disimpan", formatShortTime(rec?.report?.sentAt ?? "")],
-                ]}
-              />
-              {locked ? (
-                <p className="text-[11px] text-muted-foreground">
-                  Laporan terkunci setelah clock out.
-                </p>
-              ) : (
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => setEditing(true)}>
-                    <Pencil />
-                    Ubah
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <form
-              className="form-grid"
-              onSubmit={(e) => {
-                e.preventDefault();
-                save();
-              }}
-            >
-              <label className="form-field">
-                Yang saya kerjakan hari ini *
-                <textarea value={work} onChange={(e) => setWork(e.target.value)} />
-              </label>
-              <label className="form-field">
-                Kendala atau catatan (opsional)
-                <textarea
-                  className="!min-h-16"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </label>
-              <FormError text={error} />
-              <div className="form-actions">
-                <span className="text-[11px] text-muted-foreground mr-auto">
-                  Dapat diubah sampai Anda clock out.
-                </span>
-                {editing && (
-                  <Button type="button" variant="outline" onClick={() => setEditing(false)}>
-                    Batal
-                  </Button>
-                )}
-                <Button type="submit">Simpan Laporan</Button>
+        ) : (state === "clocked_in" || state === "clocked_out") && sent && !editing ? (
+          <div className="grid gap-3">
+            <DetailList
+              items={[
+                ["Yang saya kerjakan", report?.work],
+                ["Kendala atau catatan", report?.notes || "-"],
+                ["Terakhir disimpan", formatShortTime(report?.sent_at ?? "")],
+              ]}
+            />
+            {locked ? (
+              <p className="text-[11px] text-muted-foreground">
+                Laporan terkunci setelah clock out.
+              </p>
+            ) : (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setEditing(true)}>
+                  <Pencil />
+                  Ubah
+                </Button>
               </div>
-            </form>
-          ))}
+            )}
+          </div>
+        ) : (state === "clocked_in" || state === "clocked_out") && !reportQuery.isError ? (
+          <form className="form-grid" onSubmit={save}>
+            <label className="form-field">
+              Yang saya kerjakan hari ini *
+              <textarea value={work} onChange={(e) => setWork(e.target.value)} />
+            </label>
+            <label className="form-field">
+              Kendala atau catatan (opsional)
+              <textarea
+                className="!min-h-16"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </label>
+            <FormError text={error} />
+            <div className="form-actions">
+              <span className="text-[11px] text-muted-foreground mr-auto">
+                Dapat diubah sampai Anda clock out.
+              </span>
+              {editing && (
+                <Button type="button" variant="outline" onClick={() => setEditing(false)}>
+                  Batal
+                </Button>
+              )}
+              <Button type="submit" disabled={busy}>
+                {busy ? "Menyimpan..." : "Simpan Laporan"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            {reportQuery.error instanceof ApiError
+              ? reportQuery.error.message
+              : "Tidak bisa memuat Daily Report."}
+          </p>
+        )}
       </div>
     </section>
   );

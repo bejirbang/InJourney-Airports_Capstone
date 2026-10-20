@@ -1,21 +1,91 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { formatPeriod } from "@/lib/mock-rules";
+import { MAX_FILE_MB, formatPeriod, validateFileSize } from "@/lib/mock-rules";
+import { ApiError, toMockRole } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { initials, useMock } from "@/components/internspace/shared/model";
 import { DetailList, FormError, PageHeading, Panel } from "@/components/internspace/shared/ui";
 
 // ---------- Profil (semua role) ----------
 export function ProfilePage() {
+  const auth = useAuth();
   const m = useMock();
-  const [name, setName] = useState(m.me.name);
-  const [phone, setPhone] = useState(m.me.phone ?? "");
-  const [photo, setPhoto] = useState("");
+  const user = auth.user;
+  const [name, setName] = useState(user?.name ?? "");
+  const [phone, setPhone] = useState(user?.phone ?? "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    setName(m.me.name);
-    setPhone(m.me.phone ?? "");
-  }, [m.me.name, m.me.phone]);
+    if (!user) return;
+    setName(user.name);
+    setPhone(user.phone ?? "");
+  }, [user]);
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(photoFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photoFile]);
+
+  const shownPhoto = previewUrl ?? user?.photo_url ?? null;
+  const roleLabel = user ? toMockRole[user.role] : m.role;
+
+  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
+      setPhotoFile(null);
+      return;
+    }
+    const sizeError = validateFileSize(file.size);
+    if (sizeError) {
+      e.target.value = "";
+      setPhotoFile(null);
+      setError(sizeError);
+      return;
+    }
+    setError(null);
+    setPhotoFile(file);
+  };
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return setError("Nama wajib diisi.");
+    if (photoFile) {
+      const sizeError = validateFileSize(photoFile.size);
+      if (sizeError) return setError(sizeError);
+    }
+    setError(null);
+    setBusy(true);
+    const phoneTrimmed = phone.trim();
+    void (async () => {
+      try {
+        await auth.updateProfile({ name: trimmed, phone: phoneTrimmed });
+        if (photoFile) await auth.uploadPhoto(photoFile);
+        setPhotoFile(null);
+        if (photoInput.current) photoInput.current.value = "";
+        toast.success("Perubahan tersimpan.");
+      } catch (submitErr) {
+        setError(
+          submitErr instanceof ApiError
+            ? submitErr.message
+            : "Tidak bisa menghubungi server. Periksa koneksi dan API.",
+        );
+      } finally {
+        setBusy(false);
+      }
+    })();
+  };
+
   return (
     <>
       <PageHeading
@@ -24,39 +94,51 @@ export function ProfilePage() {
       />
       <div className="grid gap-5 max-w-3xl">
         <Panel title="Data profil">
-          <form
-            className="form-grid px-5 pb-5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!name.trim()) return setError("Nama wajib diisi.");
-              setError(null);
-              // Nama tampilan tidak mengubah kunci data contoh.
-              m.setPeople((old) =>
-                old.map((p) => (p.id === m.me.id ? { ...p, phone: phone.trim() } : p)),
-              );
-              toast.success("Perubahan tersimpan.");
-            }}
-          >
+          <form className="form-grid px-5 pb-5" onSubmit={save}>
             <div className="flex items-center gap-4">
-              <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
-              <label className="form-field">
-                Foto profil
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? "")}
+              {shownPhoto ? (
+                <img
+                  className="avatar !w-16 !h-16"
+                  src={shownPhoto}
+                  alt={photoFile ? "Pratinjau foto profil" : "Foto profil"}
                 />
-                {photo && (
-                  <small className="text-muted-foreground">
-                    {photo} (pratinjau tidak disimpan di prototipe)
+              ) : (
+                <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
+              )}
+              <div className="form-field">
+                <span>Foto profil</span>
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={photoInput}
+                    type="file"
+                    accept="image/*"
+                    aria-label="Foto profil"
+                    className="sr-only"
+                    onChange={pickPhoto}
+                    disabled={busy}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => photoInput.current?.click()}
+                  >
+                    Pilih file
+                  </Button>
+                  <small className="text-muted-foreground truncate">
+                    {photoFile ? photoFile.name : "Belum ada file dipilih"}
                   </small>
-                )}
-              </label>
+                </div>
+                <small className="text-muted-foreground">
+                  Maksimal {MAX_FILE_MB} MB. Foto baru tersimpan setelah Anda menekan Simpan.
+                </small>
+              </div>
             </div>
             <div className="form-two">
               <label className="form-field">
                 Nama lengkap
-                <input value={name} onChange={(e) => setName(e.target.value)} />
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
               </label>
               <label className="form-field">
                 Nomor telepon
@@ -64,12 +146,25 @@ export function ProfilePage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="08xx-xxxx-xxxx"
+                  disabled={busy}
                 />
+              </label>
+            </div>
+            <div className="form-two">
+              <label className="form-field">
+                Email internal
+                <input readOnly value={user?.email ?? m.me.email} aria-readonly="true" />
+              </label>
+              <label className="form-field">
+                Role
+                <input readOnly value={roleLabel} aria-readonly="true" />
               </label>
             </div>
             <FormError text={error} />
             <div className="form-actions">
-              <Button type="submit">Simpan</Button>
+              <Button type="submit" disabled={busy}>
+                {busy ? "Menyimpan..." : "Simpan"}
+              </Button>
             </div>
           </form>
         </Panel>
@@ -77,10 +172,8 @@ export function ProfilePage() {
           <div className="px-5 pb-5">
             <DetailList
               items={[
-                ["Email internal", m.me.email],
-                ["Role", m.role],
-                ["Jabatan atau bidang", m.me.title],
-                ...(m.role === "Intern"
+                ["Jabatan atau bidang", user?.title ?? m.me.title],
+                ...(roleLabel === "Intern"
                   ? ([
                       ["Mentor", m.me.mentor],
                       ["Periode magang", m.me.start ? formatPeriod(m.me.start, m.me.end) : "-"],

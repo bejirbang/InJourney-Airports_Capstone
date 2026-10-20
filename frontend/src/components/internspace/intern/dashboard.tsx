@@ -2,16 +2,17 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TODAY, formatMonth, formatPeriod, formatShortTime, taskIsLate } from "@/lib/mock-rules";
-import { TodayCard } from "@/components/internspace/intern/attendance";
+import { TodayCard, useTodayStatus } from "@/components/internspace/intern/attendance";
 import { AnnouncementList, Metric } from "@/components/internspace/shared/dashboard-parts";
-import { ME, type Report, type Task, recap, useMock } from "@/components/internspace/shared/model";
+import { ME, recap, useMock } from "@/components/internspace/shared/model";
 import { Empty, Panel, Status } from "@/components/internspace/shared/ui";
 
 // ---------- Intern (design-intern.md Alur 2) ----------
 export function InternDashboard() {
   const m = useMock();
   const navigate = useNavigate();
-  const { state, rec } = m.today(ME.Intern);
+  const todayQuery = useTodayStatus();
+  const reminder = todayQuery.data?.daily_report_reminder === true;
   const month = TODAY.slice(0, 7);
   const r = recap(m.rowsFor(ME.Intern, `${month}-01`, `${month}-31`));
   const tasks = m.tasks.filter((t) => t.intern === ME.Intern);
@@ -22,7 +23,7 @@ export function InternDashboard() {
   const nearest = active.find((t) => t.due >= m.nowIso()) ?? active[0];
   return (
     <div className="grid gap-5">
-      {state === "Sudah Clock In" && !rec?.report && (
+      {reminder && (
         <div className="banner warn">
           <AlertTriangle size={16} />
           <span className="mr-auto">Daily Report hari ini belum dikirim.</span>

@@ -8,9 +8,11 @@ import { MentorDashboard } from "@/components/internspace/mentor/dashboard";
 import { ReviewerLeave } from "@/components/internspace/shared/leave-review";
 import { useMock } from "@/components/internspace/shared/model";
 import { PageHeading } from "@/components/internspace/shared/ui";
+import { useAuth } from "@/lib/auth";
 
 export function Dashboard() {
   const m = useMock();
+  const auth = useAuth();
   return (
     <>
       <PageHeading title="Dashboard" />
@@ -18,7 +20,7 @@ export function Dashboard() {
         <img src={airport} width={1600} height={608} alt="Terminal dan apron bandara" />
         <div className="welcome-copy">
           <span className="eyebrow">INJOURNEY AIRPORTS · {m.role.toUpperCase()}</span>
-          <h2>Selamat datang, {m.me.name.split(" ")[0]}</h2>
+          <h2>Selamat datang, {(auth.user?.name ?? m.me.name).split(" ")[0]}</h2>
           <p>
             {m.role === "Intern"
               ? "Cek status hari ini dan Task yang perlu dikerjakan."

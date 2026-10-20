@@ -63,6 +63,20 @@ Akun di luar periode magang ditolak saat login (403 "Masa magang Anda belum dimu
 | Periode magang dan mentor | `internship` | |
 | Pengumuman | `announcements` | Disembunyikan jika kosong |
 
+- [x] **Daftar kantor aktif untuk intern** `GET /api/intern/offices` (20 Okt 2026, docs/design-intern.md 5 dan 7)
+  - Hanya kantor aktif, diurutkan nama. Tiap kantor: `id`, `name`, `latitude`, `longitude`, `clock_in_radius_meters`, `clock_out_radius_meters`.
+  - Dipakai frontend untuk dropdown kantor aktif dan peta kecil: lingkaran radius serta perkiraan jarak. Perkiraan jarak hanya informasi; keputusan radius tetap di server (`AttendanceClock::officeFor()` mencatat kantor terdekat yang masuk radius, jadi kantor yang dipilih di dropdown tidak mengubah hasil server).
+  - Ditolak (403) untuk mentor dan admin, (401) tanpa token.
+  - Resource `App\Http\Resources\OfficeResource`. Test di `tests/Feature/Intern/OfficeTest.php` (4 test lolos).
+
+### Catatan integrasi frontend: Daftar kantor
+
+| Layar (design-intern.md 5 dan 7) | Endpoint | Catatan |
+| --- | --- | --- |
+| Dropdown kantor aktif + peta kecil | `GET /api/intern/offices` | `data[]` berisi titik dan dua radius; pakai `clock_in_radius_meters` saat clock in, `clock_out_radius_meters` saat clock out |
+| Jarak perkiraan ke kantor | dihitung di browser | Haversine, hanya informasi; server tetap memeriksa radius sendiri |
+| Tidak ada kantor aktif | `data` kosong dan `today.has_active_office` false | Tombol Clock In/Out nonaktif, pesan "Belum ada kantor aktif." |
+
 - [x] **Clock In** `POST /api/intern/attendance/clock-in` (17 Okt 2026, docs/design-intern.md Alur 3)
   - Body: `latitude`, `longitude` dari browser. Jarak dihitung di backend (Haversine, `Office::distanceTo()`). Diterima jika masuk radius clock in salah satu kantor aktif; yang dicatat kantor terdekat yang masuk radius.
   - Ditolak (422, `message` dan `reason`): `outside_period`, `holiday` (akhir pekan atau tabel `holidays`), `on_leave` (izin disetujui), `already_clocked_in`, `no_active_office`, `outside_radius`. Izin Pending tidak menghalangi. Tidak ada batas jam clock in.
