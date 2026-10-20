@@ -8,6 +8,7 @@ use App\Http\Controllers\Intern\AttendanceCorrectionController as InternCorrecti
 use App\Http\Controllers\Intern\DashboardController as InternDashboardController;
 use App\Http\Controllers\Intern\LeaveController as InternLeaveController;
 use App\Http\Controllers\Intern\MenuController as InternMenuController;
+use App\Http\Controllers\Intern\OfficeController as InternOfficeController;
 use App\Http\Controllers\Intern\TaskController as InternTaskController;
 use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController;
 use App\Http\Controllers\Mentor\InternController as MentorInternController;
@@ -40,6 +41,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::middleware('role:intern')->prefix('intern')->name('intern.')->group(function () {
             Route::get('/menu', InternMenuController::class)->name('menu');
             Route::get('/dashboard', InternDashboardController::class)->name('dashboard');
+            Route::get('/offices', [InternOfficeController::class, 'index'])->name('offices.index');
             Route::post('/attendance/clock-in', [InternAttendanceController::class, 'clockIn'])->name('attendance.clock-in');
             Route::post('/attendance/clock-out', [InternAttendanceController::class, 'clockOut'])->name('attendance.clock-out');
             Route::get('/attendance', [InternAttendanceController::class, 'history'])->name('attendance.history');

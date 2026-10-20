@@ -1,6 +1,7 @@
 import { forwardRef, type ReactNode } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/lib/mock-rules";
 
 // Router tiruan: halaman cukup butuh Link, useSearch, useNavigate, dan useLocation.
@@ -20,6 +21,33 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => () => Promise.resolve(),
   useLocation: () => ({ pathname: router.pathname }),
 }));
+
+// Leaflet butuh SVG renderer yang tidak ada di jsdom, jadi peta absensi di-stub.
+vi.mock("leaflet", () => {
+  const layer = {
+    addTo: () => layer,
+    remove: () => undefined,
+    on: () => layer,
+    getBounds: () => ({ extend: () => ({}) }),
+  };
+  const L = {
+    map: () => {
+      const instance = {
+        setView: () => instance,
+        remove: () => undefined,
+        fitBounds: () => undefined,
+        invalidateSize: () => undefined,
+      };
+      return instance;
+    },
+    tileLayer: () => layer,
+    circle: () => layer,
+    circleMarker: () => layer,
+    latLng: (lat: number, lng: number) => ({ lat, lng }),
+    latLngBounds: () => ({ extend: () => ({}) }),
+  };
+  return { default: L, ...L };
+});
 
 const { MockProvider } = await import("@/components/internspace/shared/model");
 const { AuthProvider } = await import("@/lib/auth");
@@ -44,18 +72,224 @@ const admin = {
   ...(await import("@/components/internspace/admin/logs")),
 };
 
-const show = (role: Role, page: ReactNode, path = "/") => {
-  router.pathname = path;
-  return render(
-    <AuthProvider>
-      <MockProvider initialRole={role}>
-        <Workspace>{page}</Workspace>
-      </MockProvider>
-    </AuthProvider>,
+// Halaman absensi intern kini memakai API, jadi alur Hari Ini ditopang fetch dan GPS palsu.
+type TodayMock = {
+  state: string;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
+  late_minutes: number | null;
+  daily_report_sent: boolean;
+  holiday_name: string | null;
+  leave_type: string | null;
+  has_active_office: boolean;
+  work_hours: { start: string; end: string } | null;
+};
+type OfficeMock = {
+  id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  clock_in_radius_meters: number;
+  clock_out_radius_meters: number;
+};
+type ReportMock = {
+  id: number;
+  date: string;
+  work: string;
+  notes: string | null;
+  sent_at: string;
+  editable: boolean;
+};
+
+const KANTOR_T3: OfficeMock = {
+  id: 1,
+  name: "Kantor Pusat Terminal 3",
+  latitude: -6.1256,
+  longitude: 106.6559,
+  clock_in_radius_meters: 100,
+  clock_out_radius_meters: 300,
+};
+
+const apiState = {
+  today: {} as TodayMock,
+  offices: [] as OfficeMock[],
+  report: null as ReportMock | null,
+  clockInResult: null as null | { status: number; body: unknown },
+  clockOutResult: null as null | { status: number; body: unknown },
+};
+
+const resetApi = () => {
+  apiState.today = {
+    state: "not_clocked_in",
+    clock_in_at: null,
+    clock_out_at: null,
+    late_minutes: null,
+    daily_report_sent: false,
+    holiday_name: null,
+    leave_type: null,
+    has_active_office: true,
+    work_hours: { start: "08:00", end: "17:00" },
+  };
+  apiState.offices = [KANTOR_T3];
+  apiState.report = null;
+  apiState.clockInResult = null;
+  apiState.clockOutResult = null;
+};
+
+const jsonResponse = (body: unknown, status = 200) =>
+  ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+
+const installFetch = () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (url.endsWith("/api/auth/me"))
+        return jsonResponse({
+          data: {
+            id: 1,
+            name: "Budi Santoso",
+            email: "intern@injourney.test",
+            role: "intern",
+            title: null,
+            phone: null,
+            photo_url: null,
+            is_active: true,
+            must_change_password: false,
+            intern_profile: { mentor_id: 2, start_date: "2026-10-01", end_date: "2027-01-31" },
+          },
+        });
+      if (url.endsWith("/api/intern/dashboard"))
+        return jsonResponse({
+          data: {
+            date: "2026-10-12",
+            today: apiState.today,
+            daily_report_reminder:
+              apiState.today.state === "clocked_in" && !apiState.today.daily_report_sent,
+          },
+        });
+      if (url.endsWith("/api/intern/offices")) return jsonResponse({ data: apiState.offices });
+      if (url.endsWith("/api/intern/attendance/daily-report")) {
+        if (method === "PUT") {
+          const body = JSON.parse(String(init?.body)) as { work: string; notes: string | null };
+          apiState.report = {
+            id: 9,
+            date: "2026-10-12",
+            work: body.work,
+            notes: body.notes,
+            sent_at: "2026-10-12T10:00:00+07:00",
+            editable: true,
+          };
+          apiState.today.daily_report_sent = true;
+          return jsonResponse({ message: "Daily Report terkirim.", data: apiState.report }, 201);
+        }
+        return jsonResponse({ data: apiState.report ? { ...apiState.report } : null });
+      }
+      if (url.endsWith("/api/intern/attendance/clock-in")) {
+        if (apiState.clockInResult)
+          return jsonResponse(apiState.clockInResult.body, apiState.clockInResult.status);
+        apiState.today = { ...apiState.today, state: "clocked_in", clock_in_at: "15:00" };
+        return jsonResponse(
+          {
+            message: "Clock in berhasil pukul 15:00.",
+            data: {
+              id: 1,
+              date: "2026-10-12",
+              clock_in_at: "15:00",
+              clock_out_at: null,
+              late_minutes: 0,
+              is_corrected: false,
+            },
+          },
+          201,
+        );
+      }
+      if (url.endsWith("/api/intern/attendance/clock-out")) {
+        if (apiState.clockOutResult)
+          return jsonResponse(apiState.clockOutResult.body, apiState.clockOutResult.status);
+        apiState.today = { ...apiState.today, state: "clocked_out", clock_out_at: "17:00" };
+        if (apiState.report) apiState.report = { ...apiState.report, editable: false };
+        return jsonResponse({
+          message: "Clock out berhasil pukul 17:00. Terima kasih.",
+          data: {
+            id: 1,
+            date: "2026-10-12",
+            clock_in_at: "15:00",
+            clock_out_at: "17:00",
+            late_minutes: 0,
+            is_corrected: false,
+          },
+        });
+      }
+      return jsonResponse({ message: `Belum ditangani: ${url}` }, 404);
+    }),
   );
 };
 
+type GeoBehavior = "ok" | "ditolak" | "gagal";
+let geoBehavior: GeoBehavior = "ok";
+let geoPosition = { lat: KANTOR_T3.latitude, lng: KANTOR_T3.longitude };
+
+const installGeolocation = () => {
+  Object.defineProperty(window.navigator, "geolocation", {
+    configurable: true,
+    value: {
+      getCurrentPosition: (
+        success: (p: GeolocationPosition) => void,
+        error?: (e: GeolocationPositionError) => void,
+      ) => {
+        // Async seperti browser sungguhan, agar state "Membaca lokasi..." bisa diamati.
+        setTimeout(() => {
+          if (geoBehavior === "ok") {
+            success({
+              coords: { latitude: geoPosition.lat, longitude: geoPosition.lng, accuracy: 10 },
+            } as GeolocationPosition);
+          } else {
+            error?.({
+              code: geoBehavior === "ditolak" ? 1 : 2,
+              PERMISSION_DENIED: 1,
+              POSITION_UNAVAILABLE: 2,
+              TIMEOUT: 3,
+            } as GeolocationPositionError);
+          }
+        }, 10);
+      },
+    },
+  });
+};
+
+const show = (role: Role, page: ReactNode, path = "/") => {
+  router.pathname = path;
+  return render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0 } },
+        })
+      }
+    >
+      <AuthProvider>
+        <MockProvider initialRole={role}>
+          <Workspace>{page}</Workspace>
+        </MockProvider>
+      </AuthProvider>
+    </QueryClientProvider>,
+  );
+};
+
+beforeEach(() => {
+  resetApi();
+  geoBehavior = "ok";
+  geoPosition = { lat: KANTOR_T3.latitude, lng: KANTOR_T3.longitude };
+  localStorage.setItem("internspace_token", "token-uji");
+  installGeolocation();
+  installFetch();
+});
+
 afterEach(() => {
+  vi.unstubAllGlobals();
+  localStorage.clear();
   router.search = {};
   vi.useRealTimers();
 });
@@ -161,39 +395,42 @@ describe("Setiap halaman dapat dirender", () => {
 });
 
 describe("Alur utama", () => {
-  it("Intern: clock in, Daily Report, lalu clock out dengan konfirmasi sebelum jam pulang", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "Date"] });
-    vi.setSystemTime(new Date(2026, 9, 12, 15, 0));
+  it("Intern: clock in, isi Daily Report, lalu clock out", async () => {
     show("Intern", <AttendancePage />, "/absensi");
-    expect(screen.getByText("Clock in dulu untuk mengisi Daily Report.")).toBeInTheDocument();
+    expect(await screen.findByText("Clock in dulu untuk mengisi Daily Report.")).toBeInTheDocument();
+    // Tunggu daftar kantor dimuat; tombol Clock In nonaktif selama itu.
+    expect(await screen.findByLabelText("Kantor untuk absensi")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: /Clock In/ }));
-    expect(screen.getByRole("button", { name: /Memeriksa lokasi/ })).toBeDisabled();
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(screen.getAllByText("15:00").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
+    expect(await screen.findByText(/Sudah Clock In/)).toBeInTheDocument();
+    expect(screen.getByText("15:00")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
-    expect(screen.getByText("Daily Report belum dikirim")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Nanti" }));
+    // Clock Out belum aktif sebelum Daily Report terkirim.
+    expect(screen.getByRole("button", { name: /Clock Out/ })).toBeDisabled();
+    expect(screen.getByText("Isi Daily Report dulu sebelum clock out.")).toBeInTheDocument();
 
+    // Daily Report: kosong ditolak, lalu tersimpan.
     fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
     expect(screen.getByText("Isi apa yang Anda kerjakan hari ini.")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Yang saya kerjakan hari ini/), {
       target: { value: "Revisi halaman flight info" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
-    expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument(),
+    );
 
+    // Setelah terkirim, Clock Out aktif kembali (daily_report_sent = true).
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /Clock Out/ })).toBeEnabled(),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
-    expect(screen.getByText("Belum jam pulang (17:00)")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tetap Clock Out" }));
-    expect(screen.getByRole("button", { name: /Memeriksa lokasi/ })).toBeDisabled();
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
-    expect(screen.getByText("Hadir, clock out 15:00")).toBeInTheDocument();
-    expect(screen.getByText("Laporan terkunci setelah clock out.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
+    expect(await screen.findByText(/Hadir, clock out 17:00/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText("Laporan terkunci setelah clock out.")).toBeInTheDocument(),
+    );
   });
 
   it("Intern: Kanban menolak To Do ke In Review dan menerima To Do ke In Progress", () => {
@@ -251,44 +488,59 @@ describe("Lokasi Kantor", () => {
   });
 });
 
-describe("Intern dan kantor aktif", () => {
-  it("Clock In tidak aktif bila belum ada kantor aktif", () => {
-    show(
-      "Intern",
-      <>
-        <OfficesPage />
-        <AttendancePage />
-      </>,
-      "/absensi",
-    );
-    expect(screen.getByRole("button", { name: /Clock In/ })).toBeEnabled();
-    fireEvent.keyDown(screen.getByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }), {
-      key: "Enter",
-    });
-    fireEvent.click(screen.getByRole("menuitem", { name: "Nonaktifkan" }));
-    fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
-    expect(screen.getByRole("button", { name: /Clock In/ })).toBeDisabled();
+describe("Lokasi absensi di kartu Hari Ini", () => {
+  it("Clock In tidak aktif bila tidak ada kantor aktif", async () => {
+    apiState.today.has_active_office = false;
+    apiState.offices = [];
+    show("Intern", <AttendancePage />, "/absensi");
+    expect(await screen.findByRole("button", { name: /Clock In/ })).toBeDisabled();
     expect(
       screen.getByText("Belum ada kantor aktif. Clock in belum bisa dilakukan. Hubungi admin."),
     ).toBeInTheDocument();
   });
-});
 
-describe("Simulasi posisi di kartu Hari Ini", () => {
-  it("200 m dari Terminal 3: clock in ditolak", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "Date"] });
-    vi.setSystemTime(new Date(2026, 9, 12, 15, 0));
+  it("Posisi di luar radius ditolak server, dengan jarak perkiraan dan tombol Coba lagi", async () => {
+    // Sekitar 200 m dari Terminal 3: di luar radius clock in 100 m.
+    geoPosition = { lat: -6.1238, lng: 106.6559 };
+    apiState.clockInResult = {
+      status: 422,
+      body: {
+        message: "Lokasi Anda belum sesuai. Clock in belum bisa dilakukan.",
+        reason: "outside_radius",
+      },
+    };
     show("Intern", <AttendancePage />, "/absensi");
-    fireEvent.change(screen.getByLabelText("Simulasi posisi intern"), {
-      target: { value: "dekat" },
-    });
-    expect(screen.getByText("Di luar radius")).toBeInTheDocument();
+    // Tunggu tombol Clock In aktif (lokasi & kantor sudah dimuat).
+    await waitFor(
+      () => {
+        const btn = screen.queryByRole("button", { name: /Clock In/ });
+        console.log("POLL:", btn ? `${btn.textContent}|${btn.disabled}` : "none");
+        expect(btn).toBeEnabled();
+      },
+      { timeout: 3000, interval: 100 },
+    );
+    const clickBtn = screen.queryByRole("button", { name: /Clock In/ });
+    console.log(
+      "BEFORE CLICK:",
+      clickBtn ? `${clickBtn.textContent}|${clickBtn.disabled}` : "none",
+      "| all:",
+      screen.queryAllByRole("button").map((b) => b.textContent),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Clock In/ }));
-    await act(async () => {
-      vi.advanceTimersByTime(1000);
-    });
     expect(
-      screen.getByText("Lokasi Anda belum sesuai. Clock in belum bisa dilakukan."),
+      await screen.findByText("Lokasi Anda belum sesuai. Clock in belum bisa dilakukan."),
     ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+    expect(screen.getByText(/Jarak ke Kantor Pusat Terminal 3/)).toBeInTheDocument();
+  });
+
+  it("Izin lokasi ditolak menampilkan cara mengaktifkan lokasi", async () => {
+    geoBehavior = "ditolak";
+    show("Intern", <AttendancePage />, "/absensi");
+    expect(
+      await screen.findByText("Izinkan akses lokasi di browser untuk melakukan clock in."),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Cara mengaktifkan/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Coba lagi/ })).toBeInTheDocument();
   });
 });

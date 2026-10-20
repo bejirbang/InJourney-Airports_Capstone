@@ -560,10 +560,12 @@ img.avatar { object-fit: cover; }
 .map-legend i.out { border: 2px dashed var(--st-orange); margin-left: 8px; }
 @media (max-width: 760px) { .office-map { height: 240px; } }
 
-/* Kotak simulasi posisi di kartu Hari Ini (khusus prototipe) */
-.sim-box { border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; display: grid; gap: 8px; background: var(--background); }
-.sim-box-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
-.sim-box-head select { flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px; background: var(--card); font-weight: 400; }
-.sim-box ul { display: grid; gap: 6px; }
-.sim-box li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.sim-box p { color: var(--muted-foreground); }
+/* Kotak lokasi nyata di kartu Hari Ini: kantor, peta radius, dan perkiraan jarak */
+.geo-box { border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 11px; display: grid; gap: 10px; background: var(--background); }
+.geo-distance { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted-foreground); }
+.geo-distance strong { color: var(--foreground); font-variant-numeric: tabular-nums; }
+.geo-denied { border: 1px solid color-mix(in srgb, var(--st-red) 35%, transparent); background: color-mix(in srgb, var(--st-red) 6%, white); border-radius: 5px; padding: 10px 12px; display: grid; gap: 6px; font-size: 11px; color: var(--st-red); }
+.geo-denied strong { font-size: 12px; }
+.geo-denied p { line-height: 1.55; }
+.attendance-map { height: 190px; isolation: isolate; background: var(--muted); }
+@media (max-width: 760px) { .attendance-map { height: 160px; } }
