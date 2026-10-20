@@ -12,6 +12,7 @@ export interface ApiUser {
   role: ApiRole;
   title: string | null;
   phone: string | null;
+  photo_url: string | null;
   is_active: boolean;
   must_change_password: boolean;
   intern_profile?: {
@@ -82,19 +83,19 @@ function pickMessage(body: unknown, status: number): string {
 
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; token?: string | null } = {},
+  options: { method?: string; body?: unknown; formData?: FormData; token?: string | null } = {},
 ): Promise<T> {
-  const { method = "GET", body, token } = options;
+  const { method = "GET", body, formData, token } = options;
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         Accept: "application/json",
-        "Content-Type": "application/json",
+        ...(formData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(formData ? { body: formData } : body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
     throw new ApiError("Tidak bisa menghubungi server. Periksa koneksi dan API.", 0);
@@ -150,6 +151,24 @@ export const authApi = {
     return request<{ data?: ApiUser } | ApiUser>("/api/auth/password", {
       method: "PUT",
       body: { password, password_confirmation },
+      token,
+    }).then(unwrap<ApiUser>);
+  },
+
+  updateProfile(token: string, input: { name: string; phone: string }): Promise<ApiUser> {
+    return request<{ data?: ApiUser } | ApiUser>("/api/auth/profile", {
+      method: "PUT",
+      body: input,
+      token,
+    }).then(unwrap<ApiUser>);
+  },
+
+  uploadPhoto(token: string, photo: File): Promise<ApiUser> {
+    const formData = new FormData();
+    formData.append("photo", photo);
+    return request<{ data?: ApiUser } | ApiUser>("/api/auth/profile/photo", {
+      method: "POST",
+      formData,
       token,
     }).then(unwrap<ApiUser>);
   },

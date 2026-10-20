@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { UNAUTHORIZED_EVENT, authApi, clearToken, getToken, type ApiUser } from "@/lib/api";
+import {
+  ApiError,
+  UNAUTHORIZED_EVENT,
+  authApi,
+  clearToken,
+  getToken,
+  type ApiUser,
+} from "@/lib/api";
 
 // Status sesi autentikasi terhadap backend Laravel.
 export type AuthStatus = "loading" | "guest" | "authed";
@@ -13,6 +20,10 @@ interface AuthValue {
   logout: () => Promise<void>;
   /** Ganti password sementara, mengembalikan user terbaru. */
   changePassword: (password: string, password_confirmation: string) => Promise<ApiUser>;
+  /** Simpan nama dan telepon, mengembalikan user terbaru. */
+  updateProfile: (input: { name: string; phone: string }) => Promise<ApiUser>;
+  /** Unggah foto profil, mengembalikan user terbaru. */
+  uploadPhoto: (photo: File) => Promise<ApiUser>;
   /** Muat ulang data user dari server. */
   refresh: () => Promise<void>;
 }
@@ -80,8 +91,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
+  const updateProfile = useCallback(async (input: { name: string; phone: string }) => {
+    const token = getToken();
+    if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
+    const updated = await authApi.updateProfile(token, input);
+    setUser(updated);
+    return updated;
+  }, []);
+
+  const uploadPhoto = useCallback(async (photo: File) => {
+    const token = getToken();
+    if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
+    const updated = await authApi.uploadPhoto(token, photo);
+    setUser(updated);
+    return updated;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ status, user, login, logout, changePassword, refresh }}>
+    <AuthContext.Provider
+      value={{ status, user, login, logout, changePassword, updateProfile, uploadPhoto, refresh }}
+    >
       {children}
     </AuthContext.Provider>
   );
