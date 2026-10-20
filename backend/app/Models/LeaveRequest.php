@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $decided_by
  * @property string|null $decision_note
  * @property Carbon|null $decided_at
+ * @property Carbon|null $overdue_notified_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $intern
@@ -32,7 +33,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_path',
-    'status', 'decided_by', 'decision_note', 'decided_at',
+    'status', 'decided_by', 'decision_note', 'decided_at', 'overdue_notified_at',
 ])]
 class LeaveRequest extends Model
 {
@@ -53,6 +54,7 @@ class LeaveRequest extends Model
             'end_date' => 'date',
             'status' => RequestStatus::class,
             'decided_at' => 'datetime',
+            'overdue_notified_at' => 'datetime',
         ];
     }
 
@@ -85,6 +87,19 @@ class LeaveRequest extends Model
         return $query->where('status', RequestStatus::Approved)
             ->whereDate('start_date', '<=', $to)
             ->whereDate('end_date', '>=', $from);
+    }
+
+    /**
+     * Versi query dari isOverduePending(): menit pending yang dibulatkan ke bawah harus lebih dari 24 jam,
+     * jadi diajukan paling lambat 24 jam 1 menit sebelum $now.
+     *
+     * @param  Builder<LeaveRequest>  $query
+     * @return Builder<LeaveRequest>
+     */
+    public function scopeOverduePending(Builder $query, CarbonInterface $now): Builder
+    {
+        return $query->where('status', RequestStatus::Pending)
+            ->where('created_at', '<=', $now->copy()->subMinutes(self::OVERDUE_PENDING_HOURS * 60 + 1));
     }
 
     /**
