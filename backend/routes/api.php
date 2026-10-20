@@ -1,6 +1,13 @@
 <?php
 
+use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
+use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
+use App\Http\Controllers\Admin\MenuController as AdminMenuController;
 use App\Http\Controllers\Admin\ResetPasswordController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\WarningController as AdminWarningController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
@@ -104,6 +111,41 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         });
 
         Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
+            Route::get('/menu', AdminMenuController::class)->name('menu');
+            Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
+
+            Route::get('/mentors', [AdminUserController::class, 'mentors'])->name('mentors.index');
+            Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+            Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
+            Route::get('/users/{user}', [AdminUserController::class, 'show'])->whereNumber('user')->name('users.show');
+            Route::put('/users/{user}', [AdminUserController::class, 'update'])->whereNumber('user')->name('users.update');
+            Route::get('/users/{user}/mentor-change', [AdminUserController::class, 'mentorChange'])->name('users.mentor-change');
+            Route::post('/users/{user}/mentor', [AdminUserController::class, 'changeMentor'])->name('users.change-mentor');
+            Route::post('/users/{user}/deactivate', [AdminUserController::class, 'deactivate'])->name('users.deactivate');
+            Route::post('/users/{user}/activate', [AdminUserController::class, 'activate'])->name('users.activate');
+
+            Route::get('/users/{user}/attendance', [AdminInternRecordController::class, 'attendance'])->name('users.attendance');
+            Route::get('/users/{user}/attendance/days/{date}', [AdminInternRecordController::class, 'day'])->name('users.attendance.day');
+            Route::get('/users/{user}/leaves', [AdminInternRecordController::class, 'leaves'])->name('users.leaves');
+            Route::get('/users/{user}/corrections', [AdminInternRecordController::class, 'corrections'])->name('users.corrections');
+
+            Route::get('/corrections', [AdminCorrectionController::class, 'index'])->name('corrections.index');
+            Route::get('/corrections/{correction}', [AdminCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
+            Route::get('/corrections/{correction}/evidence', [AdminCorrectionController::class, 'evidence'])->name('corrections.evidence');
+            Route::post('/corrections/{correction}/approve', [AdminCorrectionController::class, 'approve'])->name('corrections.approve');
+            Route::post('/corrections/{correction}/reject', [AdminCorrectionController::class, 'reject'])->name('corrections.reject');
+
+            Route::get('/leaves', [AdminLeaveController::class, 'index'])->name('leaves.index');
+            Route::get('/leaves/{leave}', [AdminLeaveController::class, 'show'])->whereNumber('leave')->name('leaves.show');
+            Route::get('/leaves/{leave}/evidence', [AdminLeaveController::class, 'evidence'])->name('leaves.evidence');
+            Route::post('/leaves/{leave}/approve', [AdminLeaveController::class, 'approve'])->name('leaves.approve');
+            Route::post('/leaves/{leave}/reject', [AdminLeaveController::class, 'reject'])->name('leaves.reject');
+
+            Route::get('/warnings', [AdminWarningController::class, 'index'])->name('warnings.index');
+            Route::get('/users/{user}/warnings', [AdminWarningController::class, 'forIntern'])->name('users.warnings.index');
+            Route::post('/users/{user}/warnings', [AdminWarningController::class, 'store'])->name('users.warnings.store');
+            Route::put('/warnings/{warning}', [AdminWarningController::class, 'update'])->name('warnings.update');
+
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
         });
