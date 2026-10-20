@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Riwayat absensi dan rekap bulanan milik intern sendiri (docs/design-intern.md, Alur 6),
- * dan versi hanya baca untuk mentor di Intern Saya (docs/design-mentor.md, Alur 3).
+ * dan versi hanya baca untuk mentor di Intern Saya (docs/design-mentor.md, Alur 3) serta
+ * admin di detail pengguna (docs/design-admin.md 4.3).
  */
 class AttendanceHistory
 {
@@ -149,6 +150,46 @@ class AttendanceHistory
             'month' => $month,
             'selectable_months' => $months,
             'recap' => $recap,
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * Tab Absensi di detail pengguna admin (docs/design-admin.md 4.3). Hanya baca; admin melihat
+     * tanda Terlambat (2.2), koreksi yang masih menunggu, dan isi Daily Report per hari.
+     * Admin tidak mengubah absensi langsung, hanya lewat permintaan koreksi (16).
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function monthForAdmin(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+        [$from, $to] = AttendanceCalendar::monthRange($month);
+
+        $pendingDates = $intern->attendanceCorrections()
+            ->where('status', RequestStatus::Pending)
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->get()
+            ->map(fn (AttendanceCorrection $correction): string => $correction->date->toDateString())
+            ->all();
+
+        $rows = [];
+
+        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
+            $rows[] = [
+                ...$this->dayFields($date, $day),
+                'daily_report_work' => $day['attendance']?->dailyReport?->work,
+                'has_pending_correction' => in_array($date, $pendingDates, true),
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'recap' => $this->calendar->recap($days, $month, $now),
             'days' => $rows,
         ];
     }

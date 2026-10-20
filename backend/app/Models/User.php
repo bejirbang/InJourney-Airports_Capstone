@@ -39,6 +39,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, LeaveRequest> $leaveRequests
  * @property-read Collection<int, Task> $assignedTasks
  * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
+ * @property-read Collection<int, Warning> $warnings
+ * @property-read int|null $warnings_count
  */
 #[Fillable(['name', 'email', 'password', 'role', 'title', 'phone', 'photo_path', 'is_active', 'must_change_password'])]
 #[Hidden(['password', 'remember_token', 'photo_path'])]
@@ -105,6 +107,16 @@ class User extends Authenticatable
     public function attendanceCorrections(): HasMany
     {
         return $this->hasMany(AttendanceCorrection::class, 'intern_id');
+    }
+
+    /**
+     * Catatan warning tentang intern ini (hanya terlihat oleh admin).
+     *
+     * @return HasMany<Warning, $this>
+     */
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(Warning::class, 'intern_id');
     }
 
     /**

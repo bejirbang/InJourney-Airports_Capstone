@@ -24,6 +24,12 @@ class AuditLog extends Model
 {
     public const ACTION_ACCOUNT = 'Akun';
 
+    public const ACTION_WARNING = 'Warning';
+
+    public const ACTION_ATTENDANCE = 'Absensi';
+
+    public const ACTION_LEAVE = 'Izin';
+
     public static function record(User $admin, string $action, string $object, string $detail): self
     {
         return self::create([
