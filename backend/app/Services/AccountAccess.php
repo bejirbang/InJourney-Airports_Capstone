@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AccountStatus;
 use App\Enums\Role;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -48,5 +49,17 @@ class AccountAccess
         }
 
         return null;
+    }
+
+    /**
+     * Status di daftar Pengguna, dari aturan yang sama dengan denialReason().
+     */
+    public function status(User $user, ?CarbonInterface $today = null): AccountStatus
+    {
+        return match ($this->denialReason($user, $today)) {
+            null => AccountStatus::Active,
+            self::NOT_STARTED => AccountStatus::NotStarted,
+            default => AccountStatus::Inactive,
+        };
     }
 }

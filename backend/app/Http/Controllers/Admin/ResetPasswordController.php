@@ -5,11 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\AccountManagement;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Str;
 
 /**
  * Admin mereset password pengguna lain. Sistem membuat password sementara
@@ -24,7 +24,7 @@ class ResetPasswordController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        $temporaryPassword = Str::password(12, symbols: false);
+        $temporaryPassword = AccountManagement::temporaryPassword();
 
         DB::transaction(function () use ($user, $admin, $temporaryPassword): void {
             $user->update([
