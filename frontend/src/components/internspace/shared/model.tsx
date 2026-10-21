@@ -54,6 +54,15 @@ export type Task = {
   revisePending?: boolean;
   comments: Comment[];
   unread: { Intern: number; Mentor: number };
+  // ---- Diisi data API (Task intern); data mock menghitung sendiri lewat taskIsLate/lateLabel ----
+  /** Tanda Terlambat menurut server. */
+  late?: boolean;
+  /** "Lewat 2 hari"; hanya ada bila server mengirimnya. */
+  lateLabel?: string;
+  /** Hasil terakhir dikumpulkan lewat tenggat. */
+  submittedLate?: boolean;
+  /** Jarak jam antara tenggat dan pengumpulan terakhir. */
+  lateHours?: number | null;
 };
 export type Leave = {
   id: number;

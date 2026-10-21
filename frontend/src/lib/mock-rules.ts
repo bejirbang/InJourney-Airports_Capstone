@@ -493,3 +493,21 @@ export const locationMessage = (result: Exclude<LocationResult, "ok">, kind: "in
 export const MAX_FILE_MB = 2;
 export const validateFileSize = (bytes: number) =>
   bytes > MAX_FILE_MB * 1024 * 1024 ? `Ukuran file maksimal ${MAX_FILE_MB} MB.` : null;
+
+/** Jenis file hasil Task (backend config/uploads.php). Jenis lain dikumpulkan lewat link. */
+export const SUBMISSION_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+
+/** Validasi klien untuk dialog submit: tipe file dan ukuran maksimal 2 MB. */
+export const validateSubmissionFile = (file: File): string | null => {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!SUBMISSION_EXTENSIONS.includes(ext))
+    return "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint, atau kirim lewat link.";
+  return validateFileSize(file.size);
+};
+
+export const validateSubmissionLink = (link: string): string | null =>
+  !link.trim()
+    ? "Isi link hasil."
+    : /^https?:\/\//.test(link.trim())
+      ? null
+      : "Format link tidak valid.";

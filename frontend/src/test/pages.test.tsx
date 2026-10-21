@@ -127,6 +127,145 @@ const KANTOR_T2: OfficeMock = {
   clock_out_radius_meters: 150,
 };
 
+// ---- Task intern (Alur 8 dan 9): daftar, detail, pindah status, kumpul hasil, komentar ----
+type TaskFileMock = { name: string; size: number | null };
+type TaskCommentMock = {
+  id: number;
+  author: { id: number; name: string; role: "intern" | "mentor" | "admin" } | null;
+  body: string;
+  is_revision: boolean;
+  is_unread: boolean;
+  created_at: string | null;
+};
+type TaskMock = {
+  id: number;
+  code: string;
+  title: string;
+  mentor: { id: number; name: string } | null;
+  status: "todo" | "in_progress" | "in_review" | "done";
+  due_at: string;
+  is_late: boolean;
+  late_label: string | null;
+  done_at: string | null;
+  unread_comments: number;
+  ever_submitted: boolean;
+  revise_pending: boolean;
+  action: "start" | "submit" | "replace" | null;
+  description?: string;
+  submission?: {
+    link: string | null;
+    file: TaskFileMock | null;
+    submitted_at: string;
+    submitted_late: boolean;
+    late_hours: number | null;
+  } | null;
+  can_comment?: boolean;
+  comments?: TaskCommentMock[];
+};
+
+const MENTOR_COMMENT: TaskCommentMock = {
+  id: 1,
+  author: { id: 2, name: "Dewi Lestari", role: "mentor" },
+  body: "Tolong sertakan versi mobile.",
+  is_revision: false,
+  is_unread: true,
+  created_at: "2026-10-11T09:00:00+07:00",
+};
+
+const TASK_TODO: TaskMock = {
+  id: 23,
+  code: "TSK-023",
+  title: "Dokumentasi alur sistem check-in",
+  mentor: { id: 2, name: "Dewi Lestari" },
+  status: "todo",
+  due_at: "2026-10-20T23:59:00+07:00",
+  is_late: false,
+  late_label: null,
+  done_at: null,
+  unread_comments: 0,
+  ever_submitted: false,
+  revise_pending: false,
+  action: "start",
+  description: "Catat alur check-in dari tamu sampai boarding.",
+  can_comment: true,
+  comments: [],
+};
+
+const TASK_DOING: TaskMock = {
+  id: 24,
+  code: "TSK-024",
+  title: "Redesign halaman informasi penerbangan",
+  mentor: { id: 2, name: "Dewi Lestari" },
+  status: "in_progress",
+  due_at: "2026-10-15T23:59:00+07:00",
+  is_late: false,
+  late_label: null,
+  done_at: null,
+  unread_comments: 1,
+  ever_submitted: false,
+  revise_pending: false,
+  action: "submit",
+  description: "Susun ulang layout halaman informasi penerbangan agar mudah dibaca.",
+  can_comment: true,
+  comments: [MENTOR_COMMENT],
+};
+
+const TASK_REVIEW: TaskMock = {
+  id: 25,
+  code: "TSK-025",
+  title: "Uji coba form pendaftaran event",
+  mentor: { id: 2, name: "Dewi Lestari" },
+  status: "in_review",
+  due_at: "2026-10-10T23:59:00+07:00",
+  is_late: true,
+  late_label: "Lewat 2 hari",
+  done_at: null,
+  unread_comments: 0,
+  ever_submitted: true,
+  revise_pending: false,
+  action: "replace",
+  description: "Periksa validasi form pendaftaran event terminal.",
+  submission: {
+    link: "https://drive.google.com/file/d/abc",
+    file: null,
+    submitted_at: "2026-10-11T22:00:00+07:00",
+    // Keterlambatan ini dihitung server, bukan dari jam browser.
+    submitted_late: true,
+    late_hours: 3,
+  },
+  can_comment: true,
+  comments: [],
+};
+
+/** Task Done lama: tersembunyi sampai "Semua Done" dicentang. */
+const TASK_DONE: TaskMock = {
+  id: 26,
+  code: "TSK-026",
+  title: "Riset kompetitor",
+  mentor: { id: 2, name: "Dewi Lestari" },
+  status: "done",
+  due_at: "2026-09-02T23:59:00+07:00",
+  is_late: false,
+  late_label: null,
+  done_at: "2026-09-01T10:00:00+07:00",
+  unread_comments: 0,
+  ever_submitted: true,
+  revise_pending: false,
+  action: null,
+  description: "Bandingkan fitur aplikasi bandara lain.",
+  submission: {
+    link: null,
+    file: { name: "hasil-TSK-026.pdf", size: 24000 },
+    submitted_at: "2026-09-01T08:00:00+07:00",
+    submitted_late: false,
+    late_hours: null,
+  },
+  can_comment: false,
+  comments: [],
+};
+
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
 const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
@@ -135,6 +274,13 @@ const apiState = {
   clockOutResult: null as null | { status: number; body: unknown },
   /** Clock in yang tidak pernah selesai, untuk menguji tombol nonaktif saat request berjalan. */
   clockInPending: false,
+  tasks: [] as TaskMock[],
+  /** Query terakhir yang diterima server, untuk membuktikan filter dikirim, bukan disaring di klien. */
+  taskParams: null as Record<string, string> | null,
+  taskMoves: [] as { id: number; to: string }[],
+  commentsPosted: [] as { id: number; body: string }[],
+  taskListError: false,
+  taskDetailError: false,
 };
 
 const resetApi = () => {
@@ -154,6 +300,12 @@ const resetApi = () => {
   apiState.clockInResult = null;
   apiState.clockOutResult = null;
   apiState.clockInPending = false;
+  apiState.tasks = [TASK_TODO, TASK_DOING, TASK_REVIEW, TASK_DONE].map(clone);
+  apiState.taskParams = null;
+  apiState.taskMoves = [];
+  apiState.commentsPosted = [];
+  apiState.taskListError = false;
+  apiState.taskDetailError = false;
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -245,6 +397,108 @@ const installFetch = () => {
           },
         });
       }
+      // ---- Task intern (API) ----
+      const path = url.split("?")[0] ?? url;
+      if (path.endsWith("/api/intern/tasks")) {
+        if (apiState.taskListError) return jsonResponse({ message: "Task gagal dimuat." }, 500);
+        const params = new URL(url).searchParams;
+        apiState.taskParams = Object.fromEntries(params.entries());
+        // Server menyembunyikan Task Done yang lebih tua dari 30 hari kecuali diminta.
+        const older = (t: TaskMock) => t.status === "done" && (t.done_at ?? "") < "2026-09-13";
+        const hiddenDone = apiState.tasks.filter(older).length;
+        let tasks = apiState.tasks.filter((t) => params.has("include_older_done") || !older(t));
+        const status = params.get("status");
+        if (status) tasks = tasks.filter((t) => t.status === status);
+        if (params.has("late")) tasks = tasks.filter((t) => t.is_late);
+        const q = params.get("q")?.toLowerCase();
+        if (q) tasks = tasks.filter((t) => t.title.toLowerCase().includes(q));
+        tasks = [...tasks].sort((a, b) =>
+          params.get("sort") === "newest"
+            ? b.due_at.localeCompare(a.due_at)
+            : a.due_at.localeCompare(b.due_at),
+        );
+        return jsonResponse({
+          data: tasks.map((t) => clone(t)),
+          meta: { hidden_done: hiddenDone },
+        });
+      }
+
+      const detail = /\/api\/intern\/tasks\/(\d+)(?:\/(move|submission|comments))?$/.exec(path);
+      if (detail) {
+        const id = Number(detail[1]);
+        const action = detail[2];
+        const task = apiState.tasks.find((t) => t.id === id);
+        if (!task) return jsonResponse({ message: "Task tidak ditemukan." }, 404);
+        if (!action) {
+          if (apiState.taskDetailError)
+            return jsonResponse({ message: "Detail Task gagal dimuat." }, 500);
+          // Membuka detail menandai komentar terbaca di server.
+          task.unread_comments = 0;
+          task.comments = (task.comments ?? []).map((c) => ({ ...c, is_unread: false }));
+          return jsonResponse({ data: clone(task) });
+        }
+        if (method !== "POST") return jsonResponse({ message: "Metode tidak didukung." }, 405);
+        if (action === "move") {
+          const body = JSON.parse(String(init?.body)) as { to: string };
+          apiState.taskMoves.push({ id, to: body.to });
+          const allowed: Record<string, string[]> = {
+            todo: ["in_progress"],
+            in_progress: ["todo"],
+            in_review: [],
+            done: [],
+          };
+          // Ke in_review hanya lewat pengumpulan hasil, sesuai aturan backend.
+          if (body.to === "in_review")
+            return jsonResponse(
+              { message: "Kumpulkan hasil terlebih dahulu.", reason: "use_submission" },
+              422,
+            );
+          if (!(allowed[task.status] ?? []).includes(body.to))
+            return jsonResponse({ message: "Perpindahan status ini tidak diizinkan." }, 422);
+          task.status = body.to as TaskMock["status"];
+          return jsonResponse({ data: clone(task) });
+        }
+        if (action === "submission") {
+          const form = init?.body as FormData;
+          const link = form.get("link");
+          const file = form.get("file");
+          if (file instanceof File) {
+            const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+            if (!["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
+              return jsonResponse({ message: "Jenis file hasil tidak diizinkan." }, 422);
+            if (file.size > 2 * 1024 * 1024)
+              return jsonResponse({ message: "Ukuran file maksimal 2 MB." }, 422);
+          }
+          task.status = "in_review";
+          task.ever_submitted = true;
+          task.revise_pending = false;
+          task.action = "replace";
+          task.submission = {
+            link: typeof link === "string" && link ? link : null,
+            file: file instanceof File ? { name: file.name, size: file.size } : null,
+            submitted_at: "2026-10-12T16:00:00+07:00",
+            submitted_late: false,
+            late_hours: null,
+          };
+          return jsonResponse(
+            { message: "Hasil terkumpul. Menunggu pemeriksaan mentor.", data: clone(task) },
+            201,
+          );
+        }
+        const body = JSON.parse(String(init?.body)) as { body: string };
+        const comment: TaskCommentMock = {
+          id: Date.now(),
+          author: { id: 1, name: "Budi Santoso", role: "intern" },
+          body: body.body,
+          is_revision: false,
+          is_unread: false,
+          created_at: "2026-10-12T16:05:00+07:00",
+        };
+        apiState.commentsPosted.push({ id, body: body.body });
+        task.comments = [...(task.comments ?? []), comment];
+        return jsonResponse({ data: comment }, 201);
+      }
+
       return jsonResponse({ message: `Belum ditangani: ${url}` }, 404);
     }),
   );
@@ -396,9 +650,10 @@ describe("Setiap halaman dapat dirender", () => {
     ["Admin", "/log", <admin.LogsPage key="g" />, "Waktu"],
     ["Admin", "/lokasi-kantor", <OfficesPage key="o" />, "Kantor Pusat Terminal 3"],
   ];
-  it.each(pages)("%s %s", (role, path, page, text) => {
+  // Sebagian halaman memuat data lewat API, jadi hasil dicek setelah render selesai.
+  it.each(pages)("%s %s", async (role, path, page, text) => {
     show(role, page, path);
-    expect(screen.getAllByText(text).length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThan(0));
   });
   it("halaman akun", () => {
     render(
@@ -459,22 +714,29 @@ describe("Alur utama", () => {
     );
   });
 
-  it("Intern: Kanban menolak To Do ke In Review dan menerima To Do ke In Progress", () => {
+  it("Intern: Kanban menolak To Do ke In Review dan menerima To Do ke In Progress", async () => {
     show("Intern", <TasksPage />, "/task");
-    const card = screen.getByRole("button", { name: "Buka Dokumentasi alur sistem check-in" });
     const column = (name: string) => screen.getByLabelText(`Kolom ${name}`);
+    const card = await screen.findByRole("button", {
+      name: "Buka Dokumentasi alur sistem check-in",
+    });
     const drag = (target: string) => {
       fireEvent.dragStart(card, { dataTransfer: { setData: () => undefined } });
-      fireEvent.drop(column(target), { dataTransfer: { getData: () => "TSK-023" } });
+      fireEvent.drop(column(target), { dataTransfer: { getData: () => "23" } });
     };
     drag("In Review");
     expect(
       within(column("To Do")).getByText("Dokumentasi alur sistem check-in"),
     ).toBeInTheDocument();
+    // Perpindahan ditolak aturan klien: tidak ada request yang dikirim ke server.
+    expect(apiState.taskMoves).toEqual([]);
     drag("In Progress");
-    expect(
-      within(column("In Progress")).getByText("Dokumentasi alur sistem check-in"),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(column("In Progress")).getByText("Dokumentasi alur sistem check-in"),
+      ).toBeInTheDocument(),
+    );
+    expect(apiState.taskMoves).toEqual([{ id: 23, to: "in_progress" }]);
   });
 
   it("Mentor: menyeret kartu In Review ke Done membuka konfirmasi Accept", () => {
@@ -496,6 +758,165 @@ describe("Alur utama", () => {
     show("Admin", <LeavePage />, "/izin");
     expect(screen.getByText(/Admin hanya dapat menolak atau menunggu mentor/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Setujui" })).toBeDisabled();
+  });
+});
+
+describe("Task intern terhubung ke API", () => {
+  const column = (name: string) => screen.getByLabelText(`Kolom ${name}`);
+  const dragCard = async (title: string, id: number, target: string) => {
+    const card = await screen.findByRole("button", { name: `Buka ${title}` });
+    fireEvent.dragStart(card, { dataTransfer: { setData: () => undefined } });
+    fireEvent.drop(column(target), { dataTransfer: { getData: () => String(id) } });
+  };
+  /** Buka dialog submit dengan menyeret kartu In Progress ke In Review. */
+  const openSubmit = async () => {
+    show("Intern", <TasksPage />, "/task");
+    await dragCard("Redesign halaman informasi penerbangan", 24, "In Review");
+    expect(
+      await screen.findByText("Kumpulkan Hasil - Redesign halaman informasi penerbangan"),
+    ).toBeInTheDocument();
+  };
+
+  it("Daftar: memilih status mengirim filter ke server", async () => {
+    show("Intern", <TasksPage />, "/task");
+    fireEvent.click(await screen.findByRole("button", { name: /Daftar/ }));
+    fireEvent.change(await screen.findByLabelText("Filter status"), {
+      target: { value: "in_progress" },
+    });
+    await waitFor(() => expect(apiState.taskParams?.status).toBe("in_progress"));
+    expect(
+      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Dokumentasi alur sistem check-in")).not.toBeInTheDocument();
+  });
+
+  it("Daftar gagal dimuat menampilkan pesan server dan tombol Coba lagi", async () => {
+    apiState.taskListError = true;
+    show("Intern", <TasksPage />, "/task");
+    expect(await screen.findByText("Task gagal dimuat.")).toBeInTheDocument();
+    apiState.taskListError = false;
+    fireEvent.click(screen.getByRole("button", { name: /Coba lagi/ }));
+    expect(
+      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
+    ).toBeInTheDocument();
+  });
+
+  it("Detail Task gagal dimuat menampilkan tombol Coba lagi di dalam dialog", async () => {
+    apiState.taskDetailError = true;
+    show("Intern", <TasksPage />, "/task");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
+    );
+    expect(await screen.findByText("Detail Task gagal dimuat.")).toBeInTheDocument();
+    apiState.taskDetailError = false;
+    fireEvent.click(screen.getByRole("button", { name: /Coba lagi/ }));
+    expect(
+      await screen.findByText(
+        "Susun ulang layout halaman informasi penerbangan agar mudah dibaca.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("Detail Task menampilkan hasil kumpulan, keterlambatan dari server, dan mengirim komentar", async () => {
+    show("Intern", <TasksPage />, "/task");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Buka Uji coba form pendaftaran event" }),
+    );
+    // Tenggat lewat, keterlambatan pengumpulan dihitung server (late_hours = 3).
+    expect(await screen.findByText("Lewat 2 hari")).toBeInTheDocument();
+    expect(screen.getByText(/terlambat 3 jam/)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "https://drive.google.com/file/d/abc" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+
+    // Thread komentar terbuka, komentar baru dikirim ke server.
+    fireEvent.change(await screen.findByLabelText("Tulis komentar"), {
+      target: { value: "Siap, saya tambahkan besok." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Kirim/ }));
+    await waitFor(() =>
+      expect(screen.getByText("Siap, saya tambahkan besok.")).toBeInTheDocument(),
+    );
+    expect(apiState.commentsPosted).toEqual([{ id: 25, body: "Siap, saya tambahkan besok." }]);
+  });
+
+  it("Menyeret In Progress ke In Review membuka dialog submit; membatalkan membuat kartu tetap di In Progress", async () => {
+    await openSubmit();
+    // Pilihan hasil: File atau Link.
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.change(screen.getByLabelText("Link hasil"), {
+      target: { value: "drive.com/berkas" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kumpulkan" }));
+    expect(await screen.findByText("Format link tidak valid.")).toBeInTheDocument();
+    expect(apiState.taskMoves).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    expect(
+      within(column("In Progress")).getByText("Redesign halaman informasi penerbangan"),
+    ).toBeInTheDocument();
+    expect(apiState.tasks.find((t) => t.id === 24)?.status).toBe("in_progress");
+  });
+
+  it("Mengumpulkan hasil lewat link memindahkan kartu ke In Review", async () => {
+    await openSubmit();
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.change(screen.getByLabelText("Link hasil"), {
+      target: { value: "https://drive.google.com/file/d/abc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kumpulkan" }));
+    await waitFor(() =>
+      expect(
+        within(column("In Review")).getByText("Redesign halaman informasi penerbangan"),
+      ).toBeInTheDocument(),
+    );
+    const task = apiState.tasks.find((t) => t.id === 24);
+    expect(task?.status).toBe("in_review");
+    expect(task?.ever_submitted).toBe(true);
+    expect(task?.submission?.link).toBe("https://drive.google.com/file/d/abc");
+  });
+
+  it("File dengan jenis lain ditolak di klien sebelum dikirim", async () => {
+    show("Intern", <TasksPage />, "/task");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
+    );
+    // Tombol aksi di detail membuka dialog submit.
+    fireEvent.click(await screen.findByRole("button", { name: "Kumpulkan Hasil" }));
+    fireEvent.change(screen.getByLabelText("File hasil"), {
+      target: { files: [new File(["isi"], "hasil.exe", { type: "application/octet-stream" })] },
+    });
+    expect(await screen.findByText(/Jenis file tidak diizinkan/)).toBeInTheDocument();
+    // File yang ditolak tidak dipakai, jadi submit menolak dengan pesan pilihan file.
+    fireEvent.click(screen.getByRole("button", { name: "Kumpulkan" }));
+    expect(await screen.findByText("Pilih file hasil.")).toBeInTheDocument();
+    expect(apiState.tasks.find((t) => t.id === 24)?.status).toBe("in_progress");
+  });
+
+  it("Mengumpulkan berkas PDF yang sah mengirimkannya ke server", async () => {
+    show("Intern", <TasksPage />, "/task");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Kumpulkan Hasil" }));
+    fireEvent.change(screen.getByLabelText("File hasil"), {
+      target: { files: [new File(["isi"], "hasil-TSK-024.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kumpulkan" }));
+    await waitFor(() =>
+      expect(apiState.tasks.find((t) => t.id === 24)?.submission?.file?.name).toBe(
+        "hasil-TSK-024.pdf",
+      ),
+    );
+  });
+
+  it("Centang Semua Done meminta Task Done lama ke server", async () => {
+    show("Intern", <TasksPage />, "/task");
+    await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" });
+    expect(screen.getByText(/Task Done lama disembunyikan/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox"));
+    await waitFor(() => expect(apiState.taskParams?.include_older_done).toBe("1"));
+    expect(await screen.findByText("Riset kompetitor")).toBeInTheDocument();
   });
 });
 
