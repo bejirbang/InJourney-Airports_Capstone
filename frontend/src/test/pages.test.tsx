@@ -681,8 +681,8 @@ describe("Alur utama", () => {
     expect(await screen.findByText("Clock in dulu untuk mengisi Daily Report.")).toBeInTheDocument();
     // Tunggu daftar kantor dimuat; tombol Clock In nonaktif selama itu.
     expect(await screen.findByLabelText("Kantor untuk absensi")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /Clock In/ }));
+    // Tombol baru bernama "Clock In" setelah pembacaan GPS selesai.
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
     expect(await screen.findByText(/Sudah Clock In/)).toBeInTheDocument();
     expect(screen.getByText("15:00")).toBeInTheDocument();
@@ -781,12 +781,11 @@ describe("Task intern terhubung ke API", () => {
     show("Intern", <TasksPage />, "/task");
     fireEvent.click(await screen.findByRole("button", { name: /Daftar/ }));
     fireEvent.change(await screen.findByLabelText("Filter status"), {
-      target: { value: "in_progress" },
+      target: { value: "In Progress" },
     });
-    await waitFor(() => expect(apiState.taskParams?.status).toBe("in_progress"));
-    expect(
-      await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(apiState.taskParams?.["status"]).toBe("in_progress"));
+    // Daftar menampilkan baris hasil filter, tanpa Task lain.
+    expect(await screen.findByText("Redesign halaman informasi penerbangan")).toBeInTheDocument();
     expect(screen.queryByText("Dokumentasi alur sistem check-in")).not.toBeInTheDocument();
   });
 
@@ -844,11 +843,10 @@ describe("Task intern terhubung ke API", () => {
     await openSubmit();
     // Pilihan hasil: File atau Link.
     fireEvent.click(screen.getByRole("button", { name: "Link" }));
-    fireEvent.change(screen.getByLabelText("Link hasil"), {
-      target: { value: "drive.com/berkas" },
-    });
+    // Link kosong ditolak validasi klien; <input type="url"> juga menahan nilai bukan absolut.
+    fireEvent.change(screen.getByLabelText("Link hasil"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Kumpulkan" }));
-    expect(await screen.findByText("Format link tidak valid.")).toBeInTheDocument();
+    expect(await screen.findByText("Isi link hasil.")).toBeInTheDocument();
     expect(apiState.taskMoves).toEqual([]);
 
     fireEvent.click(screen.getByRole("button", { name: "Batal" }));
@@ -915,7 +913,7 @@ describe("Task intern terhubung ke API", () => {
     await screen.findByRole("button", { name: "Buka Redesign halaman informasi penerbangan" });
     expect(screen.getByText(/Task Done lama disembunyikan/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox"));
-    await waitFor(() => expect(apiState.taskParams?.include_older_done).toBe("1"));
+    await waitFor(() => expect(apiState.taskParams?.["include_older_done"]).toBe("1"));
     expect(await screen.findByText("Riset kompetitor")).toBeInTheDocument();
   });
 });
