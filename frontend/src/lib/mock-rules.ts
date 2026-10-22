@@ -494,13 +494,23 @@ export const MAX_FILE_MB = 2;
 export const validateFileSize = (bytes: number) =>
   bytes > MAX_FILE_MB * 1024 * 1024 ? `Ukuran file maksimal ${MAX_FILE_MB} MB.` : null;
 
-/** Jenis file hasil Task (backend config/uploads.php). Jenis lain dikumpulkan lewat link. */
-export const SUBMISSION_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+/** Jenis dokumen yang boleh diunggah (keputusan 13 Okt 2026, backend config/uploads.php). */
+export const DOCUMENT_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+/** Jenis file hasil Task. Jenis lain dikumpulkan lewat link. */
+export const SUBMISSION_EXTENSIONS = DOCUMENT_EXTENSIONS;
+
+const fileExtension = (name: string) => name.split(".").pop()?.toLowerCase() ?? "";
+
+/** Validasi klien lampiran bukti (izin dan koreksi): jenis file lalu ukuran maksimal 2 MB. */
+export const validateEvidenceFile = (file: File): string | null => {
+  if (!DOCUMENT_EXTENSIONS.includes(fileExtension(file.name)))
+    return "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint.";
+  return validateFileSize(file.size);
+};
 
 /** Validasi klien untuk dialog submit: tipe file dan ukuran maksimal 2 MB. */
 export const validateSubmissionFile = (file: File): string | null => {
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  if (!SUBMISSION_EXTENSIONS.includes(ext))
+  if (!DOCUMENT_EXTENSIONS.includes(fileExtension(file.name)))
     return "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint, atau kirim lewat link.";
   return validateFileSize(file.size);
 };

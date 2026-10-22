@@ -1,7 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ApiError,
-  getToken,
+  internToken,
   taskApi,
   type ApiInternTask,
   type ApiRole,
@@ -22,11 +21,7 @@ export const TASK_DETAIL_PREFIX = ["intern", "task"] as const;
 export const taskDetailKey = (openId: string | null) =>
   [...TASK_DETAIL_PREFIX, openId ?? ""] as const;
 
-export const internToken = (): string => {
-  const token = getToken();
-  if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
-  return token;
-};
+export { internToken };
 
 export function toApiStatus(status: TaskStatus): ApiTaskStatus {
   switch (status) {

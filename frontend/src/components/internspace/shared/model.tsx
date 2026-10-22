@@ -78,6 +78,12 @@ export type Leave = {
   byRole?: Role;
   note?: string;
   decidedAt?: string;
+  /** Jumlah hari kerja dari server (mode API); kalau tidak ada, dihitung di klien. */
+  workingDays?: number;
+  /** Keputusan server (mode API); fallback-nya aturan Pending di `canCancelLeave`. */
+  canCancel?: boolean;
+  /** Tanda "Diajukan setelah tanggal izin" dari server; fallback-nya hitung di klien. */
+  submittedLate?: boolean;
 };
 export type Correction = {
   id: number;

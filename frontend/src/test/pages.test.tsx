@@ -266,6 +266,69 @@ const TASK_DONE: TaskMock = {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+// ---- Izin intern (Alur 11): riwayat, pengajuan, hari kerja, pembatalan ----
+type LeaveMock = {
+  id: number;
+  type: "sick" | "urgent";
+  start_date: string;
+  end_date: string;
+  working_days: number;
+  reason: string;
+  has_evidence: boolean;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  submitted_at: string;
+  submitted_late: boolean;
+  decided_by: { name: string; role: "intern" | "mentor" | "admin" } | null;
+  decision_note: string | null;
+  decided_at: string | null;
+  can_cancel: boolean;
+};
+
+const LEAVE_PENDING: LeaveMock = {
+  id: 11,
+  type: "sick",
+  start_date: "2026-10-13",
+  end_date: "2026-10-14",
+  working_days: 2,
+  reason: "Demam sejak semalam, istirahat di rumah.",
+  has_evidence: true,
+  status: "pending",
+  submitted_at: "2026-10-12T09:12:00+07:00",
+  submitted_late: false,
+  decided_by: null,
+  decision_note: null,
+  decided_at: null,
+  can_cancel: true,
+};
+
+const LEAVE_REJECTED: LeaveMock = {
+  id: 8,
+  type: "urgent",
+  start_date: "2026-09-28",
+  end_date: "2026-09-29",
+  working_days: 2,
+  reason: "Keperluan keluarga mendesak.",
+  has_evidence: false,
+  status: "rejected",
+  submitted_at: "2026-09-27T08:05:00+07:00",
+  submitted_late: true,
+  decided_by: { name: "Dewi Lestari", role: "mentor" },
+  decision_note: "Tidak ada bukti surat resmi.",
+  decided_at: "2026-09-27T14:30:00+07:00",
+  can_cancel: false,
+};
+
+/** Hari kerja versi server (Sabtu, Minggu, dan libur tidak dihitung). */
+const countWorkingDays = (start: string, end: string) => {
+  const last = Date.parse(`${end}T00:00:00Z`);
+  let n = 0;
+  for (let t = Date.parse(`${start}T00:00:00Z`); t <= last; t += 86_400_000) {
+    const day = new Date(t).getUTCDay();
+    if (day !== 0 && day !== 6) n++;
+  }
+  return n;
+};
+
 const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
@@ -281,6 +344,14 @@ const apiState = {
   commentsPosted: [] as { id: number; body: string }[],
   taskListError: false,
   taskDetailError: false,
+  leaves: [] as LeaveMock[],
+  /** Query izin terakhir yang diterima server, untuk membuktikan filter status dikirim. */
+  leaveParams: null as Record<string, string> | null,
+  leavesPosted: [] as { type: string; start_date: string; evidence: string | null }[],
+  leaveCancelled: [] as number[],
+  /** Mentor memproses izin tepat sebelum intern menekan "Ya, batalkan" (422). */
+  leaveProcessedElsewhere: false,
+  leaveListError: false,
 };
 
 const resetApi = () => {
@@ -306,6 +377,12 @@ const resetApi = () => {
   apiState.commentsPosted = [];
   apiState.taskListError = false;
   apiState.taskDetailError = false;
+  apiState.leaves = [LEAVE_PENDING, LEAVE_REJECTED].map(clone);
+  apiState.leaveParams = null;
+  apiState.leavesPosted = [];
+  apiState.leaveCancelled = [];
+  apiState.leaveProcessedElsewhere = false;
+  apiState.leaveListError = false;
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -499,6 +576,106 @@ const installFetch = () => {
         return jsonResponse({ data: comment }, 201);
       }
 
+      // ---- Izin intern (API) ----
+      if (path.endsWith("/api/intern/leaves/working-days")) {
+        const params = new URL(url).searchParams;
+        const start = params.get("start_date") ?? "";
+        const end = params.get("end_date") ?? "";
+        if (!start || !end || end < start)
+          return jsonResponse({ message: "Isi tanggal mulai dan selesai." }, 422);
+        return jsonResponse({ data: { working_days: countWorkingDays(start, end) } });
+      }
+      if (method === "POST" && path.endsWith("/api/intern/leaves")) {
+        const form = init?.body as FormData;
+        const type = String(form.get("type"));
+        const start = String(form.get("start_date"));
+        const end = String(form.get("end_date"));
+        const reason = String(form.get("reason"));
+        const evidence = form.get("evidence");
+        if (type !== "sick" && type !== "urgent")
+          return jsonResponse({ message: "Pilih jenis izin." }, 422);
+        if (!reason.trim()) return jsonResponse({ message: "Alasan wajib diisi." }, 422);
+        if (evidence instanceof File) {
+          const ext = evidence.name.split(".").pop()?.toLowerCase() ?? "";
+          if (!["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
+            return jsonResponse(
+              { message: "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." },
+              422,
+            );
+          if (evidence.size > 2 * 1024 * 1024)
+            return jsonResponse({ message: "Ukuran file maksimal 2 MB." }, 422);
+        }
+        const leave: LeaveMock = {
+          id: Math.max(0, ...apiState.leaves.map((l) => l.id)) + 1,
+          type: type as LeaveMock["type"],
+          start_date: start,
+          end_date: end,
+          working_days: countWorkingDays(start, end),
+          reason,
+          has_evidence: evidence instanceof File,
+          status: "pending",
+          submitted_at: "2026-10-12T15:00:00+07:00",
+          submitted_late: false,
+          decided_by: null,
+          decision_note: null,
+          decided_at: null,
+          can_cancel: true,
+        };
+        apiState.leavesPosted.push({
+          type,
+          start_date: start,
+          evidence: evidence instanceof File ? evidence.name : null,
+        });
+        apiState.leaves = [...apiState.leaves, leave];
+        return jsonResponse(
+          { message: "Izin diajukan. Menunggu mentor.", data: clone(leave) },
+          201,
+        );
+      }
+      if (method === "GET" && path.endsWith("/api/intern/leaves")) {
+        if (apiState.leaveListError) return jsonResponse({ message: "Izin gagal dimuat." }, 500);
+        const params = new URL(url).searchParams;
+        apiState.leaveParams = Object.fromEntries(params.entries());
+        const status = params.get("status");
+        const leaves = apiState.leaves
+          .filter((l) => !status || l.status === status)
+          .sort((a, b) => b.start_date.localeCompare(a.start_date) || b.id - a.id);
+        return jsonResponse({ data: leaves.map(clone) });
+      }
+
+      const leaveDetail = /\/api\/intern\/leaves\/(\d+)(?:\/(cancel|evidence))?$/.exec(path);
+      if (leaveDetail) {
+        const id = Number(leaveDetail[1]);
+        const action = leaveDetail[2];
+        const leave = apiState.leaves.find((l) => l.id === id);
+        if (!leave) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
+        if (!action) return jsonResponse({ data: clone(leave) });
+        if (action === "evidence") {
+          if (!leave.has_evidence)
+            return jsonResponse({ message: "Lampiran tidak ditemukan." }, 404);
+          return new Response("lampiran", {
+            status: 200,
+            headers: { "Content-Disposition": 'attachment; filename="lampiran-izin.pdf"' },
+          });
+        }
+        if (method !== "POST") return jsonResponse({ message: "Metode tidak didukung." }, 405);
+        if (leave.status !== "pending" || apiState.leaveProcessedElsewhere) {
+          // Mentor atau admin memproses sebelum pembatalan sempat dikirim.
+          if (apiState.leaveProcessedElsewhere && leave.status === "pending") {
+            leave.status = "approved";
+            leave.decided_by = { name: "Dewi Lestari", role: "mentor" };
+            leave.decision_note = "Sesuai surat dokter.";
+            leave.decided_at = "2026-10-12T15:01:00+07:00";
+            leave.can_cancel = false;
+          }
+          return jsonResponse({ message: "Izin ini sudah diproses oleh Dewi Lestari." }, 422);
+        }
+        leave.status = "cancelled";
+        leave.can_cancel = false;
+        apiState.leaveCancelled.push(id);
+        return jsonResponse({ message: "Pengajuan izin dibatalkan.", data: clone(leave) });
+      }
+
       return jsonResponse({ message: `Belum ditangani: ${url}` }, 404);
     }),
   );
@@ -678,7 +855,9 @@ describe("Setiap halaman dapat dirender", () => {
 describe("Alur utama", () => {
   it("Intern: clock in, isi Daily Report, lalu clock out", async () => {
     show("Intern", <AttendancePage />, "/absensi");
-    expect(await screen.findByText("Clock in dulu untuk mengisi Daily Report.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Clock in dulu untuk mengisi Daily Report."),
+    ).toBeInTheDocument();
     // Tunggu daftar kantor dimuat; tombol Clock In nonaktif selama itu.
     expect(await screen.findByLabelText("Kantor untuk absensi")).toBeInTheDocument();
     // Tombol baru bernama "Clock In" setelah pembacaan GPS selesai.
@@ -698,14 +877,10 @@ describe("Alur utama", () => {
       target: { value: "Revisi halaman flight info" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
-    await waitFor(() =>
-      expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument());
 
     // Setelah terkirim, Clock Out aktif kembali (daily_report_sent = true).
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Clock Out/ })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole("button", { name: /Clock Out/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
     expect(await screen.findByText(/Hadir, clock out 17:00/)).toBeInTheDocument();
@@ -915,6 +1090,108 @@ describe("Task intern terhubung ke API", () => {
     fireEvent.click(screen.getByRole("checkbox"));
     await waitFor(() => expect(apiState.taskParams?.["include_older_done"]).toBe("1"));
     expect(await screen.findByText("Riset kompetitor")).toBeInTheDocument();
+  });
+});
+
+describe("Izin intern (API)", () => {
+  it("Riwayat menampilkan status, detail memuat alasan penolakan dan lampiran", async () => {
+    show("Intern", <LeavePage />, "/izin");
+    // Tanpa filter, tanpa query: server yang mengurutkan tanggal izin terbaru lebih dulu.
+    expect(await screen.findByText("13-14 Okt")).toBeInTheDocument();
+    expect(apiState.leaveParams).toEqual({});
+
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[1]!).getByText("Pending")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("2")).toBeInTheDocument();
+    // Izin yang sudah diputuskan tidak lagi bisa dibatalkan.
+    expect(within(rows[2]!).queryByRole("button", { name: "Batalkan" })).toBeNull();
+
+    fireEvent.click(within(rows[2]!).getByRole("button", { name: "Lihat" }));
+    expect(await screen.findByText("Tidak ada bukti surat resmi.")).toBeInTheDocument();
+    expect(screen.getByText("Dewi Lestari (mentor)")).toBeInTheDocument();
+    expect(screen.getByText("Tanpa bukti")).toBeInTheDocument();
+    // Diajukan setelah tanggal izin diberi label.
+    expect(screen.getByText("27 Sep 08:05 · Diajukan setelah tanggal izin")).toBeInTheDocument();
+  });
+
+  it("Izin Pending membuka Unduh lampiran dan dialog Batalkan", async () => {
+    show("Intern", <LeavePage />, "/izin");
+    const rows = await screen.findAllByRole("row");
+    fireEvent.click(within(rows[1]!).getByRole("button", { name: "Lihat" }));
+    expect(await screen.findByText("Lampiran bukti")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unduh" })).toBeInTheDocument();
+    expect(screen.getByText("Demam sejak semalam, istirahat di rumah.")).toBeInTheDocument();
+    expect(screen.queryByText("Catatan pemroses")).toBeNull();
+  });
+
+  it("Memilih status menyaring lewat server", async () => {
+    show("Intern", <LeavePage />, "/izin");
+    await screen.findByText("13-14 Okt");
+    fireEvent.change(screen.getByLabelText("Filter status"), { target: { value: "rejected" } });
+    await waitFor(() => expect(apiState.leaveParams?.["status"]).toBe("rejected"));
+    expect(await screen.findByText("28-29 Sep")).toBeInTheDocument();
+    expect(screen.queryByText("13-14 Okt")).toBeNull();
+  });
+
+  it("Ajukan izin: jenis file lain ditolak di klien, lalu lampiran PDF terkirim", async () => {
+    show("Intern", <LeavePage />, "/izin");
+    await screen.findByText("13-14 Okt");
+    fireEvent.click(screen.getByRole("button", { name: /Ajukan Izin/ }));
+
+    // Jenis izin wajib dipilih.
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+    expect(await screen.findByText("Pilih jenis izin.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: "Izin Sakit" }));
+    fireEvent.change(screen.getByLabelText(/Tanggal mulai/), { target: { value: "2026-10-19" } });
+    fireEvent.change(screen.getByLabelText(/Tanggal selesai/), { target: { value: "2026-10-21" } });
+    // "Total: 3 hari kerja" dihitung server dari kalender libur.
+    expect(await screen.findByText("3 hari kerja")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/Alasan/), {
+      target: { value: "Kontrol ke dokter gigi." },
+    });
+    // Jenis file lain ditolak di klien sebelum dikirim.
+    fireEvent.change(screen.getByLabelText("Lampiran bukti"), {
+      target: { files: [new File(["isi"], "surat.png", { type: "image/png" })] },
+    });
+    expect(await screen.findByText(/Jenis file tidak diizinkan/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Lampiran bukti"), {
+      target: { files: [new File(["isi"], "surat-dokter.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+    await waitFor(() =>
+      expect(apiState.leavesPosted).toEqual([
+        { type: "sick", start_date: "2026-10-19", evidence: "surat-dokter.pdf" },
+      ]),
+    );
+    // Izin baru tampil di riwayat dengan status Pending.
+    expect(await screen.findByText("19-21 Okt")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(1);
+  });
+
+  it("Membatalkan izin Pending memakai konfirmasi", async () => {
+    show("Intern", <LeavePage />, "/izin");
+    fireEvent.click(await screen.findByRole("button", { name: "Batalkan" }));
+    expect(
+      await screen.findByText("Izin Sakit 13-14 Okt akan dibatalkan dan tidak diproses lagi."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ya, batalkan" }));
+    await waitFor(() => expect(apiState.leaveCancelled).toEqual([11]));
+    // Tidak ada lagi izin Pending, jadi tombol Batalkan hilang seluruhnya.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Batalkan" })).toBeNull());
+  });
+
+  it("Izin yang sudah diproses mentor tidak bisa dibatalkan", async () => {
+    apiState.leaveProcessedElsewhere = true;
+    show("Intern", <LeavePage />, "/izin");
+    fireEvent.click(await screen.findByRole("button", { name: "Batalkan" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ya, batalkan" }));
+    await waitFor(() => expect(apiState.leaveCancelled).toEqual([]));
+    // Daftar dimuat ulang: izin kini Disetujui dan tidak bisa dibatalkan lagi.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Batalkan" })).toBeNull());
+    expect(within(screen.getByRole("table")).getByText("Disetujui")).toBeInTheDocument();
   });
 });
 

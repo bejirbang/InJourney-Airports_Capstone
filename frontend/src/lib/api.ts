@@ -35,12 +35,7 @@ export class ApiError extends Error {
   /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `daily_report_missing`. */
   reason: string | undefined;
 
-  constructor(
-    message: string,
-    status: number,
-    fields?: Record<string, string[]>,
-    reason?: string,
-  ) {
+  constructor(message: string, status: number, fields?: Record<string, string[]>, reason?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -72,6 +67,13 @@ const storage =
 export const getToken = () => storage?.getItem(TOKEN_KEY) ?? null;
 export const setToken = (token: string) => storage?.setItem(TOKEN_KEY, token);
 export const clearToken = () => storage?.removeItem(TOKEN_KEY);
+
+/** Token yang tersimpan; dilempar sebagai 401 bila sesi sudah berakhir. */
+export const internToken = (): string => {
+  const token = getToken();
+  if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
+  return token;
+};
 
 function pickMessage(body: unknown, status: number): string {
   if (body && typeof body === "object") {
@@ -142,12 +144,7 @@ const unwrap = <T>(body: { data?: T } | T): T =>
     : (body as T);
 
 export type ApiTodayState =
-  | "not_clocked_in"
-  | "clocked_in"
-  | "clocked_out"
-  | "holiday"
-  | "on_leave"
-  | "outside_period";
+  "not_clocked_in" | "clocked_in" | "clocked_out" | "holiday" | "on_leave" | "outside_period";
 
 export interface TodayStatus {
   state: ApiTodayState;
@@ -322,8 +319,57 @@ function downloadName(disposition: string | null): string | null {
   return /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? null;
 }
 
+/**
+ * Unduh berkas terproteksi (file hasil Task, lampiran izin). Berkas tidak punya URL publik,
+ * jadi diambil dengan Bearer token lalu dibuka lewat blob.
+ */
+async function downloadAttachment(
+  path: string,
+  token: string,
+  fallbackName: string,
+): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      headers: { Accept: "*/*", Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new ApiError("Tidak bisa menghubungi server. Periksa koneksi dan API.", 0);
+  }
+
+  if (!response.ok) {
+    let data: unknown = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+    if (response.status === 401 && typeof window !== "undefined") {
+      clearToken();
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+    throw new ApiError(pickMessage(data, response.status), response.status);
+  }
+
+  const name = downloadName(response.headers.get("Content-Disposition")) ?? fallbackName;
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  return name;
+}
+
 export const taskApi = {
-  list(token: string, params: TaskListParams = {}): Promise<{ tasks: ApiInternTask[]; hiddenDone: number }> {
+  list(
+    token: string,
+    params: TaskListParams = {},
+  ): Promise<{ tasks: ApiInternTask[]; hiddenDone: number }> {
     const search = new URLSearchParams();
     if (params.status) search.set("status", params.status);
     if (params.late) search.set("late", "1");
@@ -348,7 +394,12 @@ export const taskApi = {
     }).then(unwrap<ApiInternTask>);
   },
 
-  move(token: string, task: number, to: ApiTaskStatus, from?: ApiTaskStatus): Promise<ApiInternTask> {
+  move(
+    token: string,
+    task: number,
+    to: ApiTaskStatus,
+    from?: ApiTaskStatus,
+  ): Promise<ApiInternTask> {
     return request<{ data?: ApiInternTask } | ApiInternTask>(`/api/intern/tasks/${task}/move`, {
       method: "POST",
       body: { to, ...(from ? { from } : {}) },
@@ -377,53 +428,116 @@ export const taskApi = {
   },
 
   comment(token: string, task: number, body: string): Promise<ApiTaskComment> {
-    return request<{ data?: ApiTaskComment } | ApiTaskComment>(`/api/intern/tasks/${task}/comments`, {
-      method: "POST",
-      body: { body },
-      token,
-    }).then(unwrap<ApiTaskComment>);
+    return request<{ data?: ApiTaskComment } | ApiTaskComment>(
+      `/api/intern/tasks/${task}/comments`,
+      {
+        method: "POST",
+        body: { body },
+        token,
+      },
+    ).then(unwrap<ApiTaskComment>);
   },
 
-  /**
-   * Unduh file hasil. File tidak punya URL publik, jadi diambil dengan Bearer token
-   * lalu diunduh lewat blob.
-   */
-  async downloadFile(token: string, task: number, fallbackName: string): Promise<string> {
-    let response: Response;
-    try {
-      response = await fetch(`${API_URL}/api/intern/tasks/${task}/submission/file`, {
-        headers: { Accept: "*/*", Authorization: `Bearer ${token}` },
-      });
-    } catch {
-      throw new ApiError("Tidak bisa menghubungi server. Periksa koneksi dan API.", 0);
-    }
+  /** Unduh file hasil: diambil dengan Bearer token karena tidak punya URL publik. */
+  downloadFile(token: string, task: number, fallbackName: string): Promise<string> {
+    return downloadAttachment(`/api/intern/tasks/${task}/submission/file`, token, fallbackName);
+  },
+};
 
-    if (!response.ok) {
-      let data: unknown = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-      if (response.status === 401 && typeof window !== "undefined") {
-        clearToken();
-        window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-      }
-      throw new ApiError(pickMessage(data, response.status), response.status);
-    }
+// ---- Izin intern (Alur 11) ----
 
-    const name = downloadName(response.headers.get("Content-Disposition")) ?? fallbackName;
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = name;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+export type ApiLeaveType = "sick" | "urgent";
+export type ApiLeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
-    return name;
+/** Izin dari sisi intern (`InternLeaveResource`). */
+export interface ApiInternLeave {
+  id: number;
+  type: ApiLeaveType;
+  start_date: string;
+  end_date: string;
+  /** Dihitung server saat dibaca, jadi libur yang ditambahkan admin ikut mengurangi. */
+  working_days: number;
+  reason: string;
+  has_evidence: boolean;
+  status: ApiLeaveStatus;
+  submitted_at: string;
+  submitted_late: boolean;
+  /** Mentor atau admin yang memutuskan; null selama Pending. */
+  decided_by: { name: string; role: ApiRole } | null | undefined;
+  decision_note: string | null;
+  decided_at: string | null;
+  /** Hanya izin Pending yang boleh dibatalkan intern. */
+  can_cancel: boolean;
+}
+
+export interface LeaveListParams {
+  status?: ApiLeaveStatus;
+}
+
+export const leaveApi = {
+  list(token: string, params: LeaveListParams = {}): Promise<ApiInternLeave[]> {
+    const query = params.status ? `?status=${params.status}` : "";
+    return request<{ data?: ApiInternLeave[] } | ApiInternLeave[]>(`/api/intern/leaves${query}`, {
+      token,
+    }).then(unwrap<ApiInternLeave[]>);
+  },
+
+  /** "Total: 2 hari kerja" di formulir izin; server memakai kalender libur terbaru. */
+  workingDays(token: string, start: string, end: string): Promise<number> {
+    return request<{ data?: { working_days: number } }>(
+      `/api/intern/leaves/working-days?start_date=${start}&end_date=${end}`,
+      { token },
+    ).then((body) => unwrap<{ working_days: number }>(body).working_days);
+  },
+
+  /** Ajukan izin (multipart: type, start_date, end_date, reason, evidence). */
+  store(
+    token: string,
+    input: {
+      type: ApiLeaveType;
+      start_date: string;
+      end_date: string;
+      reason: string;
+      evidence?: File | null;
+    },
+  ): Promise<{ message: string; leave: ApiInternLeave }> {
+    const formData = new FormData();
+    formData.append("type", input.type);
+    formData.append("start_date", input.start_date);
+    formData.append("end_date", input.end_date);
+    formData.append("reason", input.reason);
+    if (input.evidence) formData.append("evidence", input.evidence);
+
+    return request<{ message?: string; data?: ApiInternLeave }>("/api/intern/leaves", {
+      method: "POST",
+      formData,
+      token,
+    }).then((body) => ({
+      message: body.message ?? "Izin diajukan. Menunggu mentor.",
+      leave: unwrap<ApiInternLeave>(body),
+    }));
+  },
+
+  show(token: string, leave: number): Promise<ApiInternLeave> {
+    return request<{ data?: ApiInternLeave } | ApiInternLeave>(`/api/intern/leaves/${leave}`, {
+      token,
+    }).then(unwrap<ApiInternLeave>);
+  },
+
+  /** Batalkan izin Pending. Ditolak 422 bila sudah diproses mentor atau admin. */
+  cancel(token: string, leave: number): Promise<{ message: string; leave: ApiInternLeave }> {
+    return request<{ message?: string; data?: ApiInternLeave }>(
+      `/api/intern/leaves/${leave}/cancel`,
+      { method: "POST", token },
+    ).then((body) => ({
+      message: body.message ?? "Pengajuan izin dibatalkan.",
+      leave: unwrap<ApiInternLeave>(body),
+    }));
+  },
+
+  /** Unduh lampiran bukti; file tidak punya URL publik. */
+  evidence(token: string, leave: number, fallbackName: string): Promise<string> {
+    return downloadAttachment(`/api/intern/leaves/${leave}/evidence`, token, fallbackName);
   },
 };
 
