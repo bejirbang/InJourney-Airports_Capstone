@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class AnnouncementFactory extends Factory
 {
     /**
-     * Pengumuman untuk intern dan mentor.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

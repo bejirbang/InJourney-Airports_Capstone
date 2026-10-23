@@ -14,8 +14,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class LeaveRequestFactory extends Factory
 {
     /**
-     * Izin sakit satu hari (hari ini) yang masih pending.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

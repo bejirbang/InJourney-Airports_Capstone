@@ -6,9 +6,6 @@ use App\Services\OverdueTaskReminders;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Dijalankan scheduler setiap hari (routes/console.php). Aman dijalankan berulang: tiap Task hanya diingatkan sekali.
- */
 class RemindOverdueTasks extends Command
 {
     protected $signature = 'app:remind-overdue-tasks';

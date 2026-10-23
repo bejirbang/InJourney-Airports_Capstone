@@ -4,10 +4,6 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Data profil yang boleh diubah sendiri: nama dan nomor telepon (design-*.md, Alur 1 bagian Profil).
- * Email, role, jabatan, mentor, dan periode magang hanya diubah admin.
- */
 class UpdateProfileRequest extends FormRequest
 {
     public const NAME_REQUIRED = 'Nama wajib diisi.';

@@ -10,12 +10,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/**
- * Menu sidebar Mentor (docs/design-mentor.md, bagian 2.1 dan 2.2).
- * Hanya kunci dan alamat halaman; label Indonesia ditampilkan frontend.
- * `badge` adalah angka kecil di sebelah menu, saat ini hanya Izin (izin Pending yang menunggu mentor).
- * Chat dan notifikasi ada di navbar, bukan di sidebar.
- */
 class MenuController extends Controller
 {
     public const MENU = [
@@ -42,10 +36,6 @@ class MenuController extends Controller
         return response()->json(['data' => $menu]);
     }
 
-    /**
-     * Izin Pending milik intern yang saat ini dibimbing mentor ini.
-     * Izin pending ikut pindah saat admin mengganti mentor (design-mentor.md 13), jadi acuannya mentor saat ini.
-     */
     private function pendingLeaves(User $mentor): int
     {
         return LeaveRequest::query()

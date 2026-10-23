@@ -12,10 +12,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Memeriksa hasil Task (Accept atau Revise) dan komentar dari sisi mentor (docs/design-mentor.md, Alur 6).
- * Notifikasi intern sesuai design-intern.md 16.
- */
 class MentorTaskReview
 {
     public const RESUBMITTED = 'Hasil baru dikumpulkan. Muat ulang.';
@@ -25,9 +21,6 @@ class MentorTaskReview
     public function __construct(private AccountAccess $access, private Notifier $notifier) {}
 
     /**
-     * Buka detail Task: hasil kumpulan dan thread komentar. Komentar orang lain yang belum dibaca
-     * dikembalikan untuk disorot, lalu ditandai terbaca sehingga indikator di kartu hilang.
-     *
      * @return array{task: Task, unread_ids: list<int>}
      */
     public function open(User $mentor, Task $task, CarbonInterface $now): array
@@ -41,8 +34,6 @@ class MentorTaskReview
     }
 
     /**
-     * Komentar mentor di thread. Thread terkunci saat Done.
-     *
      * @throws ActionRejected
      */
     public function comment(User $mentor, Task $task, string $body, CarbonInterface $now): TaskComment
@@ -70,7 +61,6 @@ class MentorTaskReview
     }
 
     /**
-     * Accept: In Review menjadi Done. Komentar opsional ikut tersimpan di thread.
      * `$seenSubmittedAt` adalah waktu kumpul yang dilihat mentor; jika intern sudah mengganti hasil, ditolak.
      *
      * @throws ActionRejected
@@ -99,9 +89,6 @@ class MentorTaskReview
     }
 
     /**
-     * Revise: In Review kembali ke In Progress dengan komentar revisi wajib (8.3).
-     * Intern nonaktif tetap boleh direvisi untuk mencatat komentar (8.6); peringatannya dikembalikan.
-     *
      * @return array{task: Task, warning: string|null}
      *
      * @throws ActionRejected
@@ -129,9 +116,6 @@ class MentorTaskReview
         return ['task' => $task, 'warning' => $this->inactiveWarning($task, $now)];
     }
 
-    /**
-     * Peringatan dialog Revise jika intern sudah nonaktif, atau null.
-     */
     public function inactiveWarning(Task $task, CarbonInterface $now): ?string
     {
         return $this->access->denialReason($task->intern, $now) === null ? null : self::INACTIVE_INTERN;

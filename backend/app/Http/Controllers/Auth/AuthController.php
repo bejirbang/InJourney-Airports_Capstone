@@ -64,10 +64,6 @@ class AuthController extends Controller
         return response()->noContent();
     }
 
-    /**
-     * Ganti password sementara (login pertama atau setelah reset admin).
-     * Tidak ada ganti password mandiri di luar kondisi itu.
-     */
     public function changePassword(ChangePasswordRequest $request): JsonResponse|UserResource
     {
         /** @var User $user */

@@ -7,15 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Satu komentar dalam thread Task. `author` null jika akun penulis sudah dihapus permanen.
- *
  * @mixin TaskComment
  */
 class TaskCommentResource extends JsonResource
 {
-    /**
-     * Komentar orang lain yang belum dibaca sebelum detail dibuka, untuk disorot.
-     */
     public bool $unread = false;
 
     public function markUnread(bool $unread): static

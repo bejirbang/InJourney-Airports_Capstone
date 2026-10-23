@@ -7,8 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * Terakhir seseorang membaca komentar sebuah Task. Komentar orang lain yang lebih baru dihitung belum dibaca.
- *
  * @property int $id
  * @property int $task_id
  * @property int $user_id

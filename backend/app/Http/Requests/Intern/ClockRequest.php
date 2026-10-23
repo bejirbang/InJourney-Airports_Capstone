@@ -4,9 +4,6 @@ namespace App\Http\Requests\Intern;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Posisi dari browser saat tombol Clock In atau Clock Out ditekan.
- */
 class ClockRequest extends FormRequest
 {
     public const LOCATION_UNREADABLE = 'Lokasi tidak dapat dibaca. Coba lagi.';

@@ -11,9 +11,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Permintaan intern untuk membetulkan jam absensi; diputuskan admin.
- * Database menolak koreksi Pending kedua untuk intern dan tanggal yang sama.
- *
  * @property int $id
  * @property int $intern_id
  * @property Carbon $date
@@ -64,8 +61,6 @@ class AttendanceCorrection extends Model
     }
 
     /**
-     * Admin yang memutuskan.
-     *
      * @return BelongsTo<User, $this>
      */
     public function decider(): BelongsTo

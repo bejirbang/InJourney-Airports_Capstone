@@ -25,7 +25,6 @@ class DailyReportResource extends JsonResource
             'work' => $this->work,
             'notes' => $this->notes,
             'sent_at' => $this->sent_at->toIso8601String(),
-            // Bisa diubah hanya pada hari yang sama dan sebelum clock out.
             'editable' => $attendance->clock_out_at === null
                 && $attendance->date->toDateString() === Date::now()->toDateString(),
         ];

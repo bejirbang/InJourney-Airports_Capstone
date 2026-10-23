@@ -22,7 +22,6 @@ class AttendanceResource extends JsonResource
             'date' => $this->date->toDateString(),
             'clock_in_at' => substr($this->clock_in_at, 0, 5),
             'clock_out_at' => $this->clock_out_at === null ? null : substr($this->clock_out_at, 0, 5),
-            // Menit terlambat terhadap jam masuk hari itu; 0 tepat waktu, null jika jam kerja belum diatur.
             'late_minutes' => $this->lateMinutes(WorkHourSetting::effectiveOn($this->date->toDateString())),
             'clock_in_office' => $this->whenLoaded('clockInOffice', fn () => $this->clockInOffice === null ? null : [
                 'id' => $this->clockInOffice->id,

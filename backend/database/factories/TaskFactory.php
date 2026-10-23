@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class TaskFactory extends Factory
 {
     /**
-     * Task To Do dengan tenggat tiga hari lagi.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

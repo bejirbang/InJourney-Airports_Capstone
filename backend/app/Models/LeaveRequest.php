@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $decided_by
  * @property string|null $decision_note
  * @property Carbon|null $decided_at
+ * @property Carbon|null $overdue_notified_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $intern
@@ -32,14 +33,13 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_path',
-    'status', 'decided_by', 'decision_note', 'decided_at',
+    'status', 'decided_by', 'decision_note', 'decided_at', 'overdue_notified_at',
 ])]
 class LeaveRequest extends Model
 {
     /** @use HasFactory<LeaveRequestFactory> */
     use HasFactory;
 
-    /** Izin Pending lebih dari 24 jam (design-mentor.md 4.2 dan 9.2, design-admin.md Alur 5). */
     public const OVERDUE_PENDING_HOURS = 24;
 
     /**
@@ -53,6 +53,7 @@ class LeaveRequest extends Model
             'end_date' => 'date',
             'status' => RequestStatus::class,
             'decided_at' => 'datetime',
+            'overdue_notified_at' => 'datetime',
         ];
     }
 
@@ -65,8 +66,6 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Mentor atau admin yang memutuskan; role-nya menentukan teks "Diproses oleh admin".
-     *
      * @return BelongsTo<User, $this>
      */
     public function decider(): BelongsTo
@@ -75,8 +74,6 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Izin disetujui yang rentangnya bersinggungan dengan $from sampai $to (Y-m-d).
-     *
      * @param  Builder<LeaveRequest>  $query
      * @return Builder<LeaveRequest>
      */
@@ -88,9 +85,18 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Lama pending dalam jam ("diajukan 14 jam lalu", "26 jam"); null jika bukan Pending.
-     * Sama dengan pendingHours di frontend/src/lib/mock-rules.ts.
+     * Versi query dari isOverduePending(): menit pending yang dibulatkan ke bawah harus lebih dari 24 jam,
+     * jadi diajukan paling lambat 24 jam 1 menit sebelum $now.
+     *
+     * @param  Builder<LeaveRequest>  $query
+     * @return Builder<LeaveRequest>
      */
+    public function scopeOverduePending(Builder $query, CarbonInterface $now): Builder
+    {
+        return $query->where('status', RequestStatus::Pending)
+            ->where('created_at', '<=', $now->copy()->subMinutes(self::OVERDUE_PENDING_HOURS * 60 + 1));
+    }
+
     public function pendingHours(CarbonInterface $now): ?int
     {
         $minutes = $this->pendingMinutes($now);
@@ -98,10 +104,6 @@ class LeaveRequest extends Model
         return $minutes === null ? null : intdiv($minutes, 60);
     }
 
-    /**
-     * Pending lebih dari 24 jam: tanda "!" untuk mentor dan pengingat di dashboard admin.
-     * Sama dengan isOverduePending di frontend/src/lib/mock-rules.ts.
-     */
     public function isOverduePending(CarbonInterface $now): bool
     {
         $minutes = $this->pendingMinutes($now);
@@ -118,9 +120,6 @@ class LeaveRequest extends Model
         return max(0, (int) floor($this->created_at->diffInMinutes($now)));
     }
 
-    /**
-     * Nama unduhan lampiran, misalnya "lampiran-izin-2026-10-13.pdf".
-     */
     public function evidenceFileName(): string
     {
         return "lampiran-izin-{$this->start_date->toDateString()}.".pathinfo((string) $this->evidence_path, PATHINFO_EXTENSION);

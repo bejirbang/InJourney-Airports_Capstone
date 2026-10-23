@@ -7,9 +7,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('attendance_corrections', function (Blueprint $table) {
@@ -37,9 +34,6 @@ return new class extends Migration
         DB::statement("CREATE UNIQUE INDEX attendance_corrections_one_pending_unique ON attendance_corrections (intern_id, date) WHERE status = 'pending'");
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('attendance_corrections');

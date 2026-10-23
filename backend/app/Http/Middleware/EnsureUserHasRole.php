@@ -8,9 +8,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Pemakaian di route: ->middleware('role:admin') atau 'role:mentor,admin'.
- */
 class EnsureUserHasRole
 {
     public const MESSAGE = 'Anda tidak memiliki akses.';

@@ -6,9 +6,6 @@ use App\Enums\TaskStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter dan urutan daftar Task intern (docs/design-intern.md 10.3).
- */
 class TaskIndexRequest extends FormRequest
 {
     public function authorize(): bool

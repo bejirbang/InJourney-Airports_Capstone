@@ -81,7 +81,6 @@ it('uploads a profile photo and returns a signed photo url', function () {
     $url = $response->json('data.photo_url');
     expect($url)->toContain("/api/users/{$user->id}/photo")->toContain('signature=');
 
-    // Alamat foto dibuka tanpa token, seperti <img src>.
     $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
 });
 

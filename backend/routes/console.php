@@ -8,5 +8,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Pengingat Task lewat tenggat lebih dari 2 hari kerja (docs/design-mentor.md 7.6), pagi hari waktu Jakarta.
 Schedule::command('app:remind-overdue-tasks')->dailyAt('07:00')->withoutOverlapping();
+
+Schedule::command('app:remind-overdue-leaves')->hourly()->withoutOverlapping();
+
+Schedule::command('app:remind-ending-internships')->dailyAt('07:00')->withoutOverlapping();

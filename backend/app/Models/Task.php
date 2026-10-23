@@ -49,12 +49,10 @@ class Task extends Model
     /** @use HasFactory<TaskFactory> */
     use HasFactory;
 
-    /** Pesan bersama intern dan mentor. */
     public const STALE = 'Status Task sudah berubah. Muat ulang.';
 
     public const DONE_LOCKED = 'Task sudah selesai dan terkunci.';
 
-    /** Kolom Done menampilkan 30 hari terakhir secara default (design-intern.md 10.2, design-mentor.md 7.2). */
     public const DONE_DAYS = 30;
 
     /**
@@ -106,9 +104,6 @@ class Task extends Model
     }
 
     /**
-     * Sembunyikan Task Done yang selesai lebih dari DONE_DAYS hari lalu, kecuali `$includeOlderDone`.
-     * `hidden_done` untuk pilihan "Semua Done" di Kanban intern dan mentor.
-     *
      * @param  Collection<int, Task>  $tasks
      * @return array{tasks: Collection<int, Task>, hidden_done: int}
      */
@@ -126,9 +121,6 @@ class Task extends Model
     }
 
     /**
-     * Tandai komentar terbaca saat detail Task dibuka. Mengembalikan id komentar orang lain yang
-     * belum dibaca sebelumnya, untuk disorot di thread.
-     *
      * @return list<int>
      */
     public function markCommentsRead(User $user, CarbonInterface $now): array
@@ -144,9 +136,6 @@ class Task extends Model
     }
 
     /**
-     * Hasil kumpulan untuk detail Task, sama untuk intern dan mentor. Null jika belum pernah dikumpulkan.
-     * File tidak punya URL publik; nama file adalah nama unduhan.
-     *
      * @return array{link: string|null, file: array{name: string, size: int|null}|null, submitted_at: string, submitted_late: bool, late_hours: int|null}|null
      */
     public function submissionData(): ?array
@@ -165,23 +154,16 @@ class Task extends Model
                 'size' => Storage::exists($file) ? Storage::size($file) : null,
             ],
             'submitted_at' => $this->submitted_at->toIso8601String(),
-            // "Dikumpulkan terlambat" dan "(terlambat 15 jam)".
             'submitted_late' => $late,
             'late_hours' => $late ? (int) round($this->due_at->diffInMinutes($this->submitted_at) / 60) : null,
         ];
     }
 
-    /**
-     * Nama unduhan file hasil, misalnya "hasil-TSK-024.pdf".
-     */
     public function submissionFileName(): string
     {
         return "hasil-{$this->code}.".pathinfo((string) $this->submission_file_path, PATHINFO_EXTENSION);
     }
 
-    /**
-     * Keterangan tenggat yang lewat, sama dengan lateLabel di mock-rules.ts: "Lewat 3 jam", "Lewat 2 hari".
-     */
     public function lateLabel(CarbonInterface $now): string
     {
         $hours = $this->due_at->diffInHours($now);
@@ -191,10 +173,6 @@ class Task extends Model
             : 'Lewat '.(int) floor($hours / 24).' hari';
     }
 
-    /**
-     * Label Terlambat, sama dengan taskIsLate di frontend/src/lib/mock-rules.ts.
-     * Task Done tidak pernah terlambat. Task In Review dinilai dari waktu pengumpulan terakhir.
-     */
     public function isLate(CarbonInterface $now): bool
     {
         return match ($this->status) {

@@ -4,9 +4,6 @@ namespace App\Http\Requests\Intern;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Rentang tanggal untuk "Total: 2 hari kerja" di formulir izin.
- */
 class LeaveWorkingDaysRequest extends FormRequest
 {
     public function authorize(): bool

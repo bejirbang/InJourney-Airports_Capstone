@@ -12,21 +12,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
-/**
- * Mengumpulkan dan mengganti hasil Task (docs/design-intern.md, Alur 9).
- * Pengumpulan ulang menggantikan seluruh hasil sebelumnya (link dan file); file lama dihapus permanen,
- * tanpa riwayat versi. Task yang lewat tenggat tetap bisa dikumpulkan.
- */
 class TaskSubmissions
 {
     public function __construct(private Notifier $notifier) {}
 
     /**
-     * Boleh saat In Progress (kumpul pertama atau setelah Revise) dan In Review (Ganti Hasil).
-     * Hasilnya selalu In Review dan mentor menerima notifikasi.
-     *
-     * @param  TaskStatus|null  $seen  status yang dilihat intern saat membuka dialog
-     *
      * @throws ActionRejected
      */
     public function submit(User $intern, Task $task, ?string $link, ?UploadedFile $file, ?TaskStatus $seen, CarbonInterface $now): Task
@@ -79,9 +69,6 @@ class TaskSubmissions
         return $task;
     }
 
-    /**
-     * docs/design-mentor.md bagian 14: "mengumpulkan Task" atau "mengganti hasil Task" saat masih In Review.
-     */
     private function notifyMentor(User $intern, Task $task, bool $replacing): void
     {
         if ($task->mentor_id === null) {

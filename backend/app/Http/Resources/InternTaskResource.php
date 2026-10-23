@@ -10,15 +10,11 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Date;
 
 /**
- * Kartu Task untuk intern (Kanban dan Daftar). Bagian detail hanya ada jika komentar dimuat.
- *
  * @mixin Task
  */
 class InternTaskResource extends JsonResource
 {
     /**
-     * Id komentar yang belum dibaca sebelum detail dibuka, untuk disorot.
-     *
      * @var list<int>
      */
     public array $unreadIds = [];
@@ -39,14 +35,11 @@ class InternTaskResource extends JsonResource
             'status' => $this->status->value,
             'due_at' => $this->due_at->toIso8601String(),
             'is_late' => $late,
-            // "Lewat 2 hari" hanya selama Task belum dikumpulkan; Task In Review dinilai dari waktu kumpul.
             'late_label' => $late && $this->status !== TaskStatus::InReview ? $this->lateLabel($now) : null,
             'done_at' => $this->done_at?->toIso8601String(),
             'unread_comments' => (int) ($this->unread_comments_count ?? 0),
             'ever_submitted' => $this->ever_submitted,
-            // Banner "Mentor meminta revisi. Lihat komentar di bawah."
             'revise_pending' => $this->revise_pending,
-            // Tombol di detail (10.4): start = Mulai Kerjakan, submit = Kumpulkan Hasil, replace = Ganti Hasil.
             'action' => match ($this->status) {
                 TaskStatus::Todo => 'start',
                 TaskStatus::InProgress => 'submit',
@@ -54,9 +47,7 @@ class InternTaskResource extends JsonResource
                 TaskStatus::Done => null,
             },
             'description' => $this->when($this->relationLoaded('comments'), fn () => $this->description),
-            // Bentuk sama dengan detail Task mentor: link, file {name, size}, submitted_at, submitted_late, late_hours.
             'submission' => $this->when($this->relationLoaded('comments'), fn () => $this->submissionData()),
-            // Thread terkunci pada Task Done.
             'can_comment' => $this->when($this->relationLoaded('comments'), fn () => $this->status !== TaskStatus::Done),
             'comments' => $this->when($this->relationLoaded('comments'), fn () => $this->comments
                 ->map(fn (TaskComment $comment): TaskCommentResource => (new TaskCommentResource($comment))

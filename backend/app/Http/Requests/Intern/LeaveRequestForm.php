@@ -7,11 +7,6 @@ use App\Services\InternLeaves;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Formulir Ajukan Izin (docs/design-intern.md 13.2 dan 13.3).
- * Pesan sama dengan validateLeave di frontend/src/lib/mock-rules.ts.
- * Periode magang, hari kerja, dan tumpang tindih diperiksa di InternLeaves karena butuh data.
- */
 class LeaveRequestForm extends FormRequest
 {
     public function authorize(): bool

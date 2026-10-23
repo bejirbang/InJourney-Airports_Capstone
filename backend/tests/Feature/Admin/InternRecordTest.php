@@ -1,0 +1,146 @@
+<?php
+
+use App\Enums\LeaveType;
+use App\Enums\RequestStatus;
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
+use App\Models\DailyReport;
+use App\Models\LeaveRequest;
+use App\Models\Office;
+use App\Models\User;
+use App\Models\WorkHourSetting;
+use Illuminate\Support\Carbon;
+use Illuminate\Testing\TestResponse;
+
+beforeEach(function () {
+    $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
+
+    $this->admin = User::factory()->admin()->create(['name' => 'Dedi Admin']);
+    $this->mentor = User::factory()->mentor()->create(['name' => 'Sari Wijaya']);
+    $this->intern = User::factory()->intern([
+        'mentor_id' => $this->mentor->id,
+        'start_date' => '2026-09-01',
+        'end_date' => '2026-12-31',
+    ])->create(['name' => 'Andi Pratama']);
+
+    WorkHourSetting::factory()->create();
+});
+
+function adminGet(User $admin, string $uri): TestResponse
+{
+    app('auth')->forgetGuards();
+
+    return test()->getJson($uri, ['Authorization' => 'Bearer '.$admin->createToken('api')->plainTextToken]);
+}
+
+it('shows the monthly attendance with late marks, daily report text, and pending corrections', function () {
+    $office = Office::factory()->create(['name' => 'Kantor Pusat Terminal 3']);
+    $friday = Attendance::factory()->for($this->intern, 'intern')->create([
+        'date' => '2026-10-09', 'clock_in_at' => '08:15:00', 'clock_in_office_id' => $office->id, 'is_corrected' => true,
+    ]);
+    DailyReport::factory()->create(['attendance_id' => $friday->id, 'work' => 'Menyusun laporan API.']);
+    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-08']);
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-08']);
+
+    $response = adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance?month=2026-10")
+        ->assertOk()
+        ->assertJsonPath('data.month', '2026-10')
+        ->assertJsonPath('data.selectable_months', ['first' => '2026-09', 'last' => '2026-10'])
+        ->assertJsonPath('data.recap.late', 1)
+        ->assertJsonPath('data.recap.missed_clock_out', 1)
+        ->assertJsonPath('data.days.0.date', '2026-10-12');
+
+    $days = collect($response->json('data.days'))->keyBy('date');
+
+    expect($days['2026-10-09'])->toBe([
+        'date' => '2026-10-09',
+        'status' => 'present',
+        'clock_in_at' => '08:15',
+        'clock_out_at' => '17:00',
+        'late_minutes' => 15,
+        'is_corrected' => true,
+        'daily_report_sent' => true,
+        'holiday_name' => null,
+        'leave_type' => null,
+        'daily_report_work' => 'Menyusun laporan API.',
+        'has_pending_correction' => false,
+    ])
+        ->and($days['2026-10-08']['status'])->toBe('missed_clock_out')
+        ->and($days['2026-10-08']['has_pending_correction'])->toBeTrue()
+        ->and($days['2026-10-08']['daily_report_work'])->toBeNull();
+
+    adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance/days/2026-10-09")
+        ->assertOk()
+        ->assertJsonPath('data.late_minutes', 15)
+        ->assertJsonPath('data.clock_in_office', ['id' => $office->id, 'name' => 'Kantor Pusat Terminal 3'])
+        ->assertJsonPath('data.daily_report.work', 'Menyusun laporan API.');
+});
+
+it('rejects a month outside the internship period', function () {
+    adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance?month=2026-08")
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['month' => 'Bulan di luar periode magang.']);
+});
+
+it('lists the leave history with who decided it and the note', function () {
+    $approved = LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create([
+        'start_date' => '2026-10-01', 'end_date' => '2026-10-02', 'decided_by' => $this->mentor->id,
+        'decision_note' => 'Semoga lekas sembuh.', 'created_at' => '2026-09-30 08:00:00', 'evidence_path' => 'leaves/surat.pdf',
+    ]);
+    $pending = LeaveRequest::factory()->for($this->intern, 'intern')->create([
+        'type' => LeaveType::Urgent, 'start_date' => '2026-10-15', 'end_date' => '2026-10-15', 'created_at' => '2026-10-12 09:00:00',
+    ]);
+
+    adminGet($this->admin, "/api/admin/users/{$this->intern->id}/leaves")
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $pending->id)
+        ->assertJsonPath('data.0.status', 'pending')
+        ->assertJsonPath('data.0.decided_by', null)
+        ->assertJsonPath('data.1', [
+            'id' => $approved->id,
+            'type' => 'sick',
+            'start_date' => '2026-10-01',
+            'end_date' => '2026-10-02',
+            'working_days' => 2,
+            'status' => 'approved',
+            'has_evidence' => true,
+            'submitted_at' => '2026-09-30T08:00:00+07:00',
+            'decided_by' => ['name' => 'Sari Wijaya', 'role' => 'mentor'],
+            'decision_note' => 'Semoga lekas sembuh.',
+            'decided_at' => '2026-10-12T14:39:00+07:00',
+        ]);
+});
+
+it('lists the correction history with the admin note', function () {
+    $rejected = AttendanceCorrection::factory()->for($this->intern, 'intern')
+        ->decided(RequestStatus::Rejected, $this->admin, 'Tidak ada bukti.')
+        ->create(['date' => '2026-10-02', 'created_at' => '2026-10-03 08:05:00']);
+
+    adminGet($this->admin, "/api/admin/users/{$this->intern->id}/corrections")
+        ->assertOk()
+        ->assertExactJson(['data' => [[
+            'id' => $rejected->id,
+            'date' => '2026-10-02',
+            'submitted_at' => '2026-10-03T08:05:00+07:00',
+            'status' => 'rejected',
+            'recorded' => ['clock_in' => '08:00', 'clock_out' => null],
+            'requested' => ['clock_in' => '08:00', 'clock_out' => '17:00'],
+            'reason' => 'Lupa clock out.',
+            'has_evidence' => false,
+            'decision_note' => 'Tidak ada bukti.',
+            'decided_by' => 'Dedi Admin',
+            'decided_at' => '2026-10-12T14:39:00+07:00',
+        ]]]);
+});
+
+it('rejects the intern tabs for a mentor or admin account', function (string $tab) {
+    adminGet($this->admin, "/api/admin/users/{$this->mentor->id}/{$tab}")
+        ->assertUnprocessable()
+        ->assertJsonPath('reason', 'not_intern')
+        ->assertJsonPath('message', 'Akun ini bukan intern.');
+})->with(['attendance', 'leaves', 'corrections', 'warnings']);
+
+it('rejects interns and mentors from the intern tabs', function (string $role) {
+    adminGet(User::factory()->{$role}()->create(), "/api/admin/users/{$this->intern->id}/attendance")
+        ->assertForbidden();
+})->with(['intern', 'mentor']);

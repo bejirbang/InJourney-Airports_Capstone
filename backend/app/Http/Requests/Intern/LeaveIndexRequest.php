@@ -6,9 +6,6 @@ use App\Enums\RequestStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter status riwayat izin (docs/design-intern.md 13.5).
- */
 class LeaveIndexRequest extends FormRequest
 {
     public function authorize(): bool

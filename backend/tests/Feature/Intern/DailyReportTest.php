@@ -5,7 +5,6 @@ use App\Models\DailyReport;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
-// Senin, 12 Oktober 2026 pukul 14:39, intern sudah clock in pukul 08:02.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -118,7 +117,6 @@ it('locks the report after clock out', function () {
 });
 
 it('locks a forgotten clock out day after 23:59', function () {
-    // Esok harinya intern belum clock in lagi; laporan kemarin tidak bisa ditulis.
     $this->travelTo(Carbon::parse('2026-10-13 07:30:00'));
 
     saveReport(['work' => 'Laporan untuk kemarin.'])->assertJsonPath('reason', 'not_clocked_in');

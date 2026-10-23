@@ -8,8 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Log tindakan admin. Hanya ditambah, tidak pernah diubah atau dihapus.
- *
  * @property int $id
  * @property int|null $admin_id
  * @property string $admin_name
@@ -23,6 +21,37 @@ use Illuminate\Support\Carbon;
 class AuditLog extends Model
 {
     public const ACTION_ACCOUNT = 'Akun';
+
+    public const ACTION_WARNING = 'Warning';
+
+    public const ACTION_ATTENDANCE = 'Absensi';
+
+    public const ACTION_LEAVE = 'Izin';
+
+    public const ACTION_CALENDAR = 'Kalender dan jam kerja';
+
+    public const ACTION_OFFICE = 'Lokasi kantor';
+
+    public const ACTION_ANNOUNCEMENT = 'Pengumuman';
+
+    public const ACTION_REPORT = 'Laporan';
+
+    public const ACTIONS = [
+        self::ACTION_ACCOUNT,
+        self::ACTION_ATTENDANCE,
+        self::ACTION_LEAVE,
+        self::ACTION_CALENDAR,
+        self::ACTION_OFFICE,
+        self::ACTION_WARNING,
+        self::ACTION_ANNOUNCEMENT,
+        self::ACTION_REPORT,
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(fn (): never => throw new \LogicException('Log Aktivitas tidak bisa diubah.'));
+        static::deleting(fn (): never => throw new \LogicException('Log Aktivitas tidak bisa dihapus.'));
+    }
 
     public static function record(User $admin, string $action, string $object, string $detail): self
     {

@@ -9,9 +9,6 @@ use App\Services\MentorPerformance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Performa Intern (docs/design-mentor.md, Alur 9). Filter `month` dan `intern_id`.
- */
 class PerformanceController extends Controller
 {
     public function __invoke(MonthFilterRequest $request, MentorPerformance $performance): JsonResponse

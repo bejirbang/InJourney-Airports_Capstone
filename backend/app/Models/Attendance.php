@@ -11,8 +11,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 
 /**
- * Satu baris per intern per hari, dibuat saat clock in. Hari tanpa clock in tidak punya baris.
- *
  * @property int $id
  * @property int $intern_id
  * @property int|null $clock_in_office_id
@@ -53,9 +51,7 @@ class Attendance extends Model
     }
 
     /**
-     * Menit terlambat clock in terhadap jam masuk yang berlaku hari itu, dihitung per menit
-     * (clock in 08:00 tepat waktu, 08:01 terlambat 1 menit). 0 berarti tepat waktu,
-     * null berarti admin belum mengatur jam kerja. Hanya tanda; status hari itu tetap dihitung biasa.
+     * 0 berarti tepat waktu, null berarti jam kerja belum diatur.
      */
     public function lateMinutes(?WorkHourSetting $hours): ?int
     {
@@ -77,19 +73,23 @@ class Attendance extends Model
     }
 
     /**
+     * Termasuk kantor yang sudah dihapus admin, agar riwayat tetap menampilkan namanya.
+     *
      * @return BelongsTo<Office, $this>
      */
     public function clockInOffice(): BelongsTo
     {
-        return $this->belongsTo(Office::class, 'clock_in_office_id');
+        return $this->belongsTo(Office::class, 'clock_in_office_id')->withTrashed();
     }
 
     /**
+     * Termasuk kantor yang sudah dihapus admin, agar riwayat tetap menampilkan namanya.
+     *
      * @return BelongsTo<Office, $this>
      */
     public function clockOutOffice(): BelongsTo
     {
-        return $this->belongsTo(Office::class, 'clock_out_office_id');
+        return $this->belongsTo(Office::class, 'clock_out_office_id')->withTrashed();
     }
 
     /**

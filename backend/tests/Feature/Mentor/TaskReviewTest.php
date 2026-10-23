@@ -12,7 +12,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
@@ -76,7 +75,6 @@ describe('detail Task', function () {
             ->assertJsonPath('data.comments.1.id', $reply->id)
             ->assertJsonPath('data.comments.1.is_unread', true);
 
-        // Membuka detail menandai komentar terbaca.
         reviewCall($this->mentor, 'GET', "/api/mentor/tasks/{$this->task->id}")->assertJsonPath('data.comments.1.is_unread', false);
 
         expect(TaskRead::query()->where('user_id', $this->mentor->id)->value('last_read_at')->toDateTimeString())->toBe('2026-10-12 14:39:00');

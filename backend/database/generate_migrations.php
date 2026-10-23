@@ -1,25 +1,5 @@
 <?php
 
-/*
- * Membuat 18 migration tabel aplikasi (lihat backend_architecture_ERD.md).
- *
- * Jalankan dari folder backend:
- *     php database/generate_migrations.php
- *
- * File diberi timestamp saat skrip dijalankan, bertambah satu detik per file
- * supaya urutannya mengikuti foreign key. Migration yang sudah ada dilewati.
- * Skrip ini boleh dihapus setelah dijalankan.
- *
- * Penghapusan akun (cadangan, aturan saat ini tetap menonaktifkan akun):
- * - users memakai soft delete (deleted_at). Aturan FK di bawah hanya berlaku saat forceDelete.
- *   Email hanya unik di antara akun yang belum dihapus.
- * - Data milik intern ikut terhapus: profil, absensi, Daily Report, koreksi, izin, Task, warning.
- * - Data milik akun itu ikut terhapus: chat, notifikasi, penanda baca Task.
- * - Jejak orang lain dibuat kosong: pemutus izin dan koreksi, mentor di Task dan riwayat,
- *   penulis komentar, pengumuman, warning, dan log. Log menyimpan admin_name agar tetap terbaca.
- * - Mentor yang masih tercatat di intern_profiles tidak bisa dihapus. Pindahkan intern lebih dulu.
- */
-
 $dir = __DIR__.'/migrations';
 
 $migrations = [];

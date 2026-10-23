@@ -4,9 +4,6 @@ namespace App\Http\Requests\Mentor;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Bulan (`?month=2026-10`, default bulan berjalan) dan filter intern untuk Kalender Izin dan Performa Intern.
- */
 class MonthFilterRequest extends FormRequest
 {
     public function authorize(): bool
