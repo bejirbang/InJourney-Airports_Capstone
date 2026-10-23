@@ -36,6 +36,8 @@ class AuditLog extends Model
 
     public const ACTION_ANNOUNCEMENT = 'Pengumuman';
 
+    public const ACTION_REPORT = 'Laporan';
+
     public static function record(User $admin, string $action, string $object, string $detail): self
     {
         return self::create([
