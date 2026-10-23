@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
+use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
@@ -180,6 +181,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
             Route::get('/reports/options', [AdminReportController::class, 'options'])->name('reports.options');
             Route::post('/reports/export', [AdminReportController::class, 'export'])->name('reports.export');
+
+            Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');
+            Route::get('/audit-logs/options', [AdminAuditLogController::class, 'options'])->name('audit-logs.options');
 
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
