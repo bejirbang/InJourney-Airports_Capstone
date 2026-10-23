@@ -843,12 +843,63 @@ Temuan untuk tim frontend: pratinjau Rekap Absensi di prototipe (`admin/reports.
 | Filter Tanggal, Admin, Jenis aksi | `GET /api/admin/audit-logs/options` | `admins[].id` untuk `admin_id`, `actions[]` untuk `action` |
 | Tabel Waktu, Admin, Jenis, Objek, Detail | `GET /api/admin/audit-logs?...` | Waktu dari `created_at`; Admin dari `admin.name`; halaman dari `meta`. Kosong: "Tidak ada aktivitas pada filter ini." |
 
+- [x] **WebSocket: lonceng notifikasi dan chat, semua role** (23 Okt 2026, design-intern.md 14 dan 16, design-mentor.md 12 dan 14, design-admin.md 13.2 dan 14, backend/CLAUDE.md "Real time")
+  - **Reverb** dipasang (`laravel/reverb` ^1.0 lewat `php artisan install:broadcasting --reverb`): `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php`. Otorisasi channel di `POST /api/broadcasting/auth` dengan token Sanctum (middleware `auth:sanctum`, `active`, `password.changed`), bukan sesi web. `REVERB_ALLOWED_ORIGINS` (baru) membatasi host frontend yang boleh membuka WebSocket; bawaan `*`.
+  - Installer ikut memperbarui paket: `laravel/framework` 13.35 ke 13.38, Symfony 8.1.x, dan **Guzzle turun dari 8 ke 7** (dibutuhkan `pusher/pusher-php-server`, dependensi Reverb; HTTP client Laravel 13 mendukung keduanya). Perubahan `resources/js/app.tsx` dari installer dibatalkan karena Inertia akan dilepas. `CreateAdmin` disesuaikan dengan tipe `option()` framework terbaru.
+  - **Channel**: `private-users.{id}` (hanya pemilik akun: lonceng, pesan, status dibaca), `private-chats.{low}.{high}` (dua peserta percakapan, id kecil lebih dulu: client event `client-typing`), `presence-online` (semua pengguna yang membuka aplikasi: status online; `user_info` = `{id, name}`). Client event diterima dari anggota channel (`accept_client_events_from = members`).
+  - **Event** di `users.{id}` (nama dengan titik di depan untuk Echo): `.notification.sent` `{notification, unread_count}` (item baru, atau notifikasi chat yang naik lagi), `.notifications.read` `{ids | null (semua), unread_count}` (sinkron antar-tab), `.notifications.changed` `{unread_count}` (judul pengumuman diubah atau pengumuman dihapus: muat ulang daftar), `.chat.message` `{message, sender {id, name}}` (ke penerima dan pengirim), `.chat.read` `{reader_id, partner_id, last_read_id, read_at}` (ke pembaca dan pengirim: tanda "Dibaca"). Semua disimpan ke database lebih dulu, lalu dikirim lewat queue setelah transaksi selesai (`ShouldBroadcast` + `ShouldDispatchAfterCommit`). Semua notifikasi yang sudah ada (izin, Task, koreksi, pengingat, pengumuman) otomatis ikut real-time karena lewat `Notifier`.
+  - **Lonceng** `GET /api/notifications?cursor=`: 20 item per muatan, terbaru lebih dulu (`id`, `text`, `link_path`, `link_params`, `read_at`, `created_at`), `meta.next_cursor` dan `meta.unread_count`. `POST /api/notifications/{id}/read` (milik orang lain 404), `POST /api/notifications/read-all`.
+  - **Notifikasi chat** satu baris per pengirim (kolom baru `notifications.chat_sender_id`, unik per penerima dan pengirim, migration `2026_10_23_215426`): "Pesan baru dari Sari Wijaya.", link `/chat` `{to: id pengirim}`. Pesan berikutnya dari orang yang sama menjadikan baris itu belum dibaca lagi dan naik ke atas (`created_at` diperbarui), tanpa baris baru. Membuka percakapan ikut membaca notifikasi itu.
+  - **Chat** (tabel `chat_messages` sudah ada, model baru `ChatMessage` dan factory):
+    - `GET /api/chats?q=`: percakapan milik sendiri, pesan terakhir paling baru lebih dulu: `partner {id, name, role, title, photo_url, can_send}`, `last_message`, `unread_count`; `meta.unread_total` untuk angka di ikon chat. Admin hanya melihat percakapannya sendiri. Akun yang dihapus tidak tampil.
+    - `GET /api/chats/contacts?q=`: akun yang bisa dihubungi selain diri sendiri (maks 50, urut nama) untuk memulai chat.
+    - `GET /api/chats/{userId}/messages?before_id=`: 30 pesan, lama ke baru, `meta.has_more`, `meta.partner`.
+    - `POST /api/chats/{userId}/messages` `{body}`: 201 dengan pesan. Teks saja, maksimal 2000 karakter ("Pesan wajib diisi.", "Pesan maksimal 2000 karakter."), tanpa ubah atau hapus. Ditolak 422 `inactive_recipient` ("Akun ini nonaktif.") untuk akun yang dinonaktifkan atau magangnya berakhir, `self` ("Anda tidak bisa chat dengan diri sendiri."). Dibatasi 60 pesan per menit.
+    - `POST /api/chats/{userId}/read`: tandai semua pesan dari orang itu dibaca, `meta.unread_total`.
+  - **Akun yang bisa dihubungi** satu aturan (`User::scopeReachable()` dan `isReachable()`): tidak dinonaktifkan, dan untuk intern magangnya belum berakhir (yang belum mulai termasuk). Dipakai chat dan penerima pengumuman.
+  - Logika di `App\Services\Chats`, `App\Services\UserNotifications`, `App\Services\Notifier`; controller `Shared\ChatController`, `Shared\NotificationController`; event di `App\Events`.
+  - Test di `tests/Feature/Realtime` (`NotificationTest`, `ChatTest`, `ChannelAuthTest`: 29 test lolos; otorisasi channel diuji dengan driver Reverb tanpa server). Uji coba ujung ke ujung dengan `reverb:start` dan dua klien WebSocket (database SQLite terpisah): berlangganan dan penolakan channel, status online, indikator mengetik, pesan dan notifikasi real-time, tanda Dibaca, sinkron angka lonceng; 13/13 lolos.
+
+### Catatan integrasi frontend: Lonceng dan Chat
+
+Sambungan (paket `laravel-echo` dan `pusher-js`):
+
+```ts
+new Echo({
+  broadcaster: "reverb",
+  key: REVERB_APP_KEY, wsHost: REVERB_HOST, wsPort: REVERB_PORT, wssPort: REVERB_PORT,
+  forceTLS: REVERB_SCHEME === "https", enabledTransports: ["ws", "wss"],
+  authEndpoint: `${API_URL}/api/broadcasting/auth`,
+  auth: { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+});
+echo.private(`users.${me.id}`)
+  .listen(".notification.sent", ...).listen(".notifications.read", ...).listen(".notifications.changed", ...)
+  .listen(".chat.message", ...).listen(".chat.read", ...);
+echo.join("online").here(...).joining(...).leaving(...);
+echo.private(`chats.${Math.min(a, b)}.${Math.max(a, b)}`).whisper("typing", { user_id: me.id }).listenForWhisper("typing", ...);
+```
+
+| Layar | Data awal (REST) | Pembaruan real-time | Catatan |
+| --- | --- | --- | --- |
+| Lonceng (angka dan popup) | `GET /api/notifications`, muat berikutnya dengan `?cursor=` | `.notification.sent` (sisipkan atau ganti item ber-`id` sama, pindah ke atas), `.notifications.read`, `.notifications.changed` (muat ulang) | Angka dari `unread_count`. Klik item: `POST .../{id}/read`, lalu buka `link_path` + `link_params` |
+| Tandai semua dibaca | `POST /api/notifications/read-all` | `.notifications.read` dengan `ids: null` di tab lain | |
+| Ikon chat (angka) | `GET /api/chats` `meta.unread_total` | `.chat.message` dari orang lain menambah, `.chat.read` milik sendiri mengurangi | |
+| Daftar percakapan, Cari kontak | `GET /api/chats?q=`, `GET /api/chats/contacts?q=` | `.chat.message` memindahkan percakapan ke atas | Tampilkan kontak baru di bawah percakapan |
+| Isi percakapan | `GET /api/chats/{id}/messages`, gulir ke atas dengan `before_id` | `.chat.message` (abaikan `id` yang sudah ada) | Saat percakapan terbuka dan pesan masuk, panggil `POST /api/chats/{id}/read` |
+| Tanda "Dibaca" | `read_at` pada pesan | `.chat.read`: pesan milik sendiri dengan `id <= last_read_id` ke `reader_id` menjadi Dibaca | |
+| Kotak kirim | `meta.partner.can_send` | - | false: tutup kotak kirim dengan "Akun ini nonaktif." |
+| Sedang mengetik | - | whisper `typing` di `chats.{low}.{high}` | Kirim paling sering tiap 2-3 detik, sembunyikan bila tidak ada kabar beberapa detik |
+| Status online | - | presence `online` | Titik hijau untuk `id` yang ada di daftar anggota |
+| Tanya mentor (Alur 6), Tanya intern (Alur 4) | `POST /api/chats/{id}/messages` | | Draf pesan disusun frontend |
+
+Temuan untuk tim frontend: prototipe membuka chat dengan `search.to` berupa nama; backend memakai id pengguna (`link_params.to`, `/api/chats/{id}`).
+
 ## Berikutnya
 
-- [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path`, `tasks.overdue_reminded_at`, `leave_requests.overdue_notified_at`, `intern_profiles.ending_notified_for`, `offices.deleted_at` (beserta indeks nama baru), dan `notifications.announcement_id`.
+- [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path`, `tasks.overdue_reminded_at`, `leave_requests.overdue_notified_at`, `intern_profiles.ending_notified_for`, `offices.deleted_at` (beserta indeks nama baru), `notifications.announcement_id`, dan `notifications.chat_sender_id`.
 - [ ] Pasang cron `schedule:run` di server production (pengingat Task terlambat setiap hari, pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin setiap hari).
-- [ ] Chat dan lonceng notifikasi untuk semua role (design-mentor.md Alur 10, design-intern.md Alur 12, design-admin.md 13.2). Ditunda sampai fitur dasar ketiga role selesai.
-- [ ] Broadcast notifikasi lewat Reverb (private channel `users.{id}`), setelah baris `notifications` dibuat.
+- [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
+- [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
 - [ ] Admin: jumlah hari Terlambat di daftar menu Absensi (design-admin 2.2). Kartu Terlambat di dashboard, jumlah Terlambat di Warning (20 Okt 2026), dan kolom Hari Terlambat di Rekap Absensi Excel (23 Okt 2026) sudah selesai.
 - [ ] Pastikan ekstensi PHP `zip` aktif di server production (dibutuhkan export Excel).
 - [ ] Hapus `database/generate_migrations.php` (migration sudah terbentuk).
@@ -867,6 +918,7 @@ Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). 
 - **Hari yang dijadikan libur setelah intern clock in terbaca Libur tanpa tanda Terlambat** (23 Okt 2026). Status Libur mengalahkan Hadir dan Lupa Clock Out (aturan lama, sama dengan prototipe), dan tanpa jam masuk tidak ada Terlambat. Hari itu tidak masuk "Terlambat bulan ini" di Warning maupun rekap `late`.
 - **Notifikasi pengumuman mengikuti pengumumannya** (23 Okt 2026). Dokumen hanya menyebut "perubahan tampil ke penerima". Ubah judul mengganti teks lonceng tanpa menandai belum dibaca, perubahan penerima menambah atau menghapus notifikasi, dan hapus pengumuman menghapus notifikasinya. Penerima: akun aktif, termasuk intern yang belum mulai magang.
 - **Rekap Task** (23 Okt 2026). Dokumen hanya menyebut kolom. Task masuk laporan bila tenggatnya di dalam periode, filter Mentor memakai mentor pemilik Task, dan Terlambat juga menandai Task Done atau In Review yang hasil terakhirnya dikumpulkan setelah tenggat (berbeda dengan tampilan aplikasi yang tidak menandai Task Done).
+- **Chat dan lonceng real-time** (23 Okt 2026). Pesan chat masuk lonceng satu baris per pengirim (dokumen menulis notifikasi per pesan baru, prototipe tidak memasukkannya ke lonceng). Chat baru hanya ke akun yang bisa dihubungi; percakapan lama dengan akun nonaktif tetap terbaca. Teks saja, tanpa ubah atau hapus. Fitur tambahan yang dipilih: sinkron status dibaca antar-tab, tanda "Dibaca", indikator mengetik, dan status online (dokumen tidak menyebutkannya).
 
 ## Ditinjau setelah integrasi frontend
 
