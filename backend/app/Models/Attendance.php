@@ -77,19 +77,23 @@ class Attendance extends Model
     }
 
     /**
+     * Termasuk kantor yang sudah dihapus admin, agar riwayat tetap menampilkan namanya.
+     *
      * @return BelongsTo<Office, $this>
      */
     public function clockInOffice(): BelongsTo
     {
-        return $this->belongsTo(Office::class, 'clock_in_office_id');
+        return $this->belongsTo(Office::class, 'clock_in_office_id')->withTrashed();
     }
 
     /**
+     * Termasuk kantor yang sudah dihapus admin, agar riwayat tetap menampilkan namanya.
+     *
      * @return BelongsTo<Office, $this>
      */
     public function clockOutOffice(): BelongsTo
     {
-        return $this->belongsTo(Office::class, 'clock_out_office_id');
+        return $this->belongsTo(Office::class, 'clock_out_office_id')->withTrashed();
     }
 
     /**

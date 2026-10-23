@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
  * Lokasi kantor dan dua radius, dibuat admin di menu Lokasi Kantor (docs/design-admin.md, Bagian 9A).
+ * Kantor nonaktif boleh dihapus (soft delete) agar riwayat absensi tetap menunjuk kantornya.
  *
  * @property int $id
  * @property string $name
@@ -21,12 +23,13 @@ use Illuminate\Support\Carbon;
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable(['name', 'latitude', 'longitude', 'clock_in_radius_meters', 'clock_out_radius_meters', 'is_active'])]
 class Office extends Model
 {
     /** @use HasFactory<OfficeFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const EARTH_RADIUS_METERS = 6371000;
 
