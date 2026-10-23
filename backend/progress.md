@@ -894,7 +894,15 @@ echo.private(`chats.${Math.min(a, b)}.${Math.max(a, b)}`).whisper("typing", { us
 
 Temuan untuk tim frontend: prototipe membuka chat dengan `search.to` berupa nama; backend memakai id pengguna (`link_params.to`, `/api/chats/{id}`).
 
+- [x] **Pemeriksaan keamanan backend** (23 Okt 2026)
+  - Kode: tidak ada temuan berkeyakinan tinggi (IDOR, SQL injection, path traversal, privilege escalation, deserialisasi, secret di repo). Diperbaiki: **formula injection di Excel laporan**. Nama atau judul Task berawalan `=` sebelumnya ditulis sebagai rumus Excel; kini semua teks ditulis sebagai teks (`AdminReports::row()`, test di `ReportTest`).
+  - Catatan penguatan (belum dikerjakan): koneksi WebSocket yang sudah terbuka tetap menerima event sampai putus walau token sudah dicabut (logout, reset password, nonaktif); Reverb hanya memeriksa izin saat berlangganan. Opsi: putuskan koneksi Reverb pengguna saat akunnya dinonaktifkan atau direset.
+  - Dependensi: `composer audit` bersih. Advisory Laravel 2026 sudah tertutup versi terpasang (TokenGuard CVE-2026-114509 diperbaiki di 13.29, terpasang 13.38; CRLF email CVE-2026-48019; Reverb CVE-2026-23524 diperbaiki di 1.7, terpasang 1.12).
+- [x] **Pembersihan komentar** (23 Okt 2026): komentar yang mengulang kode, rujukan dokumen, dan catatan keputusan dihapus dari `app/`, `routes/`, `database/`, `bootstrap/`, dan `tests/` (catatan keputusan tetap di file ini dan `docs/`). Yang tersisa hanya tipe PHPDoc dan penjelasan logika yang tidak terlihat dari kode (penguncian baris, update bersyarat, batasan database, keamanan). Diverifikasi: token kode di 247 file identik sebelum dan sesudah.
+
 ## Berikutnya
+
+- [ ] **PHP2Shell (CVE-2026-109618 dan CVE-2026-109619, RCE tanpa login di mesin PHP).** Perbarui PHP ke 8.4.27, 8.5.12, atau 8.3.36 ke atas di semua mesin (lokal Laragon saat ini 8.4.12, masih rentan) dan jadikan syarat host production. Sampai diperbarui: `session.upload_progress.enabled=0` dan `post_max_size` kecil (aplikasi hanya butuh 2 MB per file) di `php.ini`, lalu restart worker PHP.
 
 - [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path`, `tasks.overdue_reminded_at`, `leave_requests.overdue_notified_at`, `intern_profiles.ending_notified_for`, `offices.deleted_at` (beserta indeks nama baru), `notifications.announcement_id`, dan `notifications.chat_sender_id`.
 - [ ] Pasang cron `schedule:run` di server production (pengingat Task terlambat setiap hari, pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin setiap hari).
