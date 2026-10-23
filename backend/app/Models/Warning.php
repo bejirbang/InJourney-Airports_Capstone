@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $body
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read User $intern
+ * @property-read User|null $intern  null jika akun intern sudah dihapus
  * @property-read User|null $author
  */
 #[Fillable(['intern_id', 'author_id', 'body'])]

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Warning;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -97,14 +98,26 @@ class AdminWarnings
      */
     public function update(User $admin, Warning $warning, string $body, CarbonInterface $now): array
     {
+        $intern = $warning->intern;
+
+        // Catatan milik akun intern yang sudah dihapus tidak tampil di mana pun.
+        if ($intern === null) {
+            throw (new ModelNotFoundException)->setModel(Warning::class, [$warning->id]);
+        }
+
         if (! $warning->editableBy($admin, $now)) {
             throw new ActionRejected(self::LOCKED, 'locked');
         }
 
-        DB::transaction(function () use ($admin, $warning, $body): void {
+        // Simpan tanpa perubahan tidak dicatat di log.
+        if ($warning->body === $body) {
+            return $this->row($warning->load('author:id,name'), $admin, $now);
+        }
+
+        DB::transaction(function () use ($admin, $warning, $intern, $body): void {
             $warning->update(['body' => $body]);
 
-            AuditLog::record($admin, AuditLog::ACTION_WARNING, $warning->intern->name, 'Ubah catatan warning.');
+            AuditLog::record($admin, AuditLog::ACTION_WARNING, $intern->name, 'Ubah catatan warning.');
         });
 
         return $this->row($warning->load('author:id,name'), $admin, $now);

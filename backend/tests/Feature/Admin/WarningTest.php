@@ -2,6 +2,7 @@
 
 use App\Models\Attendance;
 use App\Models\AuditLog;
+use App\Models\Holiday;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\Warning;
@@ -62,6 +63,20 @@ it('shows the notes newest first with this month late count', function () {
         ->assertJsonPath('data.warnings.1.can_edit', false);
 });
 
+it('does not count a day that later became a holiday as late', function () {
+    WorkHourSetting::factory()->create();
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-05', 'clock_in_at' => '08:20:00']);
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07', 'clock_in_at' => '08:30:00']);
+    Holiday::factory()->create(['date' => '2026-10-07', 'name' => 'Libur Daerah']);
+
+    warningRequest($this->admin, 'GET', "/api/admin/users/{$this->intern->id}/warnings")
+        ->assertJsonPath('data.late_this_month', 1);
+
+    warningRequest($this->admin, 'GET', "/api/admin/users/{$this->intern->id}/attendance/days/2026-10-07")
+        ->assertJsonPath('data.status', 'holiday')
+        ->assertJsonPath('data.late_minutes', null);
+});
+
 it('adds a note without notifying anyone and logs it', function () {
     warningRequest($this->admin, 'POST', "/api/admin/users/{$this->intern->id}/warnings", ['body' => 'Terlambat clock in 3 kali dalam seminggu.'])
         ->assertCreated()
@@ -78,10 +93,28 @@ it('adds a note without notifying anyone and logs it', function () {
         ->and($log->detail)->toBe('Tambah catatan warning.');
 });
 
-it('requires the note text', function () {
-    warningRequest($this->admin, 'POST', "/api/admin/users/{$this->intern->id}/warnings", ['body' => '   '])
+it('requires the note text, up to 2000 characters', function (string $body, string $message) {
+    warningRequest($this->admin, 'POST', "/api/admin/users/{$this->intern->id}/warnings", ['body' => $body])
         ->assertUnprocessable()
-        ->assertJsonValidationErrors(['body' => 'Catatan wajib diisi.']);
+        ->assertJsonValidationErrors(['body' => $message]);
+})->with([
+    'kosong' => ['   ', 'Catatan wajib diisi.'],
+    'terlalu panjang' => [str_repeat('a', 2001), 'Catatan maksimal 2000 karakter.'],
+]);
+
+it('does not log saving a note without changes', function () {
+    $warning = Warning::factory()->create(['intern_id' => $this->intern->id, 'author_id' => $this->admin->id, 'body' => 'Sama.', 'created_at' => '2026-10-12 09:00:00']);
+
+    warningRequest($this->admin, 'PUT', "/api/admin/warnings/{$warning->id}", ['body' => 'Sama.'])->assertOk();
+
+    expect(AuditLog::query()->count())->toBe(0);
+});
+
+it('returns 404 for a note of a deleted intern', function () {
+    $warning = Warning::factory()->create(['intern_id' => $this->intern->id, 'author_id' => $this->admin->id, 'created_at' => '2026-10-12 09:00:00']);
+    $this->intern->delete();
+
+    warningRequest($this->admin, 'PUT', "/api/admin/warnings/{$warning->id}", ['body' => 'Diubah.'])->assertNotFound();
 });
 
 it('lets the author edit a note within 24 hours', function () {

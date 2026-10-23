@@ -47,7 +47,8 @@ class AttendanceCalendar
     /**
      * Status tiap tanggal dari $from sampai $to, dipotong ke periode magang dan tidak melewati hari ini.
      *
-     * `late_minutes` null jika belum clock in atau jam kerja belum diatur.
+     * `late_minutes` null jika belum clock in, jam kerja belum diatur, atau hari itu Libur (misalnya libur
+     * yang ditambahkan admin setelah intern clock in): tanpa jam masuk, tidak ada Terlambat.
      * `holiday_name` hanya untuk libur dari admin (akhir pekan null), `leave` izin disetujui yang mencakup hari itu.
      *
      * @return array<string, array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}>
@@ -86,10 +87,12 @@ class AttendanceCalendar
             $attendance = $attendances->get($day);
             $leave = $leaves->first(fn (LeaveRequest $leave): bool => $leave->covers($day));
 
+            $status = self::status($day, $attendance, isset($holidays[$day]), $leave !== null, $todayDate);
+
             $days[$day] = [
-                'status' => self::status($day, $attendance, isset($holidays[$day]), $leave !== null, $todayDate),
+                'status' => $status,
                 'attendance' => $attendance,
-                'late_minutes' => $attendance?->lateMinutes(WorkHourSetting::pickFor($workHours, $day)),
+                'late_minutes' => $status === AttendanceStatus::Holiday ? null : $attendance?->lateMinutes(WorkHourSetting::pickFor($workHours, $day)),
                 'holiday_name' => $holidays[$day] ?? null,
                 'leave' => $leave,
             ];

@@ -22,7 +22,7 @@ class WarningRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string'],
+            'body' => ['required', 'string', 'max:2000'],
         ];
     }
 
@@ -34,6 +34,7 @@ class WarningRequest extends FormRequest
         return [
             'body.required' => self::BODY_REQUIRED,
             'body.string' => self::BODY_REQUIRED,
+            'body.max' => 'Catatan maksimal 2000 karakter.',
         ];
     }
 }
