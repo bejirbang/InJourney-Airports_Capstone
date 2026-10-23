@@ -75,17 +75,23 @@ class AdminAnnouncements
             $titleChanged = $announcement->isDirty('title');
             $announcement->save();
             $after = $this->roles($announcement);
+            $changed = [];
 
             if ($titleChanged) {
+                $changed = $this->notifiedUsers($announcement);
                 Notification::query()->where('announcement_id', $announcement->id)->update(['text' => $announcement->title]);
             }
 
             foreach (array_diff($before, $after) as $removed) {
-                Notification::query()
+                $rows = Notification::query()
                     ->where('announcement_id', $announcement->id)
-                    ->whereHas('user', fn (Builder $q) => $q->where('role', Role::from($removed)))
-                    ->delete();
+                    ->whereHas('user', fn (Builder $q) => $q->where('role', Role::from($removed)));
+
+                $changed = [...$changed, ...$rows->clone()->get(['user_id'])->map(fn (Notification $n): int => $n->user_id)->all()];
+                $rows->delete();
             }
+
+            $this->notifier->changed(array_unique($changed));
 
             foreach (array_diff($after, $before) as $added) {
                 $this->notifier->announce($this->recipients(Role::from($added), $now), $announcement);
@@ -104,14 +110,16 @@ class AdminAnnouncements
     public function delete(User $admin, Announcement $announcement): void
     {
         DB::transaction(function () use ($admin, $announcement): void {
+            $notified = $this->notifiedUsers($announcement);
             $announcement->delete();
+            $this->notifier->changed($notified);
 
             AuditLog::record($admin, AuditLog::ACTION_ANNOUNCEMENT, $announcement->title, 'Hapus pengumuman.');
         });
     }
 
     /**
-     * Penerima notifikasi untuk satu role.
+     * Penerima notifikasi untuk satu role: akun yang bisa dihubungi (User::scopeReachable).
      *
      * @return list<int>
      */
@@ -119,14 +127,24 @@ class AdminAnnouncements
     {
         return array_values(User::query()
             ->where('role', $role)
-            ->where('is_active', true)
-            ->when($role === Role::Intern, fn (Builder $q) => $q->whereHas(
-                'internProfile',
-                fn (Builder $p) => $p->whereDate('end_date', '>=', $now->toDateString()),
-            ))
+            ->reachable($now->toDateString())
             ->orderBy('id')
             ->get(['id'])
             ->map(fn (User $user): int => $user->id)
+            ->all());
+    }
+
+    /**
+     * Pengguna yang lonceng-nya memuat pengumuman ini.
+     *
+     * @return list<int>
+     */
+    private function notifiedUsers(Announcement $announcement): array
+    {
+        return array_values(Notification::query()
+            ->where('announcement_id', $announcement->id)
+            ->get(['user_id'])
+            ->map(fn (Notification $notification): int => $notification->user_id)
             ->all());
     }
 

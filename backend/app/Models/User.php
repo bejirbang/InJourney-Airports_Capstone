@@ -6,6 +6,7 @@ use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -160,5 +161,37 @@ class User extends Authenticatable
     public function hasRole(Role $role): bool
     {
         return $this->role === $role;
+    }
+
+    /**
+     * Akun yang bisa menerima pengumuman dan pesan chat baru: tidak dinonaktifkan admin, dan untuk intern
+     * magangnya belum berakhir (intern yang belum mulai termasuk). Keputusan pemilik repo 23 Okt 2026.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeReachable(Builder $query, string $date): Builder
+    {
+        return $query->where('is_active', true)->where(fn (Builder $q) => $q
+            ->where('role', '!=', Role::Intern)
+            ->orWhereHas('internProfile', fn (Builder $p) => $p->whereDate('end_date', '>=', $date)));
+    }
+
+    /**
+     * Versi satu akun dari scopeReachable().
+     */
+    public function isReachable(string $date): bool
+    {
+        if (! $this->is_active) {
+            return false;
+        }
+
+        if (! $this->hasRole(Role::Intern)) {
+            return true;
+        }
+
+        $profile = $this->internProfile;
+
+        return $profile !== null && $profile->end_date->toDateString() >= $date;
     }
 }
