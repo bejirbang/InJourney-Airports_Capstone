@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int $id
  * @property int $user_id
+ * @property int|null $announcement_id terisi untuk notifikasi pengumuman, agar ikut diubah dan dihapus
  * @property string $text
  * @property string $link_path
  * @property array<string, mixed>|null $link_params
@@ -21,7 +22,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read User $user
  */
-#[Fillable(['user_id', 'text', 'link_path', 'link_params', 'read_at'])]
+#[Fillable(['user_id', 'announcement_id', 'text', 'link_path', 'link_params', 'read_at'])]
 class Notification extends Model
 {
     /**
