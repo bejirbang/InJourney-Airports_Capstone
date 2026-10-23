@@ -12,6 +12,8 @@ use App\Support\IndonesianDate;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use OpenSpout\Common\Entity\Cell;
+use OpenSpout\Common\Entity\Cell\StringCell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Color;
 use OpenSpout\Common\Entity\Style\Style;
@@ -235,18 +237,32 @@ class AdminReports
         $writer->getCurrentSheet()->setName($sheetName);
 
         foreach ($info as $index => $line) {
-            $writer->addRow(Row::fromValuesWithStyle($line, new Style(fontBold: $index === 1, fontSize: $index === 1 ? 14 : 11)));
+            $writer->addRow($this->row($line, new Style(fontBold: $index === 1, fontSize: $index === 1 ? 14 : 11)));
         }
 
-        $writer->addRow(Row::fromValues([]));
-        $writer->addRow(Row::fromValuesWithStyle($head, new Style(fontBold: true, fontColor: Color::WHITE, backgroundColor: '1F4E79')));
+        $writer->addRow(new Row([]));
+        $writer->addRow($this->row($head, new Style(fontBold: true, fontColor: Color::WHITE, backgroundColor: '1F4E79')));
 
         foreach ($rows as $row) {
-            $writer->addRow(Row::fromValues($row));
+            $writer->addRow($this->row($row));
         }
 
         $writer->close();
 
         return $path;
+    }
+
+    /**
+     * Teks selalu ditulis sebagai teks: Row::fromValues() mengubah teks berawalan "=" menjadi rumus Excel,
+     * sehingga nama atau judul Task buatan pengguna bisa dijalankan di komputer admin (formula injection).
+     *
+     * @param  list<int|string>  $values
+     */
+    private function row(array $values, ?Style $style = null): Row
+    {
+        return new Row(array_map(
+            fn (int|string $value): Cell => is_string($value) ? new StringCell($value, $style) : Cell::fromValue($value, $style),
+            $values,
+        ));
     }
 }
