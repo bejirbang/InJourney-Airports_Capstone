@@ -3,12 +3,14 @@
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
+use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
 use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
 use App\Http\Controllers\Admin\MenuController as AdminMenuController;
 use App\Http\Controllers\Admin\ResetPasswordController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WarningController as AdminWarningController;
+use App\Http\Controllers\Admin\WorkHourController as AdminWorkHourController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
@@ -148,6 +150,13 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/users/{user}/warnings', [AdminWarningController::class, 'forIntern'])->name('users.warnings.index');
             Route::post('/users/{user}/warnings', [AdminWarningController::class, 'store'])->name('users.warnings.store');
             Route::put('/warnings/{warning}', [AdminWarningController::class, 'update'])->name('warnings.update');
+
+            Route::get('/settings/work-hours', [AdminWorkHourController::class, 'show'])->name('work-hours.show');
+            Route::post('/settings/work-hours', [AdminWorkHourController::class, 'store'])->name('work-hours.store');
+            Route::get('/holidays', [AdminHolidayController::class, 'index'])->name('holidays.index');
+            Route::post('/holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
+            Route::put('/holidays/{holiday}', [AdminHolidayController::class, 'update'])->name('holidays.update');
+            Route::delete('/holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
 
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
