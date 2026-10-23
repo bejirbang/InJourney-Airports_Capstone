@@ -38,6 +38,27 @@ class AuditLog extends Model
 
     public const ACTION_REPORT = 'Laporan';
 
+    /** Pilihan "Jenis aksi" di Log Aktivitas, urutan sama dengan design-admin.md 13.1. */
+    public const ACTIONS = [
+        self::ACTION_ACCOUNT,
+        self::ACTION_ATTENDANCE,
+        self::ACTION_LEAVE,
+        self::ACTION_CALENDAR,
+        self::ACTION_OFFICE,
+        self::ACTION_WARNING,
+        self::ACTION_ANNOUNCEMENT,
+        self::ACTION_REPORT,
+    ];
+
+    /**
+     * Log hanya-baca (13.1): baris yang sudah tersimpan tidak bisa diubah atau dihapus lewat model.
+     */
+    protected static function booted(): void
+    {
+        static::updating(fn (): never => throw new \LogicException('Log Aktivitas tidak bisa diubah.'));
+        static::deleting(fn (): never => throw new \LogicException('Log Aktivitas tidak bisa dihapus.'));
+    }
+
     public static function record(User $admin, string $action, string $object, string $detail): self
     {
         return self::create([
