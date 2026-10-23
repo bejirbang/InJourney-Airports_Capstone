@@ -30,6 +30,8 @@ class AuditLog extends Model
 
     public const ACTION_LEAVE = 'Izin';
 
+    public const ACTION_CALENDAR = 'Kalender dan jam kerja';
+
     public static function record(User $admin, string $action, string $object, string $detail): self
     {
         return self::create([
