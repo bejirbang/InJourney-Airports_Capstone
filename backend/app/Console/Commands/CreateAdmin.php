@@ -21,7 +21,7 @@ class CreateAdmin extends Command
 
     public function handle(): int
     {
-        $email = mb_strtolower(trim((string) $this->argument('email')));
+        $email = mb_strtolower(trim($this->text($this->argument('email'))));
 
         $validator = Validator::make(['email' => $email], [
             'email' => ['required', 'email', Rule::unique('users', 'email')->withoutTrashed()],
@@ -39,11 +39,11 @@ class CreateAdmin extends Command
         $temporaryPassword = Str::password(12, symbols: false);
 
         User::create([
-            'name' => (string) $this->argument('name'),
+            'name' => $this->text($this->argument('name')),
             'email' => $email,
             'password' => $temporaryPassword,
             'role' => Role::Admin,
-            'title' => (string) $this->option('title'),
+            'title' => $this->text($this->option('title')),
             'is_active' => true,
             'must_change_password' => true,
         ]);
@@ -53,5 +53,13 @@ class CreateAdmin extends Command
         $this->line('Password ini hanya tampil sekali dan wajib diganti saat login pertama.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Nilai argumen atau opsi teks; kosong bila tidak berupa teks.
+     */
+    private function text(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 }
