@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
 use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
 use App\Http\Controllers\Admin\MenuController as AdminMenuController;
+use App\Http\Controllers\Admin\OfficeController as AdminOfficeController;
 use App\Http\Controllers\Admin\ResetPasswordController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WarningController as AdminWarningController;
@@ -157,6 +158,14 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
             Route::put('/holidays/{holiday}', [AdminHolidayController::class, 'update'])->name('holidays.update');
             Route::delete('/holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
+
+            Route::get('/offices', [AdminOfficeController::class, 'index'])->name('offices.index');
+            Route::post('/offices', [AdminOfficeController::class, 'store'])->name('offices.store');
+            Route::get('/offices/{office}', [AdminOfficeController::class, 'show'])->name('offices.show');
+            Route::put('/offices/{office}', [AdminOfficeController::class, 'update'])->name('offices.update');
+            Route::post('/offices/{office}/deactivate', [AdminOfficeController::class, 'deactivate'])->name('offices.deactivate');
+            Route::post('/offices/{office}/activate', [AdminOfficeController::class, 'activate'])->name('offices.activate');
+            Route::delete('/offices/{office}', [AdminOfficeController::class, 'destroy'])->name('offices.destroy');
 
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
