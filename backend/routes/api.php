@@ -32,6 +32,8 @@ use App\Http\Controllers\Mentor\MenuController as MentorMenuController;
 use App\Http\Controllers\Mentor\PerformanceController as MentorPerformanceController;
 use App\Http\Controllers\Mentor\TaskController as MentorTaskController;
 use App\Http\Controllers\Shared\AnnouncementController;
+use App\Http\Controllers\Shared\ChatController;
+use App\Http\Controllers\Shared\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])
@@ -55,6 +57,17 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
         // Isi pengumuman saat notifikasi lonceng diklik; akses per role lewat AnnouncementPolicy.
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show'])->name('announcements.show');
+
+        // Lonceng notifikasi dan chat untuk semua role; pembaruan real-time lewat WebSocket `users.{id}`.
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('notifications.read');
+
+        Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
+        Route::get('/chats/contacts', [ChatController::class, 'contacts'])->name('chats.contacts');
+        Route::get('/chats/{user}/messages', [ChatController::class, 'messages'])->whereNumber('user')->name('chats.messages');
+        Route::post('/chats/{user}/messages', [ChatController::class, 'send'])->whereNumber('user')->middleware('throttle:60,1')->name('chats.send');
+        Route::post('/chats/{user}/read', [ChatController::class, 'read'])->whereNumber('user')->name('chats.read');
 
         Route::middleware('role:intern')->prefix('intern')->name('intern.')->group(function () {
             Route::get('/menu', InternMenuController::class)->name('menu');
