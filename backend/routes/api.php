@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordContro
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
 use App\Http\Controllers\Admin\MenuController as AdminMenuController;
 use App\Http\Controllers\Admin\OfficeController as AdminOfficeController;
+use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\ResetPasswordController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WarningController as AdminWarningController;
@@ -176,6 +177,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->name('announcements.store');
             Route::put('/announcements/{announcement}', [AdminAnnouncementController::class, 'update'])->name('announcements.update');
             Route::delete('/announcements/{announcement}', [AdminAnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
+            Route::get('/reports/options', [AdminReportController::class, 'options'])->name('reports.options');
+            Route::post('/reports/export', [AdminReportController::class, 'export'])->name('reports.export');
 
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
