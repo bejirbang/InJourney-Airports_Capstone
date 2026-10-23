@@ -13,3 +13,6 @@ Schedule::command('app:remind-overdue-tasks')->dailyAt('07:00')->withoutOverlapp
 
 // Izin belum diproses mentor lebih dari 24 jam (docs/design-admin.md 14). Batasnya per jam, jadi dicek tiap jam.
 Schedule::command('app:remind-overdue-leaves')->hourly()->withoutOverlapping();
+
+// Magang berakhir dalam 7 hari (docs/design-admin.md 14, Alur 6). Rentangnya per hari, jadi cukup sekali tiap pagi.
+Schedule::command('app:remind-ending-internships')->dailyAt('07:00')->withoutOverlapping();

@@ -29,11 +29,10 @@ class AdminDashboard
     /** Tiap daftar menampilkan maksimal 5 baris, sisanya lewat Lihat semua (5.2). */
     public const LIST_LIMIT = 5;
 
-    /** Pengingat "Magang berakhir dalam 7 hari": H-7 sampai hari H (5.2). */
-    public const ENDING_WITHIN_DAYS = 7;
-
     /** Batas mundur mencari hari kerja sebelumnya, cukup untuk libur panjang. */
     private const HOLIDAY_LOOKBACK_DAYS = 60;
+
+    public function __construct(private EndingInternships $endings) {}
 
     /**
      * @return array<string, mixed>
@@ -55,7 +54,7 @@ class AdminDashboard
             'yesterday' => $this->yesterday($now),
             'overdue_leaves' => $this->overdueLeaves($now),
             'pending_corrections' => $this->pendingCorrections(),
-            'ending_internships' => $this->endingInternships($date),
+            'ending_internships' => $this->endingInternships($now),
         ];
     }
 
@@ -190,28 +189,18 @@ class AdminDashboard
     }
 
     /**
-     * Intern aktif yang tanggal selesainya hari ini sampai 7 hari lagi, paling dekat lebih dulu.
-     * `mentor` untuk tombol Tanya mentor (draf chat), tombol Perpanjang menuju Alur 6.
+     * Magang berakhir dalam 7 hari, paling dekat lebih dulu. `mentor` untuk tombol Tanya mentor (draf chat),
+     * tombol Perpanjang menuju Alur 6. Lihat semua memakai GET /api/admin/ending-internships.
      *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
-    private function endingInternships(string $date): array
+    private function endingInternships(CarbonInterface $now): array
     {
-        $until = Carbon::parse($date)->addDays(self::ENDING_WITHIN_DAYS)->toDateString();
-
-        $query = InternProfile::query()
-            ->whereDate('start_date', '<=', $date)
-            ->whereDate('end_date', '>=', $date)
-            ->whereDate('end_date', '<=', $until)
-            ->whereHas('user', fn (Builder $q) => $q->where('role', Role::Intern)->where('is_active', true));
-
-        $ordered = $query->clone()->with(['user:id,name', 'mentor:id,name'])->orderBy('end_date')->orderBy('id');
-
-        return $this->box($query, $ordered, fn (InternProfile $profile): array => [
-            'intern' => $this->person($profile->user),
-            'end_date' => $profile->end_date->toDateString(),
-            'mentor' => ['id' => $profile->mentor->id, 'name' => $profile->mentor->name],
-        ]);
+        return $this->box(
+            $this->endings->query($now),
+            $this->endings->ordered($now),
+            fn (InternProfile $profile): array => $this->endings->row($profile, $now),
+        );
     }
 
     /**

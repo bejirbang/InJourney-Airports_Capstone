@@ -224,11 +224,13 @@ it('lists active interns whose internship ends within seven days, nearest first'
                 [
                     'intern' => ['id' => $rina->id, 'name' => 'Rina Wulandari', 'short_name' => 'Rina W.'],
                     'end_date' => '2026-10-12',
+                    'ends_in_days' => 0,
                     'mentor' => ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'],
                 ],
                 [
                     'intern' => ['id' => $doni->id, 'name' => 'Doni Akbar', 'short_name' => 'Doni A.'],
                     'end_date' => '2026-10-19',
+                    'ends_in_days' => 7,
                     'mentor' => ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'],
                 ],
             ],

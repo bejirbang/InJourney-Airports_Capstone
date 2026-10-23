@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ChangeMentorRequest;
+use App\Http\Requests\Admin\ExtendInternshipRequest;
 use App\Http\Requests\Admin\UserFormRequest;
 use App\Http\Requests\Admin\UserIndexRequest;
 use App\Http\Resources\AdminUserResource;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Date;
 
 /**
  * Halaman Pengguna (docs/design-admin.md, Alur 2): daftar, tambah, detail, ubah, ganti mentor,
- * nonaktifkan, aktifkan. Reset password ada di ResetPasswordController.
+ * nonaktifkan, aktifkan, dan Perpanjang magang (Alur 6). Reset password ada di ResetPasswordController.
  */
 class UserController extends Controller
 {
@@ -128,6 +129,18 @@ class UserController extends Controller
         /** @var User $admin */
         $admin = $request->user();
         $user = $this->accounts->activate($admin, $user, Date::now());
+
+        return response()->json(['message' => 'Perubahan tersimpan.', 'data' => $this->detailed($user)]);
+    }
+
+    /**
+     * Perpanjang magang dari Dashboard, menu Aksi, atau setelah Aktifkan ditolak `internship_ended`.
+     */
+    public function extend(ExtendInternshipRequest $request, User $user): JsonResponse
+    {
+        /** @var User $admin */
+        $admin = $request->user();
+        $user = $this->accounts->extend($admin, $user, $request->string('end_date')->toString(), Date::now());
 
         return response()->json(['message' => 'Perubahan tersimpan.', 'data' => $this->detailed($user)]);
     }

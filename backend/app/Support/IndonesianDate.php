@@ -20,6 +20,14 @@ class IndonesianDate
     }
 
     /**
+     * "17 Okt 2026", sama dengan formatShort(d, true) di mock-rules.ts.
+     */
+    public static function withYear(CarbonInterface $date): string
+    {
+        return self::short($date).' '.$date->year;
+    }
+
+    /**
      * "13 Okt", "13-14 Okt", atau "30 Sep - 2 Okt", sama dengan formatRange di mock-rules.ts.
      */
     public static function range(CarbonInterface $start, CarbonInterface $end): string

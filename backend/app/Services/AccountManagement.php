@@ -10,10 +10,12 @@ use App\Models\InternProfile;
 use App\Models\MentorHistory;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\IndonesianDate;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Perubahan akun oleh admin (docs/design-admin.md Alur 2). Setiap tindakan masuk Log Aktivitas.
@@ -36,6 +38,12 @@ class AccountManagement
     public const NOT_INTERN = 'Hanya akun intern yang memiliki mentor.';
 
     public const SAME_MENTOR = 'Pilih mentor baru.';
+
+    public const EXTEND_NOT_INTERN = 'Akun ini bukan intern.';
+
+    public const EXTEND_NOT_AFTER_END = 'Tanggal baru harus setelah tanggal selesai saat ini.';
+
+    public const EXTEND_IN_PAST = 'Tanggal selesai baru tidak boleh sebelum hari ini.';
 
     public function __construct(private Notifier $notifier) {}
 
@@ -265,6 +273,50 @@ class AccountManagement
         });
 
         return $user;
+    }
+
+    /**
+     * Perpanjang magang (docs/design-admin.md Alur 6). Tanggal baru harus setelah tanggal selesai saat ini (8.3)
+     * dan tidak sebelum hari ini: tanggal lampau tidak membuat akun aktif, hanya membuat hari sesudah
+     * tanggal selesai lama ikut dihitung Tidak Hadir.
+     * Intern yang dinonaktifkan ikut aktif lagi, karena mengaktifkan kembali intern dilakukan dengan
+     * memperbarui tanggal selesai magang (4.6).
+     *
+     * @throws ActionRejected
+     * @throws ValidationException
+     */
+    public function extend(User $admin, User $intern, string $endDate, CarbonInterface $now): User
+    {
+        if (! $intern->hasRole(Role::Intern)) {
+            throw new ActionRejected(self::EXTEND_NOT_INTERN, 'not_intern');
+        }
+
+        DB::transaction(function () use ($admin, $intern, $endDate, $now): void {
+            // Dikunci agar dua admin yang memperpanjang bersamaan dibandingkan dengan tanggal selesai terbaru.
+            $profile = InternProfile::query()->where('user_id', $intern->id)->lockForUpdate()->firstOrFail();
+            $oldEnd = $profile->end_date;
+
+            if ($endDate <= $oldEnd->toDateString()) {
+                throw ValidationException::withMessages(['end_date' => self::EXTEND_NOT_AFTER_END]);
+            }
+
+            if ($endDate < $now->toDateString()) {
+                throw ValidationException::withMessages(['end_date' => self::EXTEND_IN_PAST]);
+            }
+
+            $profile->update(['end_date' => $endDate]);
+
+            $detail = 'Perpanjang magang dari '.IndonesianDate::withYear($oldEnd).' ke '.IndonesianDate::withYear($profile->end_date).'.';
+
+            if (! $intern->is_active) {
+                $intern->update(['is_active' => true]);
+                $detail .= ' Akun diaktifkan kembali.';
+            }
+
+            AuditLog::record($admin, AuditLog::ACTION_ACCOUNT, $intern->name, $detail);
+        });
+
+        return $intern->refresh();
     }
 
     /**
