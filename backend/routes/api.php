@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
 use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
 use App\Http\Controllers\Admin\MenuController as AdminMenuController;
@@ -113,6 +114,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
             Route::get('/menu', AdminMenuController::class)->name('menu');
             Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
+            Route::get('/ending-internships', AdminEndingInternshipController::class)->name('ending-internships');
 
             Route::get('/mentors', [AdminUserController::class, 'mentors'])->name('mentors.index');
             Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
@@ -123,6 +125,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/users/{user}/mentor', [AdminUserController::class, 'changeMentor'])->name('users.change-mentor');
             Route::post('/users/{user}/deactivate', [AdminUserController::class, 'deactivate'])->name('users.deactivate');
             Route::post('/users/{user}/activate', [AdminUserController::class, 'activate'])->name('users.activate');
+            Route::post('/users/{user}/extend', [AdminUserController::class, 'extend'])->name('users.extend');
 
             Route::get('/users/{user}/attendance', [AdminInternRecordController::class, 'attendance'])->name('users.attendance');
             Route::get('/users/{user}/attendance/days/{date}', [AdminInternRecordController::class, 'day'])->name('users.attendance.day');
