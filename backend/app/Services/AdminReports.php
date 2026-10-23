@@ -20,16 +20,6 @@ use OpenSpout\Common\Entity\Style\Style;
 use OpenSpout\Writer\XLSX\Options;
 use OpenSpout\Writer\XLSX\Writer;
 
-/**
- * Menu Laporan, export Excel .xlsx (docs/design-admin.md Alur 10). Hanya Rekap Absensi dan Rekap Task.
- *
- * Rekap Absensi: per intern, status final saja (sama dengan rekap di riwayat absensi): hari ini belum dihitung,
- * hari libur bukan hari kerja, dan tanggal di luar periode magang tidak dihitung. Filter Mentor memakai mentor
- * intern saat ini.
- *
- * Rekap Task (keputusan pemilik repo 23 Okt 2026): Task yang tenggatnya di dalam periode, filter Mentor memakai
- * mentor pemilik Task, dan tanda Terlambat juga untuk Task yang dikumpulkan setelah tenggat (termasuk Done).
- */
 class AdminReports
 {
     public const TYPES = [
@@ -44,8 +34,6 @@ class AdminReports
     public function __construct(private AttendanceCalendar $calendar) {}
 
     /**
-     * Pilihan filter Intern dan Mentor, termasuk akun nonaktif karena laporan bisa untuk periode lampau.
-     *
      * @return array{interns: list<array{id: int, name: string}>, mentors: list<array{id: int, name: string, is_active: bool}>}
      */
     public function options(): array
@@ -59,8 +47,6 @@ class AdminReports
     }
 
     /**
-     * Susun laporan ke file .xlsx sementara dan catat di Log Aktivitas.
-     *
      * @param  array{type: string, from: string, to: string, intern_id: int|null, mentor_id: int|null}  $filters
      * @return array{path: string, filename: string}
      *
@@ -113,8 +99,6 @@ class AdminReports
     }
 
     /**
-     * Satu baris per intern yang punya hari kerja final di periode itu (design-admin.md 12.3).
-     *
      * @param  array{type: string, from: string, to: string, intern_id: int|null, mentor_id: int|null}  $filters
      * @return array{0: list<string>, 1: list<list<int|string>>, 2: list<float>}
      */
@@ -161,8 +145,6 @@ class AdminReports
     }
 
     /**
-     * Task yang tenggatnya di dalam periode, urut nama intern lalu tenggat (design-admin.md 12.3).
-     *
      * @param  array{type: string, from: string, to: string, intern_id: int|null, mentor_id: int|null}  $filters
      * @return array{0: list<string>, 1: list<list<int|string>>, 2: list<float>}
      */
@@ -214,7 +196,7 @@ class AdminReports
     }
 
     /**
-     * @param  list<list<string>>  $info  baris keterangan di atas tabel
+     * @param  list<list<string>>  $info
      * @param  list<string>  $head
      * @param  list<list<int|string>>  $rows
      * @param  list<float>  $widths

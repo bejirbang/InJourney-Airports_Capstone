@@ -13,13 +13,6 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Menu Lokasi Kantor (docs/design-admin.md 9A). Kantor nonaktif boleh dihapus (keputusan pemilik repo
- * 23 Okt 2026, berbeda dengan 9A.5 dan 16). Penghapusan berupa soft delete, jadi riwayat absensi tetap
- * menunjuk kantornya, sementara nama kantor itu boleh dipakai lagi. Perubahan titik atau radius hanya berlaku untuk clock in dan clock out
- * berikutnya karena absensi lama hanya menyimpan id kantor, bukan hasil pemeriksaan radius.
- * Semua tindakan masuk Log Aktivitas, tanpa notifikasi ke intern atau mentor (9A.6).
- */
 class AdminOffices
 {
     public const ALREADY_INACTIVE = 'Kantor ini sudah nonaktif.';
@@ -29,8 +22,6 @@ class AdminOffices
     public const DELETE_ACTIVE = 'Nonaktifkan kantor lebih dulu sebelum menghapusnya.';
 
     /**
-     * Semua kantor, urut nama.
-     *
      * @return Collection<int, Office>
      */
     public function all(): Collection
@@ -39,8 +30,6 @@ class AdminOffices
     }
 
     /**
-     * Tambah kantor. Kantor baru langsung aktif (9A.2 langkah 6).
-     *
      * @param  array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
      *
      * @throws ValidationException
@@ -62,8 +51,6 @@ class AdminOffices
     }
 
     /**
-     * Ubah nama, titik, atau radius. Log hanya menyebut yang berubah; tanpa perubahan tidak ada log.
-     *
      * @param  array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
      *
      * @throws ValidationException
@@ -101,9 +88,6 @@ class AdminOffices
     }
 
     /**
-     * Nonaktifkan kantor. Kantor aktif terakhir boleh dinonaktifkan; dialog konfirmasi di frontend
-     * menjelaskan bahwa intern tidak bisa clock in sampai ada kantor aktif (9A.6).
-     *
      * @throws ActionRejected
      */
     public function deactivate(User $admin, Office $office): Office
@@ -120,9 +104,6 @@ class AdminOffices
     }
 
     /**
-     * Hapus kantor nonaktif. Kantor aktif harus dinonaktifkan dulu, agar penghapusan tidak langsung
-     * menghentikan clock in tanpa dialog kantor aktif terakhir.
-     *
      * @throws ActionRejected
      */
     public function delete(User $admin, Office $office): void
@@ -178,17 +159,11 @@ class AdminOffices
         }
     }
 
-    /**
-     * "-6.1256, 106.6559", sama dengan formatCoord di mock-rules.ts.
-     */
     private function coordinates(Office $office): string
     {
         return number_format((float) $office->latitude, 4, '.', '').', '.number_format((float) $office->longitude, 4, '.', '');
     }
 
-    /**
-     * "100 m / 300 m": radius clock in lalu clock out.
-     */
     private function radii(Office $office): string
     {
         return "{$office->clock_in_radius_meters} m / {$office->clock_out_radius_meters} m";

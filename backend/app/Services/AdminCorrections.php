@@ -14,17 +14,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Koreksi Absensi dari sisi admin (docs/design-admin.md, Alur 4): daftar, detail, Setujui, Tolak.
- *
- * Admin hanya mengubah jam clock in dan clock out. Status hari itu (Hadir, Lupa Clock Out, Terlambat)
- * tidak disimpan, jadi langsung terhitung ulang oleh AttendanceCalendar. Validasi lokasi tidak dijalankan.
- */
 class AdminCorrections
 {
     public const FILTER_ALL = 'all';
 
-    /** Filter Status: default Pending (6.2). */
     public const FILTERS = ['pending', 'approved', 'rejected', 'cancelled', self::FILTER_ALL];
 
     public const CANCELLED = 'Permintaan ini sudah dibatalkan intern.';
@@ -32,8 +25,6 @@ class AdminCorrections
     public function __construct(private AttendanceCalendar $calendar, private Notifier $notifier) {}
 
     /**
-     * Pending: paling lama diajukan lebih dulu (antrean). Status lain: terbaru lebih dulu.
-     *
      * @param  array{status?: string|null, intern_id?: int|null, from?: string|null, to?: string|null}  $filters
      * @return Collection<int, AttendanceCorrection>
      */
@@ -55,8 +46,6 @@ class AdminCorrections
     }
 
     /**
-     * Pilihan filter Intern: intern yang pernah mengajukan koreksi, urut nama.
-     *
      * @return list<array{id: int, name: string}>
      */
     public function interns(): array
@@ -69,9 +58,6 @@ class AdminCorrections
             ->all());
     }
 
-    /**
-     * Status hari itu saat ini, untuk kolom "Data tercatat" (6.3). Null jika di luar periode magang.
-     */
     public function currentStatus(AttendanceCorrection $correction, CarbonInterface $now): ?string
     {
         $date = $correction->date->toDateString();
@@ -81,9 +67,6 @@ class AdminCorrections
     }
 
     /**
-     * Setujui: jam final menggantikan absensi hari itu, atau membuat baris absensi baru jika intern
-     * belum clock in. Baris diberi tanda "Dikoreksi admin".
-     *
      * @throws ActionRejected
      */
     public function approve(User $admin, AttendanceCorrection $correction, string $clockIn, string $clockOut, string $note, CarbonInterface $now): AttendanceCorrection
@@ -128,8 +111,6 @@ class AdminCorrections
     }
 
     /**
-     * Tolak: permintaan ditutup, data absensi tidak berubah.
-     *
      * @throws ActionRejected
      */
     public function reject(User $admin, AttendanceCorrection $correction, string $note, CarbonInterface $now): AttendanceCorrection
@@ -160,7 +141,7 @@ class AdminCorrections
     }
 
     /**
-     * Dikunci agar dua admin, atau admin dan intern yang membatalkan, tidak memproses bersamaan (6.5).
+     * Dikunci agar dua admin, atau admin dan intern yang membatalkan, tidak memproses bersamaan.
      *
      * @throws ActionRejected
      */
@@ -181,10 +162,6 @@ class AdminCorrections
         return $correction;
     }
 
-    /**
-     * design-intern.md 16: "Koreksi absensi 9 Okt disetujui." Klik membuka detail koreksi;
-     * catatan admin dibaca di detail itu.
-     */
     private function notifyIntern(AttendanceCorrection $correction, string $result): void
     {
         $this->notifier->send(

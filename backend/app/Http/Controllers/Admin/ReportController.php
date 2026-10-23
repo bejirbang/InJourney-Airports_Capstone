@@ -10,9 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Date;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-/**
- * Menu Laporan (docs/design-admin.md Alur 10): pilihan filter dan unduhan Excel.
- */
 class ReportController extends Controller
 {
     public const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -24,9 +21,6 @@ class ReportController extends Controller
         return response()->json(['data' => $this->reports->options()]);
     }
 
-    /**
-     * Unduhan .xlsx. Tanpa data: 422 `no_data` "Tidak ada data pada periode ini." (12.1 langkah 4).
-     */
     public function export(ReportRequest $request): BinaryFileResponse
     {
         /** @var User $admin */

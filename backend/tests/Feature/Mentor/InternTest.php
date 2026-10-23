@@ -14,7 +14,6 @@ use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -36,9 +35,6 @@ function internOf(User $mentor, string $name, array $profile = [], array $attrib
     ])->create(['name' => $name, 'title' => 'Backend Intern', ...$attributes]);
 }
 
-/**
- * Intern yang dulu dibimbing $former dan kini dibimbing mentor lain.
- */
 function formerInternOf(User $former, string $name): User
 {
     $current = User::factory()->mentor()->create(['name' => 'Budi Santoso']);
@@ -212,7 +208,6 @@ describe('tab Rekap Absensi', function () {
                 'month' => '2026-10',
                 'present' => 2,
                 'leave' => 1,
-                // 1, 2, dan 5 Okt tanpa absensi; hari ini belum dihitung.
                 'absent' => 3,
                 'missed_clock_out' => 1,
                 'working_days' => 7,
@@ -236,7 +231,6 @@ describe('tab Rekap Absensi', function () {
             ->and($days['2026-10-06']['status'])->toBe('missed_clock_out')
             ->and($days['2026-10-04']['status'])->toBe('holiday');
 
-        // Mentor tidak melihat tanda Terlambat maupun kolom koreksi.
         expect($response->json('data.days.0'))->not->toHaveKeys(['late_minutes', 'has_pending_correction', 'can_request_correction']);
     });
 

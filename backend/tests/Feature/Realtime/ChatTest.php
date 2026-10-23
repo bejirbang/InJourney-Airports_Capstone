@@ -121,7 +121,6 @@ describe('daftar percakapan', function () {
         message($this->sari, $this->rina, 'Baik, saya cek.', '2026-10-12 08:10:00');
         message($this->admin, $this->rina, 'Bisa jelaskan kenapa lupa clock out?', '2026-10-12 09:00:00');
         message($this->admin, $this->rina, 'Mohon dijawab.', '2026-10-12 09:01:00');
-        // Percakapan orang lain tidak terlihat.
         message($budi, $this->sari, 'Rahasia.', '2026-10-12 09:30:00');
 
         chat($this->rina, 'GET', '/api/chats')
@@ -142,7 +141,6 @@ describe('daftar percakapan', function () {
 
         chat($this->rina, 'GET', '/api/chats?q=sari')->assertJsonPath('data.*.partner.name', ['Sari Wijaya'])->assertJsonPath('meta.unread_total', 3);
 
-        // Admin hanya melihat percakapannya sendiri.
         chat($this->admin, 'GET', '/api/chats')->assertJsonPath('data.*.partner.name', ['Rina Wulandari']);
     });
 
@@ -216,7 +214,6 @@ describe('isi percakapan', function () {
             ]);
         Event::assertDispatched(NotificationsRead::class, fn (NotificationsRead $e): bool => $e->userId === $this->rina->id);
 
-        // Tidak ada yang belum dibaca: tidak ada event lagi.
         chat($this->rina, 'POST', "/api/chats/{$this->sari->id}/read")->assertOk();
         Event::assertDispatchedTimes(ChatMessagesRead::class, 1);
     });

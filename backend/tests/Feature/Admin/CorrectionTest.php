@@ -12,7 +12,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
-// Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
     Storage::fake();
@@ -22,7 +21,6 @@ beforeEach(function () {
     $this->rina = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Rina Wulandari']);
     $this->budi = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Budi Kurniawan']);
 
-    // Jum 9 Okt: Rina lupa clock out.
     $this->office = Office::factory()->create();
     $this->attendance = Attendance::factory()->for($this->rina, 'intern')->clockedIn()->create([
         'date' => '2026-10-09', 'clock_in_at' => '08:02:00', 'clock_in_office_id' => $this->office->id,
@@ -140,7 +138,6 @@ describe('setujui', function () {
             ->and($log->object)->toBe('Rina Wulandari')
             ->and($log->detail)->toBe('Setujui koreksi 9 Okt: 08:02 - 17:00.');
 
-        // Intern melihat label "Dikoreksi admin" (12, 11, 10, lalu 9 Okt) dan badge menu admin berkurang.
         asAdminUser($this->rina, 'GET', '/api/intern/attendance?month=2026-10')
             ->assertJsonPath('data.days.3.date', '2026-10-09')
             ->assertJsonPath('data.days.3.status', 'present')

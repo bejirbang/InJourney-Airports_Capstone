@@ -9,10 +9,6 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 
-/**
- * Item lonceng baru, atau item yang naik lagi ke atas (notifikasi chat dari pengirim yang sama).
- * Frontend menyisipkan atau mengganti item berdasarkan `id`. Event `.notification.sent` di `users.{id}`.
- */
 class NotificationSent implements ShouldBroadcast, ShouldDispatchAfterCommit
 {
     use Dispatchable, InteractsWithSockets;

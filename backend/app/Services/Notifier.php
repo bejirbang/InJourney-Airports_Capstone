@@ -11,15 +11,11 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Satu-satunya tempat membuat baris lonceng notifikasi. Setiap baris disimpan lebih dulu, lalu dikirim lewat
- * WebSocket (Reverb, private channel `users.{id}`) setelah transaksi selesai (backend/CLAUDE.md, Real time).
- */
 class Notifier
 {
     /**
      * @param  iterable<int>  $userIds
-     * @param  array<string, mixed>|null  $params  parameter URL frontend, misalnya ['open' => 12]
+     * @param  array<string, mixed>|null  $params
      */
     public function send(iterable $userIds, string $text, string $path, ?array $params = null): void
     {
@@ -34,9 +30,6 @@ class Notifier
     }
 
     /**
-     * Notifikasi pengumuman: teks berupa judul pengumuman (design-intern.md 16, design-mentor.md 14), klik membuka
-     * isinya. Baris disambungkan ke pengumuman agar ikut berubah dan terhapus bersama pengumumannya.
-     *
      * @param  iterable<int>  $userIds
      */
     public function announce(iterable $userIds, Announcement $announcement): void
@@ -53,8 +46,8 @@ class Notifier
     }
 
     /**
-     * "Pesan baru dari Bu Sari." satu baris per pengirim (keputusan pemilik repo 23 Okt 2026): pesan berikutnya
-     * dari orang yang sama menjadikan baris itu belum dibaca lagi dan memindahkannya ke atas, tanpa baris baru.
+     * Satu baris per pengirim: pesan berikutnya dari orang yang sama menjadikan baris itu belum dibaca lagi
+     * dan memindahkannya ke atas, tanpa baris baru.
      */
     public function chatMessage(User $receiver, User $sender): void
     {
@@ -85,8 +78,6 @@ class Notifier
     }
 
     /**
-     * Isi lonceng pengguna berubah tanpa item baru (judul pengumuman diubah, pengumuman dihapus).
-     *
      * @param  iterable<int>  $userIds
      */
     public function changed(iterable $userIds): void

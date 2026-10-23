@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Penanda notifikasi "Izin ... belum diproses mentor lebih dari 24 jam." sudah dikirim ke admin,
-     * agar pengingat hanya sekali per izin (docs/design-admin.md 14).
-     */
     public function up(): void
     {
         Schema::table('leave_requests', function (Blueprint $table) {
@@ -17,9 +13,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('leave_requests', function (Blueprint $table) {

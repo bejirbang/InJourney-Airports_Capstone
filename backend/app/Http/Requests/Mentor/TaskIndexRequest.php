@@ -6,9 +6,6 @@ use App\Enums\TaskStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter dan sort halaman Task mentor (docs/design-mentor.md 7.4).
- */
 class TaskIndexRequest extends FormRequest
 {
     public function authorize(): bool

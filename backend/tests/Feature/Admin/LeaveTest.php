@@ -10,7 +10,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
-// Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
     Storage::fake();
@@ -20,7 +19,6 @@ beforeEach(function () {
     $this->andi = User::factory()->intern(['mentor_id' => $this->mentor->id, 'start_date' => '2026-09-01', 'end_date' => '2026-12-31'])
         ->create(['name' => 'Andi Pratama']);
 
-    // Diajukan 30 jam lalu, dengan surat dokter.
     Storage::put('leaves/surat.pdf', 'surat');
     $this->overdue = LeaveRequest::factory()->for($this->andi, 'intern')->create([
         'type' => LeaveType::Sick, 'start_date' => '2026-10-13', 'end_date' => '2026-10-14',
@@ -110,7 +108,6 @@ describe('setujui dan tolak', function () {
             ->and($log->object)->toBe('Andi Pratama')
             ->and($log->detail)->toBe('Setujui Izin Sakit 13-14 Okt.');
 
-        // Mentor melihat "Diproses oleh admin"; hari izin terbaca Izin di kalender intern.
         adminLeaves($this->mentor, 'GET', '/api/mentor/leaves?tab=all')->assertJsonPath('data.0.decided_by.role', 'admin');
         $this->travelTo(Carbon::parse('2026-10-15 09:00:00'));
         adminLeaves($this->admin, 'GET', "/api/admin/users/{$this->andi->id}/attendance/days/2026-10-13")->assertJsonPath('data.status', 'leave');

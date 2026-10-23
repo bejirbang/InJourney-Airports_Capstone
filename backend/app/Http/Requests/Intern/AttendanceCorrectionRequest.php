@@ -5,11 +5,6 @@ namespace App\Http\Requests\Intern;
 use App\Services\AttendanceCorrections;
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Formulir Ajukan Koreksi Absensi (docs/design-intern.md 9.2 dan 9.3).
- * Pesan sama dengan validateCorrection di frontend/src/lib/mock-rules.ts.
- * Aturan yang butuh data (hari kerja, periode magang, Pending ganda) diperiksa di AttendanceCorrections.
- */
 class AttendanceCorrectionRequest extends FormRequest
 {
     public function authorize(): bool

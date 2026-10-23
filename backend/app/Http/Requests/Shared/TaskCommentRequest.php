@@ -5,7 +5,6 @@ namespace App\Http\Requests\Shared;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Komentar Task dari intern atau mentor. Pesan sama dengan validateComment di frontend/src/lib/mock-rules.ts.
  * Isian yang hanya spasi menjadi kosong lewat middleware TrimStrings, jadi ikut ditolak.
  */
 class TaskCommentRequest extends FormRequest

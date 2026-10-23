@@ -8,8 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Log tindakan admin. Hanya ditambah, tidak pernah diubah atau dihapus.
- *
  * @property int $id
  * @property int|null $admin_id
  * @property string $admin_name
@@ -38,7 +36,6 @@ class AuditLog extends Model
 
     public const ACTION_REPORT = 'Laporan';
 
-    /** Pilihan "Jenis aksi" di Log Aktivitas, urutan sama dengan design-admin.md 13.1. */
     public const ACTIONS = [
         self::ACTION_ACCOUNT,
         self::ACTION_ATTENDANCE,
@@ -50,9 +47,6 @@ class AuditLog extends Model
         self::ACTION_REPORT,
     ];
 
-    /**
-     * Log hanya-baca (13.1): baris yang sudah tersimpan tidak bisa diubah atau dihapus lewat model.
-     */
     protected static function booted(): void
     {
         static::updating(fn (): never => throw new \LogicException('Log Aktivitas tidak bisa diubah.'));

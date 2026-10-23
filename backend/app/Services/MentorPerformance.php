@@ -9,20 +9,8 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Performa Intern: rekap kehadiran dan KPI intern bimbingan per bulan (docs/design-mentor.md, Alur 9).
- * Hanya informasi pemantauan, bukan nilai. Tidak ada export.
- *
- * Rumus sama dengan frontend/src/components/internspace/mentor/performance.tsx dan mock-rules.ts:
- * - Kehadiran = Hadir / (hari kerja - Izin). Izin disetujui tidak dihitung ketidakhadiran.
- * - Task tepat waktu = Task Done yang dikumpulkan paling lambat tenggat / Task bertenggat di bulan itu.
- * - Daily Report = hari Hadir dengan laporan / hari Hadir.
- * - Revise = jumlah Revise pada Task bertenggat di bulan itu (informasi saja).
- * Hanya status final (sampai kemarin); Sabtu, Minggu, dan libur tidak dihitung. Terlambat clock in bukan KPI.
- */
 class MentorPerformance
 {
-    /** Kurang dari 5 hari kerja final: "Data belum cukup" (11.3). */
     public const MIN_KPI_DAYS = 5;
 
     public function __construct(private AttendanceCalendar $calendar, private AccountAccess $access) {}
@@ -43,7 +31,6 @@ class MentorPerformance
         $rows = $mentees
             ->when($internId !== null, fn ($c) => $c->where('id', $internId))
             ->map(fn (User $intern): array => $this->internRow($intern, $month, $from, $to, $now))
-            // Intern tanpa hari kerja dan tanpa Task di bulan itu tidak tampil (di luar periode magangnya).
             ->filter(fn (array $row): bool => $row['recap']['working_days'] > 0 || $row['kpi']['tasks_due'] > 0)
             ->values();
 
@@ -58,17 +45,13 @@ class MentorPerformance
 
         return [
             'month' => $month,
-            // Pilihan Periode: dari bulan mulai magang paling awal sampai bulan berjalan.
             'selectable_months' => $firstMonth === null ? null : ['first' => $firstMonth, 'last' => $now->format('Y-m')],
-            // 0 = "Belum ada data. Hubungi admin untuk penugasan intern."
             'interns_total' => $mentees->count(),
-            // Kartu Ringkasan: rata-rata intern yang datanya cukup; null = "—".
             'summary' => [
                 'attendance_rate' => $average('attendance_rate'),
                 'on_time_rate' => $average('on_time_rate'),
                 'daily_report_rate' => $average('daily_report_rate'),
             ],
-            // Kosong = "Belum ada data pada periode ini."
             'interns' => $rows->all(),
         ];
     }
@@ -100,7 +83,6 @@ class MentorPerformance
 
         return [
             'intern' => ['id' => $intern->id, 'name' => $intern->name, 'short_name' => $intern->shortName()],
-            // Label "Nonaktif".
             'is_active' => $this->access->denialReason($intern, $now) === null,
             'recap' => [
                 'present' => $present,
@@ -110,16 +92,13 @@ class MentorPerformance
                 'working_days' => $recap['working_days'],
             ],
             'kpi' => [
-                // false = "Data belum cukup" di baris KPI.
                 'enough_data' => $recap['working_days'] >= self::MIN_KPI_DAYS,
-                // Persen bulat 0 sampai 100; null jika penyebut 0 ("—").
                 'attendance_rate' => self::percent($present, $recap['working_days'] - $recap['leave']),
                 'on_time_rate' => self::percent($onTime, $due->count()),
                 'tasks_on_time' => $onTime,
                 'tasks_due' => $due->count(),
                 'daily_report_rate' => self::percent($reports, $present),
                 'revisions' => (int) $due->sum('revision_count'),
-                // "Task terlambat saat ini", tidak bergantung bulan.
                 'late_tasks_now' => $tasks->filter(fn (Task $task): bool => $task->isLate($now))->count(),
             ],
         ];

@@ -4,9 +4,6 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Unggah foto profil. Batas ukuran sama dengan unggahan lain (config/uploads.php).
- */
 class ProfilePhotoRequest extends FormRequest
 {
     public function authorize(): bool

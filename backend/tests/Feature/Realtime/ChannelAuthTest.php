@@ -40,7 +40,6 @@ it('lets only the two people in a conversation share typing events', function ()
     subscribe($this->rina, "private-chats.{$low}.{$high}")->assertOk();
     subscribe($this->sari, "private-chats.{$low}.{$high}")->assertOk();
     subscribe($outsider, "private-chats.{$low}.{$high}")->assertForbidden();
-    // Urutan id harus kecil ke besar agar satu percakapan hanya punya satu channel.
     subscribe($this->rina, "private-chats.{$high}.{$low}")->assertForbidden();
 });
 

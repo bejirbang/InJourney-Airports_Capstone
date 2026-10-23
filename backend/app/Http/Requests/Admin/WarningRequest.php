@@ -4,9 +4,6 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Tambah atau ubah catatan Warning (docs/design-admin.md 10.1): `body` wajib.
- */
 class WarningRequest extends FormRequest
 {
     public const BODY_REQUIRED = 'Catatan wajib diisi.';

@@ -10,8 +10,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
-// Senin, 12 Oktober 2026. Magang 1 Sep sampai 31 Des 2026.
-// Jumat 9 Okt: clock in 08:02 tanpa clock out (Lupa Clock Out).
 beforeEach(function () {
     Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
@@ -57,7 +55,6 @@ it('submits a pending correction with the recorded times as comparison', functio
         ->assertJsonPath('data.final', null)
         ->assertJsonPath('data.can_cancel', true);
 
-    // Absensi belum berubah sampai admin menyetujui.
     expect(Attendance::sole()->clock_out_at)->toBeNull();
 });
 
@@ -161,7 +158,7 @@ it('lists the intern’s own corrections, newest first, with the admin note', fu
         ->create(['date' => '2026-10-02', 'created_at' => '2026-10-03 08:05:00']);
     AttendanceCorrection::factory()->for($this->intern, 'intern')
         ->create(['date' => '2026-10-09', 'created_at' => '2026-10-10 09:12:00']);
-    AttendanceCorrection::factory()->create(); // milik intern lain
+    AttendanceCorrection::factory()->create();
 
     $response = asIntern('GET', '/api/intern/attendance-corrections')->assertOk();
 

@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// Senin, 12 Oktober 2026.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
 

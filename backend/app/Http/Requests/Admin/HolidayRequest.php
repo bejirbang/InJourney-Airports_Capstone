@@ -6,10 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Validator;
 
-/**
- * Tambah dan Ubah libur (docs/design-admin.md 9.2, 9.3): `date`, `name`, dan `confirm` (true setelah admin
- * memilih "Ya, hitung ulang" untuk tanggal lampau). Tanggal yang sudah menjadi libur diperiksa di AdminHolidays.
- */
 class HolidayRequest extends FormRequest
 {
     public const REQUIRED = 'Tanggal dan nama libur wajib diisi.';

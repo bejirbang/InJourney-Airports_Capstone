@@ -7,8 +7,6 @@ use App\Models\User;
 use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 
-// Senin, 12 Oktober 2026 pukul 17:03. Clock in pukul 08:02, jam kerja 08:00 sampai 17:00.
-// Kantor di -6.1256, 106.6559: radius clock in 100 m, radius clock out 300 m.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 17:03:00'));
 
@@ -196,7 +194,6 @@ it('does not allow a second clock in after clock out', function () {
 });
 
 it('cannot close yesterday after 23:59', function () {
-    // Lupa clock out: esok harinya clock out tidak lagi menyentuh absensi kemarin.
     $this->travelTo(Carbon::parse('2026-10-13 07:00:00'));
 
     clockOut()->assertJsonPath('reason', 'not_clocked_in');

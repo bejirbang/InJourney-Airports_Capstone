@@ -7,8 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Isi pengumuman saat notifikasi diklik, sama dengan baris `announcements` di Dashboard intern dan mentor.
- *
  * @mixin Announcement
  */
 class AnnouncementResource extends JsonResource

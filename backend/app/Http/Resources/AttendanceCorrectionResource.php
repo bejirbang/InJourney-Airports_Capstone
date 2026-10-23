@@ -27,7 +27,6 @@ class AttendanceCorrectionResource extends JsonResource
             'requested' => ['clock_in' => $time($this->requested_clock_in), 'clock_out' => $time($this->requested_clock_out)],
             'reason' => $this->reason,
             'has_evidence' => $this->evidence_path !== null,
-            // Catatan admin selalu tampil pada Disetujui maupun Ditolak.
             'decision_note' => $this->decision_note,
             'final' => $this->final_clock_in === null ? null : [
                 'clock_in' => $time($this->final_clock_in),

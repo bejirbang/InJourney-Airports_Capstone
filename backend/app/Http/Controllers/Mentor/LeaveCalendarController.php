@@ -9,9 +9,6 @@ use App\Services\MentorLeaveCalendar;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Kalender Izin mentor (docs/design-mentor.md, Alur 8).
- */
 class LeaveCalendarController extends Controller
 {
     public function __invoke(MonthFilterRequest $request, MentorLeaveCalendar $calendar): JsonResponse

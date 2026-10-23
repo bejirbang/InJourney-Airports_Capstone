@@ -7,18 +7,10 @@ use App\Models\LeaveRequest;
 use App\Models\User;
 use Carbon\CarbonInterface;
 
-/**
- * Pengingat admin untuk izin yang belum diproses mentor lebih dari 24 jam (docs/design-admin.md 14,
- * design-mentor.md 13.4). Sekali per izin, ke semua admin aktif. Admin tidak menerima notifikasi
- * setiap izin baru karena izin diproses mentor lebih dulu.
- */
 class OverdueLeaveReminders
 {
     public function __construct(private Notifier $notifier) {}
 
-    /**
-     * Kirim pengingat yang jatuh tempo. Mengembalikan jumlah izin yang diingatkan.
-     */
     public function send(CarbonInterface $now): int
     {
         $leaves = LeaveRequest::query()

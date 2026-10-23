@@ -7,10 +7,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 /**
- * Tambah dan Ubah kantor (docs/design-admin.md 9A.3, 9A.4): `name`, `latitude`, `longitude` (dari pin peta),
- * `clock_in_radius_meters`, `clock_out_radius_meters`.
- *
- * Radius cukup bilangan bulat lebih dari 0, tanpa rentang tetap dari sistem (keputusan 13 Okt 2026, 17.1 no. 16).
  * Batas atas hanya batas kolom database.
  */
 class OfficeRequest extends FormRequest
@@ -54,9 +50,6 @@ class OfficeRequest extends FormRequest
     }
 
     /**
-     * Nama tidak boleh sama dengan kantor lain tanpa membedakan huruf besar, termasuk kantor nonaktif.
-     * Kantor yang sudah dihapus tidak dihitung, jadi namanya boleh dipakai lagi.
-     *
      * @return array<int, callable(Validator): void>
      */
     public function after(): array

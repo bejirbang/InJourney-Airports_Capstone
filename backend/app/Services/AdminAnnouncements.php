@@ -12,24 +12,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Menu Pengumuman (docs/design-admin.md Alur 9). Admin memilih role penerima; pengumuman tampil di lonceng
- * penerima dan di kotak Pengumuman Dashboard intern dan mentor.
- *
- * Notifikasi lonceng mengikuti pengumumannya (keputusan pemilik repo 23 Okt 2026): ubah judul mengganti teks
- * notifikasi tanpa mengubah status dibaca, role yang ditambahkan mendapat notifikasi, role yang dicabut
- * kehilangan notifikasinya, dan hapus pengumuman ikut menghapus notifikasinya.
- *
- * Penerima: akun role itu yang tidak dinonaktifkan; untuk intern termasuk yang belum mulai magang,
- * tetapi tidak yang magangnya sudah berakhir.
- */
 class AdminAnnouncements
 {
     public function __construct(private Notifier $notifier) {}
 
     /**
-     * Semua pengumuman, terbaru lebih dulu.
-     *
      * @return Collection<int, Announcement>
      */
     public function all(): Collection
@@ -56,8 +43,6 @@ class AdminAnnouncements
     }
 
     /**
-     * Ubah judul, isi, atau penerima. Simpan tanpa perubahan tidak dicatat di log.
-     *
      * @param  array{title: string, body: string, for_intern: bool, for_mentor: bool}  $data
      */
     public function update(User $admin, Announcement $announcement, array $data, CarbonInterface $now): Announcement
@@ -104,9 +89,6 @@ class AdminAnnouncements
         });
     }
 
-    /**
-     * Hapus pengumuman; notifikasinya ikut terhapus (foreign key cascade).
-     */
     public function delete(User $admin, Announcement $announcement): void
     {
         DB::transaction(function () use ($admin, $announcement): void {
@@ -119,8 +101,6 @@ class AdminAnnouncements
     }
 
     /**
-     * Penerima notifikasi untuk satu role: akun yang bisa dihubungi (User::scopeReachable).
-     *
      * @return list<int>
      */
     private function recipients(Role $role, CarbonInterface $now): array
@@ -135,8 +115,6 @@ class AdminAnnouncements
     }
 
     /**
-     * Pengguna yang lonceng-nya memuat pengumuman ini.
-     *
      * @return list<int>
      */
     private function notifiedUsers(Announcement $announcement): array
@@ -149,8 +127,6 @@ class AdminAnnouncements
     }
 
     /**
-     * Role penerima pengumuman, dalam nilai enum agar mudah dibandingkan.
-     *
      * @return list<string>
      */
     private function roles(Announcement $announcement): array
@@ -161,9 +137,6 @@ class AdminAnnouncements
         ]));
     }
 
-    /**
-     * "Intern", "Mentor", atau "Intern dan Mentor".
-     */
     private function audience(Announcement $announcement): string
     {
         return implode(' dan ', array_map(fn (string $role): string => Role::from($role)->label(), $this->roles($announcement)));

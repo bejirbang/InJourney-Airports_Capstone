@@ -13,9 +13,6 @@ class UserPolicy
 
     public const INTERN_FORBIDDEN = 'Anda tidak memiliki akses ke intern ini.';
 
-    /**
-     * Hanya admin, dan bukan untuk akunnya sendiri (reset dilakukan admin lain).
-     */
     public function resetPassword(User $actor, User $target): Response
     {
         if (! $actor->hasRole(Role::Admin)) {
@@ -29,9 +26,6 @@ class UserPolicy
         return Response::allow();
     }
 
-    /**
-     * Mentor membuka Intern Saya: intern bimbingan saat ini atau yang pernah dibimbing (design-mentor.md Alur 3).
-     */
     public function viewAsMentor(User $mentor, User $intern): Response
     {
         return app(MentorInterns::class)->relation($mentor, $intern) === null

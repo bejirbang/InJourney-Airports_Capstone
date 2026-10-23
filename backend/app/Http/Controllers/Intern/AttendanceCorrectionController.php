@@ -17,14 +17,8 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Tab Koreksi di halaman Absensi intern (docs/design-intern.md, Alur 7).
- */
 class AttendanceCorrectionController extends Controller
 {
-    /**
-     * Permintaan koreksi milik intern, terbaru diajukan lebih dulu.
-     */
     public function index(Request $request): AnonymousResourceCollection
     {
         /** @var User $intern */
@@ -74,9 +68,6 @@ class AttendanceCorrectionController extends Controller
         ]);
     }
 
-    /**
-     * Unduh bukti setelah hak akses dicek; file tidak pernah diberi URL publik.
-     */
     public function evidence(AttendanceCorrection $correction): StreamedResponse
     {
         Gate::authorize('view', $correction);

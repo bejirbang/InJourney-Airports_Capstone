@@ -6,10 +6,6 @@ use App\Models\AttendanceCorrection;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-/**
- * Intern hanya melihat dan membatalkan permintaan koreksinya sendiri.
- * Penolakan dibalas 403 dengan pesan Indonesia.
- */
 class AttendanceCorrectionPolicy
 {
     public const FORBIDDEN = 'Anda tidak memiliki akses ke permintaan koreksi ini.';

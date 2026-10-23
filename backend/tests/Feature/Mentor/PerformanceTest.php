@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 // Hari kerja final Oktober sampai kemarin: 1, 2, 5, 6, 7, 8, 9 (7 hari).
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
@@ -42,14 +41,12 @@ function performance(User $mentor, string $query = ''): TestResponse
 
 it('computes the monthly recap and KPI per intern with the prototype formulas', function () {
     $andi = performanceIntern($this->mentor, 'Andi Pratama');
-    // Hadir 1, 2, 5 dengan laporan, 6 tanpa laporan (terlambat clock in tetap Hadir).
     foreach (['2026-10-01', '2026-10-02', '2026-10-05'] as $date) {
         presentOn($andi, $date);
     }
     presentOn($andi, '2026-10-06', report: false);
     LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
     presentOn($andi, '2026-10-08', out: null);
-    // 9 Okt tanpa absensi: Tidak Hadir. Hari ini belum dihitung.
 
     $task = fn (array $a) => Task::factory()->create(['intern_id' => $andi->id, 'mentor_id' => $this->mentor->id, ...$a]);
     $task(['status' => TaskStatus::Done, 'due_at' => '2026-10-05 17:00:00', 'submitted_at' => '2026-10-05 16:00:00']);
@@ -71,11 +68,9 @@ it('computes the monthly recap and KPI per intern with the prototype formulas', 
                 'enough_data' => true,
                 // 4 / (7 - 1)
                 'attendance_rate' => 67,
-                // 1 dari 4 Task bertenggat Oktober
                 'on_time_rate' => 25,
                 'tasks_on_time' => 1,
                 'tasks_due' => 4,
-                // 3 dari 4 hari Hadir
                 'daily_report_rate' => 75,
                 'revisions' => 3,
                 'late_tasks_now' => 1,
@@ -89,7 +84,6 @@ it('marks interns with less than five working days as not enough data and leaves
     foreach (['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'] as $date) {
         presentOn($andi, $date);
     }
-    // Mulai 8 Okt: hanya 2 hari kerja final.
     $rina = performanceIntern($this->mentor, 'Rina Wulandari', '2026-10-08');
     presentOn($rina, '2026-10-08', report: false);
 

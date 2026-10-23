@@ -7,7 +7,6 @@ use App\Models\TaskRead;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
-// Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -195,7 +194,6 @@ it('rejects moves that are not allowed for an intern', function (array $attribut
 ]);
 
 it('rejects a drag when the mentor already changed the status', function () {
-    // Intern melihat In Progress, tetapi mentor sudah memindahkannya (misalnya lewat Revise ke status lain).
     $task = task(['status' => TaskStatus::InReview]);
 
     asTaskIntern('POST', "/api/intern/tasks/{$task->id}/move", ['to' => 'todo', 'from' => 'in_progress'])

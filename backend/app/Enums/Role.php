@@ -8,9 +8,6 @@ enum Role: string
     case Mentor = 'mentor';
     case Admin = 'admin';
 
-    /**
-     * Label untuk log aktivitas dan jabatan bawaan akun baru. Tampilan lain memakai label dari frontend.
-     */
     public function label(): string
     {
         return match ($this) {
@@ -20,10 +17,6 @@ enum Role: string
         };
     }
 
-    /**
-     * Halaman pertama setelah login (alamat usulan di docs/design-*.md, bagian Menu sidebar).
-     * Frontend membuka halaman ini, kecuali akun masih wajib ganti password.
-     */
     public function homePath(): string
     {
         return match ($this) {

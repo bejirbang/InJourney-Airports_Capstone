@@ -9,9 +9,6 @@ use App\Services\AdminWorkHours;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Pengaturan, tab Jam Kerja (docs/design-admin.md 9.1).
- */
 class WorkHourController extends Controller
 {
     public function __construct(private AdminWorkHours $workHours) {}

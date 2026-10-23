@@ -6,9 +6,6 @@ use App\Services\OverdueLeaveReminders;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Dijalankan scheduler setiap jam (routes/console.php). Aman dijalankan berulang: tiap izin hanya diingatkan sekali.
- */
 class RemindOverdueLeaves extends Command
 {
     protected $signature = 'app:remind-overdue-leaves';

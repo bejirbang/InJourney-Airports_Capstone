@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class AttendanceFactory extends Factory
 {
     /**
-     * Hari ini, sudah clock in dan clock out.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -27,9 +25,6 @@ class AttendanceFactory extends Factory
         ];
     }
 
-    /**
-     * Sudah clock in, belum clock out.
-     */
     public function clockedIn(): static
     {
         return $this->state(fn (array $attributes) => [

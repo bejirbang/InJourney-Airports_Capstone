@@ -12,17 +12,10 @@ use App\Services\AttendanceHistory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Tab Absensi, Izin, dan Koreksi di detail intern (docs/design-admin.md 4.3). Hanya baca.
- * Tab Profil ada di UserController::show, tab Warning di WarningController.
- */
 class InternRecordController extends Controller
 {
     public const NOT_INTERN = 'Akun ini bukan intern.';
 
-    /**
-     * Rekap dan riwayat harian satu bulan (`?month=2026-10`), dengan tanda Terlambat.
-     */
     public function attendance(AttendanceHistoryRequest $request, User $user, AttendanceHistory $history): JsonResponse
     {
         $intern = self::intern($user);
@@ -31,9 +24,6 @@ class InternRecordController extends Controller
         return response()->json(['data' => $history->monthForAdmin($intern, $month, Date::now())]);
     }
 
-    /**
-     * Detail satu hari: jam, status, Terlambat, kantor clock in dan clock out, Daily Report.
-     */
     public function day(User $user, string $date, AttendanceHistory $history): JsonResponse
     {
         return response()->json(['data' => $history->day(self::intern($user), $date, Date::now())]);

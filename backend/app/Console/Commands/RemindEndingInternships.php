@@ -6,9 +6,6 @@ use App\Services\EndingInternshipReminders;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Dijalankan scheduler setiap pagi (routes/console.php). Aman dijalankan berulang: tiap tanggal selesai hanya diingatkan sekali.
- */
 class RemindEndingInternships extends Command
 {
     protected $signature = 'app:remind-ending-internships';

@@ -11,10 +11,6 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Komentar Task dari sisi intern (docs/design-intern.md, Alur 10).
- * Thread dua arah dengan mentor Task. Komentar tidak bisa diedit atau dihapus, dan thread terkunci saat Done.
- */
 class TaskComments
 {
     public function __construct(private Notifier $notifier) {}
@@ -52,9 +48,6 @@ class TaskComments
         return $comment->load('author:id,name,role');
     }
 
-    /**
-     * docs/design-mentor.md bagian 14: "Rina W. membalas komentar di 'Laporan API'." Klik membuka thread.
-     */
     private function notifyMentor(User $intern, Task $task): void
     {
         if ($task->mentor_id === null) {

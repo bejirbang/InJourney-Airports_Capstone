@@ -9,7 +9,6 @@ use App\Models\User;
 use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 
-// Senin, 12 Oktober 2026 pukul 14:39. Magang 1 Sep sampai 31 Des 2026, jam masuk 08:00.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
     WorkHourSetting::factory()->create(['effective_from' => '2026-01-01']);
@@ -43,13 +42,12 @@ function seedOctober(User $intern, Office $office): void
 
     DailyReport::factory()->for($attend('2026-10-01', '08:10:00', '17:05:00', ['clock_out_office_id' => $office->id]))
         ->create(['work' => 'Menyusun ERD.', 'notes' => null, 'sent_at' => '2026-10-01 16:00:00']);
-    $attend('2026-10-02', '08:00:00', null); // lupa clock out
+    $attend('2026-10-02', '08:00:00', null);
     LeaveRequest::factory()->for($intern, 'intern')->approved()->create(['start_date' => '2026-10-05', 'end_date' => '2026-10-05']);
     $attend('2026-10-06', '08:00:00', '17:00:00', ['is_corrected' => true]);
-    // 7 Okt tanpa clock in: tidak hadir
     $attend('2026-10-08', '07:58:00', '17:00:00');
     Holiday::factory()->create(['date' => '2026-10-09', 'name' => 'Cuti Bersama']);
-    $attend('2026-10-12', '08:00:00', null); // hari ini, belum final
+    $attend('2026-10-12', '08:00:00', null);
 }
 
 it('returns the current month with a recap of final statuses', function () {
@@ -123,14 +121,12 @@ it('offers correction only on past working days that are not leave', function ()
         ->pluck('date')
         ->all();
 
-    // Hadir, Lupa Clock Out, dan Tidak Hadir yang sudah lewat. Hari ini, libur, dan izin tidak.
     expect($correctable)->toBe(['2026-10-08', '2026-10-07', '2026-10-06', '2026-10-02', '2026-10-01']);
 });
 
 it('shows a past month in full', function () {
     $response = history('2026-09')->assertOk();
 
-    // September 2026: 30 hari, 8 hari akhir pekan, tanpa absensi.
     expect($response->json('data.days'))->toHaveCount(30)
         ->and($response->json('data.recap.absent'))->toBe(22)
         ->and($response->json('data.recap.working_days'))->toBe(22);

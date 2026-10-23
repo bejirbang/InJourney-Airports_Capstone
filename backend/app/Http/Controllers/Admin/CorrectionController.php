@@ -15,9 +15,6 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Koreksi Absensi admin (docs/design-admin.md, Alur 4): daftar, detail, bukti, Setujui, Tolak.
- */
 class CorrectionController extends Controller
 {
     public function __construct(private AdminCorrections $corrections) {}
@@ -33,7 +30,6 @@ class CorrectionController extends Controller
 
         return response()->json([
             'data' => AdminCorrectionResource::collection($list),
-            // Pilihan filter Intern.
             'meta' => ['interns' => $this->corrections->interns()],
         ]);
     }
@@ -43,9 +39,6 @@ class CorrectionController extends Controller
         return $this->detailed($correction);
     }
 
-    /**
-     * Bukti koreksi. `?inline=1` untuk Pratinjau, tanpanya Unduh. Tanpa URL publik.
-     */
     public function evidence(Request $request, AttendanceCorrection $correction): StreamedResponse
     {
         $path = $correction->evidence_path;

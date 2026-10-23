@@ -13,26 +13,14 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
+    public function register(): void {}
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureDefaults();
         $this->configureRateLimiting();
     }
 
-    /**
-     * Batas percobaan login: 5 kali per menit untuk satu email dari satu alamat IP.
-     */
     protected function configureRateLimiting(): void
     {
         RateLimiter::for('login', fn (Request $request): Limit => Limit::perMinute(5)
@@ -42,9 +30,6 @@ class AppServiceProvider extends ServiceProvider
             ], 429, $headers)));
     }
 
-    /**
-     * Configure default behaviors for production-ready applications.
-     */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);

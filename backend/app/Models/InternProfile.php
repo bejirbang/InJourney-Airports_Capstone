@@ -30,12 +30,9 @@ class InternProfile extends Model
     /** @use HasFactory<InternProfileFactory> */
     use HasFactory;
 
-    /** Pengingat "Magang berakhir dalam 7 hari": H-7 sampai hari H (docs/design-admin.md 5.2, 8). */
     public const ENDING_SOON_DAYS = 7;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -64,9 +61,6 @@ class InternProfile extends Model
     }
 
     /**
-     * Intern aktif yang sudah mulai magang dan tanggal selesainya hari ini sampai 7 hari lagi.
-     * Akun yang dinonaktifkan admin atau sudah dihapus tidak ikut.
-     *
      * @param  Builder<InternProfile>  $query
      * @return Builder<InternProfile>
      */
@@ -81,9 +75,6 @@ class InternProfile extends Model
             ->whereHas('user', fn (Builder $q) => $q->where('role', Role::Intern)->where('is_active', true));
     }
 
-    /**
-     * Sisa hari sampai tanggal selesai (0 = hari ini hari terakhir).
-     */
     public function daysLeft(CarbonInterface $today): int
     {
         return (int) $today->copy()->startOfDay()->diffInDays($this->end_date->copy()->startOfDay(), false);

@@ -7,9 +7,6 @@ use App\Services\AdminUsers;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter daftar Pengguna: `q` (nama atau email), `role`, `status` (active, inactive, all; default active), `page`.
- */
 class UserIndexRequest extends FormRequest
 {
     public function authorize(): bool

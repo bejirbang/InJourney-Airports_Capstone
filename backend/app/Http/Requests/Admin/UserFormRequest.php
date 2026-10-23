@@ -7,13 +7,6 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Tambah Akun dan Ubah data (docs/design-admin.md 4.2, tabel Validasi).
- *
- * Tambah: `name`, `email`, `role`, `title` (opsional); untuk intern juga `mentor_id`, `start_date`, `end_date`.
- * Ubah: tanpa `role` dan `mentor_id` (role tidak bisa diubah, mentor lewat Ganti mentor);
- * `start_date` dan `end_date` hanya untuk intern.
- */
 class UserFormRequest extends FormRequest
 {
     public const NAME_REQUIRED = 'Nama wajib diisi.';

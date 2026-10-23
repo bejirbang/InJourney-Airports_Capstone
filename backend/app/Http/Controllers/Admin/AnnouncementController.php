@@ -13,9 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Menu Pengumuman (docs/design-admin.md Alur 9): daftar, buat, ubah, hapus.
- */
 class AnnouncementController extends Controller
 {
     public function __construct(private AdminAnnouncements $announcements) {}

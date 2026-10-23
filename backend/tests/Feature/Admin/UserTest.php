@@ -14,7 +14,6 @@ use App\Services\AccountManagement;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// Senin, 12 Oktober 2026, sama dengan prototipe frontend.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
 
@@ -161,7 +160,6 @@ describe('tambah akun', function () {
             ->and($log->object)->toBe('Rina Wulandari')
             ->and($log->detail)->toBe('Tambah akun Intern.');
 
-        // Masa magang mulai 15 Okt; setelah itu login dengan password sementara wajib ganti password.
         $this->travelTo(Carbon::parse('2026-10-15 08:00:00'));
         $this->postJson('/api/auth/login', ['email' => 'rina@injourney.test', 'password' => $response->json('temporary_password')])
             ->assertOk()
@@ -347,7 +345,6 @@ describe('ganti mentor', function () {
 
         expect(AuditLog::sole()->detail)->toBe('Ganti mentor dari Sari Wijaya ke Budi Santoso.');
 
-        // Mentor baru melihat izin Pending; mentor lama tetap melihat intern sebagai "Pernah dibimbing".
         asAdmin($this->budi, 'GET', '/api/mentor/menu')->assertJsonPath('data.3.badge', 1);
         asAdmin($this->mentor, 'GET', '/api/mentor/menu')->assertJsonPath('data.3.badge', 0);
         asAdmin($this->mentor, 'GET', "/api/mentor/interns/{$this->intern->id}")->assertOk();

@@ -16,19 +16,10 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-/**
- * Halaman Pengguna, sisi baca (docs/design-admin.md 4.1, 4.3, 4.4), termasuk tab Izin dan Koreksi
- * di detail intern. Tab Absensi ada di AttendanceHistory, tab Warning di AdminWarnings.
- * Perubahan akun ada di AccountManagement.
- */
 class AdminUsers
 {
     public const PER_PAGE = 10;
 
-    /**
-     * Filter Status: default Aktif (4.1). Aktif termasuk intern yang belum mulai: akunnya tidak
-     * dinonaktifkan dan akan bisa dipakai, jadi tidak masuk Nonaktif.
-     */
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_INACTIVE = 'inactive';
@@ -68,8 +59,6 @@ class AdminUsers
     }
 
     /**
-     * Mentor aktif untuk pilihan di Tambah Akun dan Ganti Mentor, urut nama.
-     *
      * @return Collection<int, User>
      */
     public function activeMentors(): Collection
@@ -82,8 +71,6 @@ class AdminUsers
     }
 
     /**
-     * Data tambahan tab Profil: mentor sebelumnya (intern) atau intern bimbingan saat ini (mentor).
-     *
      * @return array<string, mixed>
      */
     public function detail(User $user, CarbonInterface $now): array
@@ -107,8 +94,6 @@ class AdminUsers
     }
 
     /**
-     * Ringkasan dampak di dialog Ganti Mentor (4.4): Task yang belum Done beserta komentarnya, dan izin Pending.
-     *
      * @return array{current_mentor: array{id: int, name: string}|null, active_tasks: int, comments: int, pending_leaves: int}
      */
     public function mentorChangeImpact(User $intern): array
@@ -125,8 +110,6 @@ class AdminUsers
     }
 
     /**
-     * Tab Izin di detail intern: semua pengajuan, terbaru lebih dulu, dengan pemroses dan catatannya.
-     *
      * @return list<array<string, mixed>>
      */
     public function leaves(User $intern): array
@@ -145,7 +128,6 @@ class AdminUsers
                 'status' => $leave->status->value,
                 'has_evidence' => $leave->evidence_path !== null,
                 'submitted_at' => $leave->created_at?->toIso8601String(),
-                // "Diproses oleh": nama dan role (mentor atau admin).
                 'decided_by' => $leave->decider === null ? null : [
                     'name' => $leave->decider->name,
                     'role' => $leave->decider->role->value,
@@ -157,8 +139,6 @@ class AdminUsers
     }
 
     /**
-     * Tab Koreksi di detail intern: semua permintaan, pengajuan terbaru lebih dulu.
-     *
      * @return list<array<string, mixed>>
      */
     public function corrections(User $intern): array
@@ -179,7 +159,6 @@ class AdminUsers
                 'requested' => ['clock_in' => $time($correction->requested_clock_in), 'clock_out' => $time($correction->requested_clock_out)],
                 'reason' => $correction->reason,
                 'has_evidence' => $correction->evidence_path !== null,
-                // Kolom "Catatan admin".
                 'decision_note' => $correction->decision_note,
                 'decided_by' => $correction->decider?->name,
                 'decided_at' => $correction->decided_at?->toIso8601String(),
@@ -188,8 +167,6 @@ class AdminUsers
     }
 
     /**
-     * Akun aktif: belum dinonaktifkan admin dan, untuk intern, belum lewat tanggal selesai magang.
-     *
      * @param  Builder<User>  $query
      * @return Builder<User>
      */
@@ -201,8 +178,6 @@ class AdminUsers
     }
 
     /**
-     * Mentor yang pernah membimbing intern ini, selain mentor saat ini, dari yang paling lama.
-     *
      * @return list<array{id: int, name: string}>
      */
     private function formerMentors(User $intern): array

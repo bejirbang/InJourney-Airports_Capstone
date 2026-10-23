@@ -12,7 +12,6 @@ use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -140,7 +139,6 @@ it('summarises the final statuses of the previous working day', function () {
     managedIntern($this->mentor, 'Tidak Datang');
     managedIntern($this->mentor, 'Mulai Hari Ini', ['start_date' => '2026-10-12']);
     managedIntern($this->mentor, 'Dinonaktifkan', attributes: ['is_active' => false]);
-    // Hari terakhirnya 8 Okt: masih dihitung untuk tanggal itu.
     $lastDay = managedIntern($this->mentor, 'Hari Terakhir', ['end_date' => '2026-10-08']);
 
     Attendance::factory()->for($present, 'intern')->create(['date' => '2026-10-08']);
@@ -169,7 +167,6 @@ it('lists leaves pending for more than 24 hours, oldest first, at most five', fu
     foreach (range(1, 5) as $hour) {
         LeaveRequest::factory()->for($andi, 'intern')->create(['created_at' => Carbon::parse('2026-10-11 09:00:00')->addHours($hour)]);
     }
-    // Tepat 24 jam, belum lewat; dan izin yang sudah diproses.
     LeaveRequest::factory()->for($andi, 'intern')->create(['created_at' => '2026-10-11 14:39:00']);
     LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['created_at' => '2026-10-01 09:00:00']);
 

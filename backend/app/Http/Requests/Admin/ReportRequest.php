@@ -7,10 +7,6 @@ use App\Services\AdminReports;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Buat Excel (docs/design-admin.md 12.1, 12.2): `type` (`attendance` = Rekap Absensi, `tasks` = Rekap Task),
- * `from`, `to`, dan filter opsional `intern_id`, `mentor_id` (termasuk akun nonaktif).
- */
 class ReportRequest extends FormRequest
 {
     public const PERIOD_INVALID = 'Periode tidak valid.';

@@ -12,9 +12,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
-/**
- * Menu Lokasi Kantor (docs/design-admin.md 9A): daftar, tambah, ubah, nonaktifkan, aktifkan, hapus kantor nonaktif.
- */
 class OfficeController extends Controller
 {
     public function __construct(private AdminOffices $offices) {}
@@ -90,9 +87,6 @@ class OfficeController extends Controller
     }
 
     /**
-     * `active_count` untuk "N kantor aktif" dan dialog kantor aktif terakhir; 0 = banner
-     * "Belum ada kantor aktif. Intern tidak bisa clock in." (9A.6).
-     *
      * @return array{active_count: int}
      */
     private function meta(): array

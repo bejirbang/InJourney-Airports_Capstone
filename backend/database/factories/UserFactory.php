@@ -14,16 +14,9 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
     protected static ?string $password;
 
     /**
-     * Define the model's default state.
-     *
-     * Default-nya mentor karena mentor tidak butuh data tambahan.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -59,8 +52,6 @@ class UserFactory extends Factory
     }
 
     /**
-     * Intern beserta profil magangnya. Tanpa argumen, magang sedang berjalan dan mentor dibuat baru.
-     *
      * @param  array<string, mixed>  $profile
      */
     public function intern(array $profile = []): static
@@ -80,9 +71,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /**
-     * Akun baru dibuat atau baru direset admin.
-     */
     public function mustChangePassword(): static
     {
         return $this->state(fn (array $attributes) => [
@@ -90,9 +78,6 @@ class UserFactory extends Factory
         ]);
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [

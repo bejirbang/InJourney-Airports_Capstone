@@ -4,10 +4,6 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Keputusan koreksi absensi (docs/design-admin.md 6.3 sampai 6.5). Catatan verifikasi wajib
- * untuk Setujui maupun Tolak. Setujui juga membawa jam final `clock_in` dan `clock_out`.
- */
 class CorrectionDecisionRequest extends FormRequest
 {
     public const NOTE_REQUIRED = 'Catatan verifikasi wajib diisi.';

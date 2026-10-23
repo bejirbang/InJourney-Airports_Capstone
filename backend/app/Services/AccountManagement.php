@@ -17,10 +17,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Perubahan akun oleh admin (docs/design-admin.md Alur 2). Setiap tindakan masuk Log Aktivitas.
- * Pesan mengikuti design-admin.md 4.6 dan 15.5.
- */
 class AccountManagement
 {
     public const CANNOT_DEACTIVATE_SELF = 'Anda tidak bisa menonaktifkan akun Anda sendiri.';
@@ -47,18 +43,12 @@ class AccountManagement
 
     public function __construct(private Notifier $notifier) {}
 
-    /**
-     * Password sementara buatan sistem; admin tidak mengetik password sendiri (4.2, 4.5).
-     */
     public static function temporaryPassword(): string
     {
         return Str::password(12, symbols: false);
     }
 
     /**
-     * Tambah akun. Akun baru wajib ganti password saat login pertama.
-     * Intern langsung mendapat profil magang dan baris pertama riwayat mentor.
-     *
      * @param  array{name: string, email: string, role: string, title?: string|null, mentor_id?: int|string, start_date?: string, end_date?: string}  $data
      * @return array{user: User, temporary_password: string}
      */
@@ -102,9 +92,6 @@ class AccountManagement
     }
 
     /**
-     * Ubah data akun. Role tidak bisa diubah, mentor diubah lewat changeMentor().
-     * Jabatan kosong berarti tetap.
-     *
      * @param  array{name: string, email: string, title?: string|null, start_date?: string, end_date?: string}  $data
      */
     public function update(User $admin, User $user, array $data): User
@@ -130,10 +117,6 @@ class AccountManagement
     }
 
     /**
-     * Ganti mentor (4.4, design-mentor.md 13.1). Task yang belum Done beserta komentarnya pindah
-     * ke mentor baru; izin Pending ikut karena izin mengikuti mentor saat ini. Task Done tetap
-     * milik mentor lama, dan mentor lama tetap melihat intern lewat filter "Pernah dibimbing".
-     *
      * @return array{active_tasks: int}
      *
      * @throws ActionRejected
@@ -201,8 +184,6 @@ class AccountManagement
     }
 
     /**
-     * Nonaktifkan akun (4.6). Semua sesi akun itu berakhir.
-     *
      * @throws ActionRejected
      */
     public function deactivate(User $admin, User $user, CarbonInterface $now): User
@@ -249,9 +230,6 @@ class AccountManagement
     }
 
     /**
-     * Aktifkan kembali akun (4.6). Intern yang magangnya sudah berakhir diaktifkan lewat
-     * perpanjangan tanggal selesai, bukan tombol ini.
-     *
      * @throws ActionRejected
      */
     public function activate(User $admin, User $user, CarbonInterface $now): User
@@ -276,12 +254,6 @@ class AccountManagement
     }
 
     /**
-     * Perpanjang magang (docs/design-admin.md Alur 6). Tanggal baru harus setelah tanggal selesai saat ini (8.3)
-     * dan tidak sebelum hari ini: tanggal lampau tidak membuat akun aktif, hanya membuat hari sesudah
-     * tanggal selesai lama ikut dihitung Tidak Hadir.
-     * Intern yang dinonaktifkan ikut aktif lagi, karena mengaktifkan kembali intern dilakukan dengan
-     * memperbarui tanggal selesai magang (4.6).
-     *
      * @throws ActionRejected
      * @throws ValidationException
      */
@@ -319,10 +291,6 @@ class AccountManagement
         return $intern->refresh();
     }
 
-    /**
-     * Intern bimbingan yang belum dinonaktifkan dan magangnya belum berakhir, termasuk yang belum mulai,
-     * sama dengan filter Status Aktif di daftar Pengguna.
-     */
     private function hasActiveInterns(User $mentor, string $today): bool
     {
         return User::query()

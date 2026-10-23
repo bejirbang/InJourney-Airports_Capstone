@@ -8,10 +8,6 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 
-/**
- * Pesan chat baru. Dikirim ke penerima dan ke pengirim (tab atau perangkat lain miliknya); frontend
- * mengabaikan pesan yang `id`-nya sudah ada. Event `.chat.message` di `users.{id}`.
- */
 class ChatMessageSent implements ShouldBroadcast, ShouldDispatchAfterCommit
 {
     use Dispatchable, InteractsWithSockets;

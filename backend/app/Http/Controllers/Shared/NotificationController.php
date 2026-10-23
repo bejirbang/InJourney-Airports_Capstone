@@ -9,16 +9,10 @@ use App\Services\UserNotifications;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/**
- * Lonceng notifikasi semua role. Item baru dan perubahan status dibaca juga dikirim lewat WebSocket (`users.{id}`).
- */
 class NotificationController extends Controller
 {
     public function __construct(private UserNotifications $notifications) {}
 
-    /**
-     * 20 item per muatan, terbaru lebih dulu. `?cursor=` dari `meta.next_cursor` untuk memuat berikutnya.
-     */
     public function index(Request $request): JsonResponse
     {
         /** @var User $user */

@@ -11,14 +11,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Chat satu lawan satu untuk semua role (design-intern.md 14.1, design-mentor.md 12.1, design-admin.md 13.2).
- * Setiap pengguna hanya melihat percakapan miliknya sendiri, termasuk admin.
- *
- * Keputusan pemilik repo 23 Okt 2026: teks saja tanpa ubah atau hapus; pesan baru hanya ke akun yang bisa
- * dihubungi (User::scopeReachable), sedangkan percakapan lama dengan akun nonaktif tetap bisa dibaca;
- * pesan baru juga memperbarui notifikasi lonceng "Pesan baru dari ..." satu baris per pengirim.
- */
 class Chats
 {
     public const MESSAGES_PER_PAGE = 30;
@@ -32,8 +24,6 @@ class Chats
     public function __construct(private Notifier $notifier, private UserNotifications $notifications) {}
 
     /**
-     * Daftar percakapan, pesan terakhir paling baru lebih dulu. `q` mencari nama lawan bicara.
-     *
      * @return array{conversations: list<array<string, mixed>>, unread_total: int}
      */
     public function conversations(User $me, ?string $search, CarbonInterface $now): array
@@ -79,8 +69,6 @@ class Chats
     }
 
     /**
-     * Kontak untuk chat baru: akun yang bisa dihubungi selain diri sendiri, urut nama.
-     *
      * @return list<array<string, mixed>>
      */
     public function contacts(User $me, ?string $search, CarbonInterface $now): array
@@ -99,8 +87,6 @@ class Chats
     }
 
     /**
-     * Pesan dalam satu percakapan, urut lama ke baru. `before_id` untuk memuat pesan yang lebih lama.
-     *
      * @return array{partner: array<string, mixed>, messages: list<array<string, mixed>>, has_more: bool}
      *
      * @throws ActionRejected
@@ -124,8 +110,6 @@ class Chats
     }
 
     /**
-     * Kirim pesan. Disimpan lebih dulu, lalu dikirim lewat WebSocket ke penerima dan pengirim.
-     *
      * @return array{id: int, sender_id: int, receiver_id: int, body: string, read_at: string|null, created_at: string|null}
      *
      * @throws ActionRejected
@@ -156,9 +140,6 @@ class Chats
     }
 
     /**
-     * Membuka percakapan: semua pesan dari lawan bicara ditandai dibaca, notifikasi "Pesan baru dari ..."
-     * ikut dibaca, lalu pengirim mendapat tanda "Dibaca" dan tab lain pembaca ikut sinkron.
-     *
      * @return array{unread_total: int}
      *
      * @throws ActionRejected
@@ -183,7 +164,7 @@ class Chats
     /**
      * Angka di ikon chat: semua pesan belum dibaca dari akun yang masih ada, tidak terpengaruh pencarian.
      *
-     * @param  array<int, int>  $unread  hasil unreadBySender()
+     * @param  array<int, int>  $unread
      */
     private function unreadTotal(array $unread): int
     {
@@ -193,7 +174,7 @@ class Chats
     }
 
     /**
-     * @return array<int, int> jumlah pesan belum dibaca per pengirim
+     * @return array<int, int>
      */
     private function unreadBySender(User $me): array
     {
@@ -208,8 +189,6 @@ class Chats
     }
 
     /**
-     * Lawan bicara. `can_send` false: kotak kirim ditutup dengan keterangan "Akun ini nonaktif."
-     *
      * @return array<string, mixed>
      */
     private function person(User $user, CarbonInterface $now): array

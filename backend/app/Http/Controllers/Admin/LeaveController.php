@@ -16,9 +16,6 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Izin admin (docs/design-admin.md, Alur 5): daftar, detail, lampiran, Setujui, Tolak.
- */
 class LeaveController extends Controller
 {
     public function __construct(private AdminLeaves $leaves) {}
@@ -35,7 +32,6 @@ class LeaveController extends Controller
             'data' => AdminLeaveResource::collection($result['leaves']),
             'meta' => [
                 'pending_count' => $result['pending_count'],
-                // Pilihan filter Intern.
                 'interns' => $this->leaves->interns(),
             ],
         ]);
@@ -46,9 +42,6 @@ class LeaveController extends Controller
         return $this->detailed($leave);
     }
 
-    /**
-     * Lampiran bukti. `?inline=1` untuk Pratinjau, tanpanya Unduh. Tanpa URL publik.
-     */
     public function evidence(Request $request, LeaveRequest $leave): StreamedResponse
     {
         $path = $leave->evidence_path;

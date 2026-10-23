@@ -12,9 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Pengaturan, tab Kalender Libur (docs/design-admin.md 9.2, 9.3).
- */
 class HolidayController extends Controller
 {
     public function __construct(private AdminHolidays $holidays) {}
@@ -68,7 +65,6 @@ class HolidayController extends Controller
             'id' => $holiday->id,
             'date' => $date,
             'name' => $holiday->name,
-            // Dialog Hapus menambahkan "Status absensi tanggal itu dihitung ulang." untuk tanggal lampau.
             'is_past' => $date < $today,
         ];
     }

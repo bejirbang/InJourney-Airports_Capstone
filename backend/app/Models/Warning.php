@@ -11,16 +11,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Catatan warning untuk intern, tanpa level dan tanpa eskalasi (docs/design-admin.md Alur 8).
- * Hanya admin yang melihatnya.
- *
  * @property int $id
  * @property int $intern_id
  * @property int|null $author_id
  * @property string $body
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read User|null $intern  null jika akun intern sudah dihapus
+ * @property-read User|null $intern
  * @property-read User|null $author
  */
 #[Fillable(['intern_id', 'author_id', 'body'])]
@@ -29,7 +26,6 @@ class Warning extends Model
     /** @use HasFactory<WarningFactory> */
     use HasFactory;
 
-    /** Pembuat boleh mengubah catatan dalam 24 jam, setelah itu terkunci (10.2, 17.1 nomor 4). */
     public const EDIT_WINDOW_HOURS = 24;
 
     /**

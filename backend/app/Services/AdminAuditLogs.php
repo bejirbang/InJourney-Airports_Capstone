@@ -7,17 +7,11 @@ use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Log Aktivitas (docs/design-admin.md 13.1). Hanya baca. Kolom Admin memakai nama yang tersimpan saat tindakan
- * dilakukan (`admin_name`), jadi tetap terbaca walau nama atau akun admin berubah.
- */
 class AdminAuditLogs
 {
     public const PER_PAGE = 20;
 
     /**
-     * Terbaru lebih dulu.
-     *
      * @param  array{from: string|null, to: string|null, admin_id: int|null, action: string|null}  $filters
      * @return LengthAwarePaginator<int, AuditLog>
      */
@@ -34,9 +28,6 @@ class AdminAuditLogs
     }
 
     /**
-     * Pilihan filter: admin yang pernah tercatat di log (nama saat ini, termasuk akun nonaktif atau terhapus)
-     * dan semua jenis aksi.
-     *
      * @return array{admins: list<array{id: int, name: string}>, actions: list<string>}
      */
     public function options(): array

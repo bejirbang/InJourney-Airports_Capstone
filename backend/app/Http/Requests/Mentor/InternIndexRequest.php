@@ -6,9 +6,6 @@ use App\Services\MentorInterns;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter Intern Saya: `status` (active, inactive, former, all; default active) dan `q` (cari nama).
- */
 class InternIndexRequest extends FormRequest
 {
     public function authorize(): bool

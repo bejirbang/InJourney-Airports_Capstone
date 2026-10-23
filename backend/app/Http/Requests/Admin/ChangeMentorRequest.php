@@ -7,10 +7,6 @@ use App\Services\AccountManagement;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Ganti mentor (docs/design-admin.md 4.4): `mentor_id` mentor aktif.
- * Mentor yang sama dengan mentor saat ini ditolak di AccountManagement::changeMentor().
- */
 class ChangeMentorRequest extends FormRequest
 {
     public function authorize(): bool

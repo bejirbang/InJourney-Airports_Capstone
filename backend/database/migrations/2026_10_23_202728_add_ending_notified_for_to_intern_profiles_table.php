@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Tanggal selesai yang sudah diingatkan ke admin ("Magang ... berakhir dalam 7 hari.", docs/design-admin.md 14).
      * Disimpan tanggalnya, bukan waktu kirim, agar setelah diperpanjang pengingat dikirim lagi untuk tanggal baru.
      */
     public function up(): void
@@ -17,9 +16,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('intern_profiles', function (Blueprint $table) {

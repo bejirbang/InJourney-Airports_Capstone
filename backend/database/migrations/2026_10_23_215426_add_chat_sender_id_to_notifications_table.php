@@ -7,9 +7,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Notifikasi "Pesan baru dari ..." satu baris per pengirim (keputusan pemilik repo 23 Okt 2026): pesan berikutnya
-     * dari orang yang sama memperbarui baris itu, bukan menambah baris. Unik per penerima dan pengirim; baris
-     * notifikasi lain berisi NULL dan tidak terkena aturan unik.
+     * Unik per penerima dan pengirim; baris notifikasi lain berisi NULL sehingga tidak terkena aturan unik.
      */
     public function up(): void
     {
@@ -19,9 +17,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('notifications', function (Blueprint $table) {

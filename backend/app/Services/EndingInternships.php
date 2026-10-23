@@ -6,10 +6,6 @@ use App\Models\InternProfile;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Daftar "Magang berakhir dalam 7 hari" (docs/design-admin.md 5.2 dan Alur 6). Dashboard menampilkan
- * maksimal 5 baris, all() untuk Lihat semua. Baris berisi mentor untuk tombol Tanya mentor.
- */
 class EndingInternships
 {
     /**
@@ -21,8 +17,6 @@ class EndingInternships
     }
 
     /**
-     * Paling dekat tanggal selesainya lebih dulu.
-     *
      * @return Builder<InternProfile>
      */
     public function ordered(CarbonInterface $now): Builder
@@ -48,7 +42,6 @@ class EndingInternships
         return [
             'intern' => ['id' => $intern->id, 'name' => $intern->name, 'short_name' => $intern->shortName()],
             'end_date' => $profile->end_date->toDateString(),
-            // 0 = hari ini hari terakhir magang.
             'ends_in_days' => $profile->daysLeft($now),
             'mentor' => ['id' => $profile->mentor->id, 'name' => $profile->mentor->name],
         ];

@@ -51,8 +51,6 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, SoftDeletes;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -67,8 +65,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Email disimpan huruf kecil agar login tidak peka huruf besar.
-     *
      * @return Attribute<string, string>
      */
     protected function email(): Attribute
@@ -85,8 +81,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Absensi milik intern ini.
-     *
      * @return HasMany<Attendance, $this>
      */
     public function attendances(): HasMany
@@ -111,8 +105,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Catatan warning tentang intern ini (hanya terlihat oleh admin).
-     *
      * @return HasMany<Warning, $this>
      */
     public function warnings(): HasMany
@@ -120,9 +112,6 @@ class User extends Authenticatable
         return $this->hasMany(Warning::class, 'intern_id');
     }
 
-    /**
-     * Nama pendek untuk notifikasi: "Rina Wulandari" menjadi "Rina W.".
-     */
     public function shortName(): string
     {
         $parts = preg_split('/\s+/', trim($this->name)) ?: [];
@@ -131,8 +120,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Task yang dikerjakan intern ini (bukan Task yang dibuat mentor).
-     *
      * @return HasMany<Task, $this>
      */
     public function assignedTasks(): HasMany
@@ -143,7 +130,6 @@ class User extends Authenticatable
     /**
      * Alamat foto profil yang bisa langsung dipakai di <img> tanpa header Authorization.
      * Alamat bertanda tangan dan sama sepanjang hari, jadi browser dapat menyimpannya di cache.
-     * Berlaku 24 sampai 48 jam; ambil ulang lewat /api/auth/me saat aplikasi dibuka.
      */
     public function photoUrl(): ?string
     {
@@ -164,9 +150,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Akun yang bisa menerima pengumuman dan pesan chat baru: tidak dinonaktifkan admin, dan untuk intern
-     * magangnya belum berakhir (intern yang belum mulai termasuk). Keputusan pemilik repo 23 Okt 2026.
-     *
      * @param  Builder<User>  $query
      * @return Builder<User>
      */
@@ -177,9 +160,6 @@ class User extends Authenticatable
             ->orWhereHas('internProfile', fn (Builder $p) => $p->whereDate('end_date', '>=', $date)));
     }
 
-    /**
-     * Versi satu akun dari scopeReachable().
-     */
     public function isReachable(string $date): bool
     {
         if (! $this->is_active) {

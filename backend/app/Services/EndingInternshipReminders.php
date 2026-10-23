@@ -8,18 +8,10 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Pengingat admin untuk magang yang berakhir dalam 7 hari (docs/design-admin.md 14, Alur 6).
- * Sekali per tanggal selesai, ke semua admin aktif. Setelah diperpanjang, tanggal selesai baru
- * diingatkan lagi saat masuk rentang 7 hari.
- */
 class EndingInternshipReminders
 {
     public function __construct(private Notifier $notifier, private EndingInternships $endings) {}
 
-    /**
-     * Kirim pengingat yang jatuh tempo. Mengembalikan jumlah intern yang diingatkan.
-     */
     public function send(CarbonInterface $now): int
     {
         $profiles = $this->endings->ordered($now)
@@ -55,10 +47,6 @@ class EndingInternshipReminders
         return $sent;
     }
 
-    /**
-     * "Magang Rina W. berakhir dalam 7 hari." Intern yang baru masuk rentang dengan sisa kurang dari 7 hari
-     * (misalnya dibuat dengan periode pendek) mendapat jumlah hari sebenarnya.
-     */
     private function text(InternProfile $profile, CarbonInterface $now): string
     {
         $days = $profile->daysLeft($now);

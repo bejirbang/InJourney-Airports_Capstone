@@ -4,10 +4,6 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Simpan jam kerja (docs/design-admin.md 9.1): `start_time`, `end_time` (JJ:MM), `effective_from`.
- * Tanggal berlaku paling cepat hari ini agar absensi sebelumnya tidak berubah.
- */
 class WorkHourRequest extends FormRequest
 {
     public function authorize(): bool

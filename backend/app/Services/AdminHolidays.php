@@ -19,12 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Tab Kalender Libur di Pengaturan (docs/design-admin.md 9.2, 9.3). Sabtu dan Minggu libur otomatis,
- * jadi yang disimpan hanya libur tambahan admin.
- *
- * Status absensi dihitung saat dibaca, jadi "hitung ulang" untuk tanggal lampau terjadi dengan sendirinya
- * begitu libur disimpan atau dihapus. Yang dicatat di sini hanya jumlah absensi yang berubah, untuk dialog
- * dampak dan Log Aktivitas.
+ * Status absensi dihitung saat dibaca, jadi libur tanggal lampau langsung mengubah status tanpa proses hitung ulang.
  */
 class AdminHolidays
 {
@@ -33,8 +28,6 @@ class AdminHolidays
     public const PAST_DATE = 'Tanggal ini sudah lewat.';
 
     /**
-     * Semua libur tambahan, urut tanggal.
-     *
      * @return Collection<int, Holiday>
      */
     public function all(): Collection
@@ -43,8 +36,6 @@ class AdminHolidays
     }
 
     /**
-     * Tambah libur. Tanggal lampau butuh `confirm` (dialog "Tanggal ini sudah lewat", 9.3 langkah 4 dan 5).
-     *
      * @throws ActionRejected
      * @throws ValidationException
      */
@@ -65,9 +56,6 @@ class AdminHolidays
     }
 
     /**
-     * Ubah libur. Jika tanggal berpindah, tanggal lama kembali menjadi hari kerja dan tanggal baru menjadi
-     * libur; konfirmasi diminta bila salah satunya sudah lewat. Ubah nama saja tidak mengubah absensi.
-     *
      * @throws ActionRejected
      * @throws ValidationException
      */
@@ -92,9 +80,6 @@ class AdminHolidays
         });
     }
 
-    /**
-     * Hapus libur: tanggal itu kembali menjadi hari kerja (9.2). Konfirmasi ada di dialog Hapus frontend.
-     */
     public function delete(User $admin, Holiday $holiday, CarbonInterface $now): void
     {
         $past = $this->pastDates([$holiday->date->toDateString()], $now);
@@ -106,10 +91,6 @@ class AdminHolidays
         });
     }
 
-    /**
-     * Jumlah absensi yang statusnya berubah bila tanggal itu menjadi atau berhenti menjadi libur: intern yang
-     * tanggal itu masuk periode magangnya, termasuk yang sudah nonaktif karena datanya tetap terlihat.
-     */
     public function affectedInterns(string $date): int
     {
         return InternProfile::query()
@@ -120,8 +101,6 @@ class AdminHolidays
     }
 
     /**
-     * Tanggal yang sudah lewat (sebelum hari ini) dari $dates. Hari ini belum lewat (9.3 langkah 3).
-     *
      * @param  list<string>  $dates
      * @return list<string>
      */
@@ -141,7 +120,6 @@ class AdminHolidays
             return;
         }
 
-        // Isi dialog: "Status absensi 21 intern pada tanggal ini akan dihitung ulang".
         throw new ActionRejected(self::PAST_DATE, 'confirm_recalculate', [
             'affected' => $this->countAffected($past),
         ]);
@@ -175,9 +153,6 @@ class AdminHolidays
     }
 
     /**
-     * Log Aktivitas: objek tanggal libur, detail berisi jumlah absensi yang dihitung ulang untuk tanggal lampau
-     * (9.3 langkah 6, 13.1).
-     *
      * @param  list<string>  $past
      */
     private function log(User $admin, Holiday $holiday, string $detail, array $past): void

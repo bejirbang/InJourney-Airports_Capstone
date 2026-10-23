@@ -8,12 +8,6 @@ use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
 use Illuminate\Http\JsonResponse;
 
-/**
- * Menu sidebar Admin (docs/design-admin.md, bagian 2.1 dan 2.2).
- * Hanya kunci dan alamat halaman; label Indonesia ditampilkan frontend.
- * `badge` adalah jumlah yang menunggu diproses admin: Koreksi dan Izin.
- * Chat dan notifikasi ada di navbar, bukan di sidebar.
- */
 class MenuController extends Controller
 {
     public const MENU = [
@@ -32,10 +26,8 @@ class MenuController extends Controller
 
     public function __invoke(): JsonResponse
     {
-        // Sama dengan total kotak di Dashboard Admin; data intern yang sudah dihapus tidak ikut.
         $badges = [
             'corrections' => AttendanceCorrection::query()->where('status', RequestStatus::Pending)->whereHas('intern')->count(),
-            // Admin hanya memproses izin yang menggantung lebih dari 24 jam (design-admin.md Alur 5).
             'leaves' => LeaveRequest::query()->overduePending(now())->whereHas('intern')->count(),
         ];
 

@@ -11,7 +11,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 use OpenSpout\Reader\XLSX\Reader;
 
-// Senin, 12 Oktober 2026 pukul 10:00.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
 
@@ -39,8 +38,6 @@ function exportReport(User $user, array $data): TestResponse
 }
 
 /**
- * Isi sheet pertama file .xlsx dari respons unduhan, baris kosong dilewati.
- *
  * @return list<list<mixed>>
  */
 function xlsxRows(TestResponse $response): array
@@ -62,8 +59,6 @@ function xlsxRows(TestResponse $response): array
 }
 
 /**
- * Baris data setelah baris judul kolom yang diawali $firstHeader.
- *
  * @return list<list<mixed>>
  */
 function tableRows(array $rows, string $firstHeader): array
@@ -80,7 +75,6 @@ describe('rekap absensi', function () {
         Attendance::factory()->for($this->rina, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => '08:15:00']);
         Attendance::factory()->for($this->rina, 'intern')->clockedIn()->create(['date' => '2026-10-07', 'clock_in_at' => '08:30:00']);
         LeaveRequest::factory()->for($this->rina, 'intern')->approved()->create(['start_date' => '2026-10-08', 'end_date' => '2026-10-08']);
-        // Hari ini belum dihitung.
         Attendance::factory()->for($this->rina, 'intern')->create(['date' => '2026-10-12', 'clock_in_at' => '09:00:00']);
 
         reportIntern($this->budiMentor, 'Andi Pratama');
@@ -140,7 +134,6 @@ describe('rekap task', function () {
         $task(['code' => 'TSK-3', 'title' => 'Uji login', 'status' => TaskStatus::Todo, 'due_at' => '2026-10-09 17:00:00']);
         $task(['code' => 'TSK-4', 'title' => 'Dokumen', 'status' => TaskStatus::InProgress, 'due_at' => '2026-10-20 17:00:00']);
         $task(['code' => 'TSK-5', 'title' => 'Bulan depan', 'due_at' => '2026-11-02 17:00:00']);
-        // Task yang dibimbing mentor lain (misalnya sebelum ganti mentor) tidak ikut filter Sari.
         $task(['code' => 'TSK-6', 'title' => 'Mentor lama', 'mentor_id' => $this->budiMentor->id, 'due_at' => '2026-10-07 17:00:00']);
 
         $response = exportReport($this->admin, ['type' => 'tasks', 'from' => '2026-10-01', 'to' => '2026-10-31', 'mentor_id' => $this->sari->id])

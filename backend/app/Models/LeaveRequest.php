@@ -40,7 +40,6 @@ class LeaveRequest extends Model
     /** @use HasFactory<LeaveRequestFactory> */
     use HasFactory;
 
-    /** Izin Pending lebih dari 24 jam (design-mentor.md 4.2 dan 9.2, design-admin.md Alur 5). */
     public const OVERDUE_PENDING_HOURS = 24;
 
     /**
@@ -67,8 +66,6 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Mentor atau admin yang memutuskan; role-nya menentukan teks "Diproses oleh admin".
-     *
      * @return BelongsTo<User, $this>
      */
     public function decider(): BelongsTo
@@ -77,8 +74,6 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Izin disetujui yang rentangnya bersinggungan dengan $from sampai $to (Y-m-d).
-     *
      * @param  Builder<LeaveRequest>  $query
      * @return Builder<LeaveRequest>
      */
@@ -102,10 +97,6 @@ class LeaveRequest extends Model
             ->where('created_at', '<=', $now->copy()->subMinutes(self::OVERDUE_PENDING_HOURS * 60 + 1));
     }
 
-    /**
-     * Lama pending dalam jam ("diajukan 14 jam lalu", "26 jam"); null jika bukan Pending.
-     * Sama dengan pendingHours di frontend/src/lib/mock-rules.ts.
-     */
     public function pendingHours(CarbonInterface $now): ?int
     {
         $minutes = $this->pendingMinutes($now);
@@ -113,10 +104,6 @@ class LeaveRequest extends Model
         return $minutes === null ? null : intdiv($minutes, 60);
     }
 
-    /**
-     * Pending lebih dari 24 jam: tanda "!" untuk mentor dan pengingat di dashboard admin.
-     * Sama dengan isOverduePending di frontend/src/lib/mock-rules.ts.
-     */
     public function isOverduePending(CarbonInterface $now): bool
     {
         $minutes = $this->pendingMinutes($now);
@@ -133,9 +120,6 @@ class LeaveRequest extends Model
         return max(0, (int) floor($this->created_at->diffInMinutes($now)));
     }
 
-    /**
-     * Nama unduhan lampiran, misalnya "lampiran-izin-2026-10-13.pdf".
-     */
     public function evidenceFileName(): string
     {
         return "lampiran-izin-{$this->start_date->toDateString()}.".pathinfo((string) $this->evidence_path, PATHINFO_EXTENSION);

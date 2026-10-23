@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -46,7 +45,6 @@ it('builds the current month with weekdays, today, and off days', function () {
 });
 
 it('shows pending and approved leaves on working days only', function () {
-    // Jumat 9 sampai Senin 12 Okt: Sabtu dan Minggu tidak berisi entri.
     $approved = LeaveRequest::factory()->for($this->andi, 'intern')->approved()->create([
         'type' => LeaveType::Sick, 'start_date' => '2026-10-09', 'end_date' => '2026-10-12',
     ]);

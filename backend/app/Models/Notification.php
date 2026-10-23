@@ -9,14 +9,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Isi lonceng notifikasi. Tabel sendiri, bukan channel `database` bawaan Laravel.
- * `link_path` dan `link_params` adalah halaman tujuan di frontend saat item diklik.
  * `created_at` adalah waktu kejadian terakhir: notifikasi chat diperbarui setiap ada pesan baru dari pengirim yang sama.
  *
  * @property int $id
  * @property int $user_id
- * @property int|null $announcement_id terisi untuk notifikasi pengumuman, agar ikut diubah dan dihapus
- * @property int|null $chat_sender_id terisi untuk notifikasi "Pesan baru dari ...", satu baris per pengirim
+ * @property int|null $announcement_id
+ * @property int|null $chat_sender_id
  * @property string $text
  * @property string $link_path
  * @property array<string, mixed>|null $link_params
@@ -62,8 +60,6 @@ class Notification extends Model
     }
 
     /**
-     * Satu item lonceng, sama di API dan di event WebSocket.
-     *
      * @return array{id: int, text: string, link_path: string, link_params: array<string, mixed>|null, read_at: string|null, created_at: string|null}
      */
     public function toItem(): array

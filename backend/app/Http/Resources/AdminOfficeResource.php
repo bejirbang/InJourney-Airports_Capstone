@@ -6,8 +6,6 @@ use App\Models\Office;
 use Illuminate\Http\Request;
 
 /**
- * Baris daftar Lokasi Kantor admin: data kantor untuk intern ditambah status Aktif atau Nonaktif.
- *
  * @mixin Office
  */
 class AdminOfficeResource extends OfficeResource

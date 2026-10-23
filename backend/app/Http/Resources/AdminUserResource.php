@@ -9,9 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Akun dari sisi admin: baris daftar Pengguna (design-admin.md 4.1) dan, dengan `withDetail()`,
- * tab Profil di detail pengguna (4.3). Muat `internProfile.mentor` lebih dulu.
- *
  * @mixin User
  */
 class AdminUserResource extends JsonResource
@@ -20,7 +17,7 @@ class AdminUserResource extends JsonResource
     private ?array $detail = null;
 
     /**
-     * @param  array<string, mixed>  $extra  dari AdminUsers::detail()
+     * @param  array<string, mixed>  $extra
      */
     public function withDetail(array $extra): static
     {
@@ -43,7 +40,6 @@ class AdminUserResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role->value,
             'title' => $this->title,
-            // active, not_started ("Belum dimulai"), inactive. Menentukan menu Nonaktifkan atau Aktifkan.
             'status' => app(AccountAccess::class)->status($this->resource)->value,
             'mentor' => $mentor === null ? null : ['id' => $mentor->id, 'name' => $mentor->name],
             'start_date' => $profile?->start_date->toDateString(),

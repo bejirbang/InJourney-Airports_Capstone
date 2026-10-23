@@ -14,11 +14,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
-/**
- * Izin dari sisi intern (docs/design-intern.md, Alur 11): mengajukan dan membatalkan.
- * Keputusan ada di alur mentor dan admin. Izin yang disetujui otomatis mengubah status absensi
- * lewat AttendanceCalendar; hari yang sudah clock in tetap Hadir.
- */
 class InternLeaves
 {
     public const OUTSIDE_PERIOD = 'Tanggal di luar periode magang.';
@@ -32,9 +27,6 @@ class InternLeaves
     public function __construct(private AttendanceCalendar $calendar, private Notifier $notifier) {}
 
     /**
-     * Tanggal lampau, hari ini, dan mendatang boleh, tanpa batas ke belakang (13.4).
-     * Urutan pemeriksaan sama dengan validateLeave di mock-rules.ts.
-     *
      * @param  array{type: string, start_date: string, end_date: string, reason: string}  $input
      *
      * @throws ValidationException
@@ -97,8 +89,6 @@ class InternLeaves
     }
 
     /**
-     * Hanya izin Pending yang bisa dibatalkan (13.6). Mentor menerima notifikasi.
-     *
      * @throws ActionRejected
      */
     public function cancel(User $intern, LeaveRequest $leave): LeaveRequest
@@ -130,8 +120,6 @@ class InternLeaves
     }
 
     /**
-     * Teks dari docs/design-mentor.md bagian 14. Pengajuan membuka detail izin, pembatalan membuka daftar izin.
-     *
      * @param  array<string, mixed>|null  $params
      */
     private function notifyMentor(User $intern, string $text, ?array $params): void

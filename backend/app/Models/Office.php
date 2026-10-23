@@ -11,9 +11,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
- * Lokasi kantor dan dua radius, dibuat admin di menu Lokasi Kantor (docs/design-admin.md, Bagian 9A).
- * Kantor nonaktif boleh dihapus (soft delete) agar riwayat absensi tetap menunjuk kantornya.
- *
  * @property int $id
  * @property string $name
  * @property string $latitude
@@ -56,9 +53,6 @@ class Office extends Model
         return $query->where('is_active', true);
     }
 
-    /**
-     * Jarak dari titik kantor dalam meter (rumus Haversine, sama dengan distanceMeters di mock-rules.ts).
-     */
     public function distanceTo(float $latitude, float $longitude): float
     {
         $lat1 = deg2rad((float) $this->latitude);

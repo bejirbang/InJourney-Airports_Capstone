@@ -6,10 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Notifikasi pengumuman mengikuti pengumumannya (keputusan pemilik repo 23 Okt 2026): judul yang diubah
-     * ikut berubah di lonceng, dan notifikasi ikut terhapus saat pengumuman dihapus.
-     */
     public function up(): void
     {
         Schema::table('notifications', function (Blueprint $table) {
@@ -17,9 +13,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('notifications', function (Blueprint $table) {

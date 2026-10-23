@@ -16,10 +16,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Halaman Pengguna (docs/design-admin.md, Alur 2): daftar, tambah, detail, ubah, ganti mentor,
- * nonaktifkan, aktifkan, dan Perpanjang magang (Alur 6). Reset password ada di ResetPasswordController.
- */
 class UserController extends Controller
 {
     public function __construct(private AdminUsers $users, private AccountManagement $accounts) {}
@@ -34,7 +30,6 @@ class UserController extends Controller
 
         return response()->json([
             'data' => AdminUserResource::collection($page->items()),
-            // "Menampilkan 1-10 dari 24" dan navigasi halaman.
             'meta' => [
                 'current_page' => $page->currentPage(),
                 'last_page' => $page->lastPage(),
@@ -44,9 +39,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Pilihan mentor aktif untuk Tambah Akun dan Ganti Mentor.
-     */
     public function mentors(): JsonResponse
     {
         return response()->json([
@@ -58,9 +50,6 @@ class UserController extends Controller
         ]);
     }
 
-    /**
-     * Password sementara hanya ada di respons ini (4.2). Jika terlewat, admin memakai Reset password.
-     */
     public function store(UserFormRequest $request): JsonResponse
     {
         /** @var User $admin */
@@ -93,9 +82,6 @@ class UserController extends Controller
         return response()->json(['message' => 'Perubahan tersimpan.', 'data' => $this->detailed($user)]);
     }
 
-    /**
-     * Ringkasan dampak sebelum Pindahkan (4.4).
-     */
     public function mentorChange(User $user): JsonResponse
     {
         return response()->json(['data' => $this->users->mentorChangeImpact($user->loadMissing('internProfile.mentor'))]);
@@ -133,9 +119,6 @@ class UserController extends Controller
         return response()->json(['message' => 'Perubahan tersimpan.', 'data' => $this->detailed($user)]);
     }
 
-    /**
-     * Perpanjang magang dari Dashboard, menu Aksi, atau setelah Aktifkan ditolak `internship_ended`.
-     */
     public function extend(ExtendInternshipRequest $request, User $user): JsonResponse
     {
         /** @var User $admin */

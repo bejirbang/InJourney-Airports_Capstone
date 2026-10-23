@@ -7,9 +7,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
-/**
- * Menyimpan dan menghapus foto profil. Satu akun satu foto; foto lama dihapus permanen.
- */
 class ProfilePhotos
 {
     public function replace(User $user, UploadedFile $photo): void

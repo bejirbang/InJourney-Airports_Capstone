@@ -9,8 +9,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * Izin dari sisi intern: riwayat, detail, dan hasil ajukan atau batal (docs/design-intern.md, Alur 11).
- *
  * @mixin LeaveRequest
  */
 class InternLeaveResource extends JsonResource
@@ -27,15 +25,12 @@ class InternLeaveResource extends JsonResource
             'type' => $this->type->value,
             'start_date' => $start,
             'end_date' => $this->end_date->toDateString(),
-            // Dihitung saat dibaca: libur yang ditambahkan admin di tengah rentang ikut mengurangi.
             'working_days' => app(AttendanceCalendar::class)->workingDays($start, $this->end_date->toDateString()),
             'reason' => $this->reason,
             'has_evidence' => $this->evidence_path !== null,
             'status' => $this->status->value,
             'submitted_at' => $this->created_at?->toIso8601String(),
-            // Label "Diajukan setelah tanggal izin" (13.4).
             'submitted_late' => $this->created_at !== null && $this->created_at->toDateString() > $start,
-            // Mentor atau admin; role admin ditampilkan "Diproses oleh admin" (13.7).
             'decided_by' => $this->whenLoaded('decider', fn () => $this->decider === null ? null : [
                 'name' => $this->decider->name,
                 'role' => $this->decider->role->value,

@@ -8,17 +8,9 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-/**
- * Halaman Izin mentor (docs/design-mentor.md, Alur 7): izin milik intern yang saat ini dibimbing.
- * Izin pending ikut pindah saat admin mengganti mentor, jadi acuannya `intern_profiles.mentor_id`.
- * Akses per izin di LeaveRequestPolicy::manage.
- */
 class MentorLeaves
 {
     /**
-     * Tab Pending (default) atau Semua, filter jenis dan intern.
-     * Pending lebih dulu, dari yang paling lama pending (9.2); sisanya pengajuan terbaru lebih dulu.
-     *
      * @param  array{tab?: string|null, type?: string|null, intern_id?: int|string|null}  $filters
      * @return array{leaves: Collection<int, LeaveRequest>, pending_count: int}
      */
@@ -40,7 +32,6 @@ class MentorLeaves
 
         return [
             'leaves' => $leaves,
-            // Angka di tab "Pending (2)", tanpa terpengaruh filter.
             'pending_count' => $base->clone()->where('status', RequestStatus::Pending)->count(),
         ];
     }

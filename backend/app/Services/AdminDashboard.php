@@ -18,18 +18,10 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
-/**
- * Isi Dashboard Admin (docs/design-admin.md, Alur 3).
- *
- * Intern dihitung jika akunnya aktif dan tanggal itu masuk periode magangnya, sama dengan AccountAccess.
- * Data intern yang sudah dihapus tidak ikut.
- */
 class AdminDashboard
 {
-    /** Tiap daftar menampilkan maksimal 5 baris, sisanya lewat Lihat semua (5.2). */
     public const LIST_LIMIT = 5;
 
-    /** Batas mundur mencari hari kerja sebelumnya, cukup untuk libur panjang. */
     private const HOLIDAY_LOOKBACK_DAYS = 60;
 
     public function __construct(private EndingInternships $endings) {}
@@ -45,11 +37,8 @@ class AdminDashboard
 
         return [
             'date' => $date,
-            // `name` null berarti akhir pekan; frontend menulis "akhir pekan".
             'holiday' => $isHoliday ? ['name' => $holidayName] : null,
-            // false: banner "Belum ada kantor aktif. Intern tidak bisa clock in." (5.3).
             'has_active_office' => Office::query()->active()->exists(),
-            // Kartu hari ini disembunyikan pada hari libur (5.3).
             'today' => $isHoliday ? null : $this->today($date),
             'yesterday' => $this->yesterday($now),
             'overdue_leaves' => $this->overdueLeaves($now),
@@ -59,10 +48,6 @@ class AdminDashboard
     }
 
     /**
-     * Kartu hari ini. Yang belum clock in disebut Belum Clock In, bukan Tidak Hadir,
-     * karena status final baru ditetapkan setelah 23:59. Terlambat hanya tanda, jadi intern
-     * yang terlambat tetap dihitung Sudah Clock In.
-     *
      * @return array{interns: int, clocked_in: int, on_leave: int, not_clocked_in: int, late: int, late_interns: list<array<string, mixed>>}
      */
     private function today(string $date): array
@@ -86,7 +71,6 @@ class AdminDashboard
 
         $workHours = WorkHourSetting::effectiveOn($date);
 
-        // Isi daftar saat kartu Terlambat diklik: nama, jam clock in, lama terlambat (5.2).
         $late = array_values($attendances
             ->map(fn (Attendance $attendance): array => [
                 'intern' => $this->person($attendance->intern),
@@ -108,9 +92,6 @@ class AdminDashboard
     }
 
     /**
-     * Ringkasan "Kemarin" memakai status final hari kerja terakhir sebelum hari ini
-     * (Senin melihat Jumat), sama dengan prototipe. Terlambat bukan status, jadi tidak ikut.
-     *
      * @return array{date: string, present: int, leave: int, absent: int, missed_clock_out: int}
      */
     private function yesterday(CarbonInterface $now): array
@@ -147,8 +128,6 @@ class AdminDashboard
     }
 
     /**
-     * Izin Pending lebih dari 24 jam, dari yang paling lama pending. Tombol Buka menuju Alur 5.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function overdueLeaves(CarbonInterface $now): array
@@ -164,14 +143,11 @@ class AdminDashboard
             'start_date' => $leave->start_date->toDateString(),
             'end_date' => $leave->end_date->toDateString(),
             'created_at' => $leave->created_at?->toIso8601String(),
-            // "30 jam"
             'pending_hours' => $leave->pendingHours($now),
         ]);
     }
 
     /**
-     * Permintaan koreksi yang menunggu, dari yang paling lama diajukan. Tombol Buka menuju Alur 4.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function pendingCorrections(): array
@@ -189,9 +165,6 @@ class AdminDashboard
     }
 
     /**
-     * Magang berakhir dalam 7 hari, paling dekat lebih dulu. `mentor` untuk tombol Tanya mentor (draf chat),
-     * tombol Perpanjang menuju Alur 6. Lihat semua memakai GET /api/admin/ending-internships.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function endingInternships(CarbonInterface $now): array
@@ -204,8 +177,6 @@ class AdminDashboard
     }
 
     /**
-     * Intern yang akunnya aktif dan tanggal $date masuk periode magangnya.
-     *
      * @return Collection<int, int>
      */
     private function internIdsOn(string $date): Collection
@@ -239,8 +210,6 @@ class AdminDashboard
     }
 
     /**
-     * Satu kotak: jumlah seluruhnya dan maksimal LIST_LIMIT baris.
-     *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  Builder<TModel>  $count

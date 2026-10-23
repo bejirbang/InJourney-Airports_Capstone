@@ -65,7 +65,6 @@ it('marks one notification read and tells my other tabs', function () {
         && $e->broadcastOn()->name === "private-users.{$this->rina->id}"
         && $e->broadcastWith() === ['ids' => [$item->id], 'unread_count' => 1]);
 
-    // Sudah dibaca: tidak ada event lagi.
     bell($this->rina, 'POST', "/api/notifications/{$item->id}/read")->assertOk();
     Event::assertDispatchedTimes(NotificationsRead::class, 1);
 });

@@ -12,7 +12,6 @@ use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// Senin, 12 Oktober 2026 pukul 14:39, sama dengan test lain.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 

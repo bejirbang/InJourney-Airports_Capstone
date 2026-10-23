@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 
-// Senin, 12 Oktober 2026 pukul 08:02:15. Kantor di Terminal 3 dengan radius clock in 100 m.
 const OFFICE_LAT = -6.1256;
 const OFFICE_LNG = 106.6559;
 
@@ -157,7 +156,7 @@ it('does not limit the clock in time', function () {
     clockIn($this->intern)
         ->assertCreated()
         ->assertJsonPath('message', 'Clock in berhasil pukul 21:45.')
-        ->assertJsonPath('data.late_minutes', null); // jam kerja belum diatur
+        ->assertJsonPath('data.late_minutes', null);
 });
 
 it('marks clock in after the start of work hours as late', function (string $time, string $message, int $late) {

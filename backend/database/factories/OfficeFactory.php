@@ -11,8 +11,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class OfficeFactory extends Factory
 {
     /**
-     * Kantor aktif di Terminal 3 Bandara Soekarno-Hatta, sama dengan data contoh frontend.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

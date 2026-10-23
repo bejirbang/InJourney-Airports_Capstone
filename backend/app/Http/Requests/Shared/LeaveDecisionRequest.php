@@ -4,10 +4,6 @@ namespace App\Http\Requests\Shared;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Setujui atau Tolak izin oleh mentor atau admin. Catatan wajib (docs/design-mentor.md 9.4, design-admin.md 7.4).
- * Admin juga mengirim `evidence_checked` (centang "Saya sudah memeriksa bukti"); syaratnya diperiksa di LeaveDecisions.
- */
 class LeaveDecisionRequest extends FormRequest
 {
     public function authorize(): bool

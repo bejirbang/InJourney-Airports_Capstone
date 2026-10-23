@@ -24,11 +24,9 @@ class UserResource extends JsonResource
             'role' => $this->role->value,
             'title' => $this->title,
             'phone' => $this->phone,
-            // Null berarti belum ada foto; frontend menampilkan inisial nama.
             'photo_url' => $this->photoUrl(),
             'is_active' => $this->is_active,
             'must_change_password' => $this->must_change_password,
-            // Halaman tujuan setelah login. Jika must_change_password true, frontend membuka Ganti Password lebih dulu.
             'home_path' => $this->role->homePath(),
             'intern_profile' => $this->when(
                 $this->role === Role::Intern && $this->relationLoaded('internProfile') && $this->internProfile !== null,

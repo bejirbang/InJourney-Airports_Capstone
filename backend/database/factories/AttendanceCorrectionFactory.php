@@ -13,8 +13,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class AttendanceCorrectionFactory extends Factory
 {
     /**
-     * Koreksi lupa clock out kemarin, masih Pending.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

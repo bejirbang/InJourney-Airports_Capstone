@@ -9,10 +9,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
-/**
- * Membuat akun admin (dipakai tim teknis untuk admin pertama saat sistem dipasang).
- * Password sementara dibuat sistem dan wajib diganti saat login pertama.
- */
 class CreateAdmin extends Command
 {
     protected $signature = 'app:create-admin {email : Email internal admin} {name : Nama lengkap} {--title=Admin : Posisi}';
@@ -55,9 +51,6 @@ class CreateAdmin extends Command
         return self::SUCCESS;
     }
 
-    /**
-     * Nilai argumen atau opsi teks; kosong bila tidak berupa teks.
-     */
     private function text(mixed $value): string
     {
         return is_string($value) ? $value : '';

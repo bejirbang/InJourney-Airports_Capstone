@@ -12,10 +12,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Catatan Warning (docs/design-admin.md Alur 8): menu Warning dan tab Warning di detail intern.
- * Hanya admin yang melihat. Tidak ada notifikasi ke intern atau mentor; setiap tambah dan ubah masuk log.
- */
 class AdminWarnings
 {
     public const LOCKED = 'Catatan hanya bisa diubah pembuatnya dalam 24 jam.';
@@ -23,8 +19,6 @@ class AdminWarnings
     public function __construct(private AttendanceCalendar $calendar) {}
 
     /**
-     * Pilihan intern di menu Warning beserta jumlah catatannya, urut nama.
-     *
      * @return list<array{id: int, name: string, warnings: int}>
      */
     public function interns(?string $search): array
@@ -45,9 +39,6 @@ class AdminWarnings
     }
 
     /**
-     * Riwayat catatan satu intern, terbaru lebih dulu, dan jumlah hari Terlambat bulan berjalan
-     * ("Terlambat bulan ini: 3 kali") sebagai bahan pertimbangan, termasuk hari ini.
-     *
      * @return array{late_this_month: int, warnings: list<array<string, mixed>>}
      */
     public function forIntern(User $admin, User $intern, CarbonInterface $now): array
@@ -100,7 +91,6 @@ class AdminWarnings
     {
         $intern = $warning->intern;
 
-        // Catatan milik akun intern yang sudah dihapus tidak tampil di mana pun.
         if ($intern === null) {
             throw (new ModelNotFoundException)->setModel(Warning::class, [$warning->id]);
         }
@@ -109,7 +99,6 @@ class AdminWarnings
             throw new ActionRejected(self::LOCKED, 'locked');
         }
 
-        // Simpan tanpa perubahan tidak dicatat di log.
         if ($warning->body === $body) {
             return $this->row($warning->load('author:id,name'), $admin, $now);
         }
@@ -134,7 +123,6 @@ class AdminWarnings
             'author' => $warning->author === null ? null : ['id' => $warning->author->id, 'name' => $warning->author->name],
             'created_at' => $warning->created_at?->toIso8601String(),
             'updated_at' => $warning->updated_at?->toIso8601String(),
-            // Tombol Ubah; selain itu tampil "Terkunci."
             'can_edit' => $warning->editableBy($admin, $now),
         ];
     }

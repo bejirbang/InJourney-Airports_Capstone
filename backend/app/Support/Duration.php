@@ -2,9 +2,6 @@
 
 namespace App\Support;
 
-/**
- * Durasi dalam bahasa Indonesia: "45 menit", "1 jam", "1 jam 1 menit".
- */
 class Duration
 {
     public static function minutes(int $minutes): string

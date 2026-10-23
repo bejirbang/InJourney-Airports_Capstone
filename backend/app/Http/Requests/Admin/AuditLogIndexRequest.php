@@ -6,10 +6,6 @@ use App\Models\AuditLog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter Log Aktivitas (docs/design-admin.md 13.1): `from`, `to` (tanggal), `admin_id`, `action` (jenis aksi),
- * dan `page`. Semua opsional.
- */
 class AuditLogIndexRequest extends FormRequest
 {
     public const PERIOD_INVALID = 'Periode tidak valid.';

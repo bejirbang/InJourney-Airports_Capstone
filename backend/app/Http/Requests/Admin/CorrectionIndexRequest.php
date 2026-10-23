@@ -6,10 +6,6 @@ use App\Services\AdminCorrections;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Filter daftar Koreksi Absensi (docs/design-admin.md 6.2): `status` (default pending),
- * `intern_id`, dan rentang tanggal absensi `from` sampai `to`.
- */
 class CorrectionIndexRequest extends FormRequest
 {
     public function authorize(): bool

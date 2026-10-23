@@ -11,9 +11,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Pesan chat satu lawan satu. Hanya pengirim dan penerima yang bisa membacanya; admin tidak punya akses
- * ke chat orang lain (backend/CLAUDE.md). Teks saja, tanpa ubah atau hapus (keputusan pemilik repo 23 Okt 2026).
- *
  * @property int $id
  * @property int $sender_id
  * @property int $receiver_id
@@ -57,8 +54,6 @@ class ChatMessage extends Model
     }
 
     /**
-     * Pesan dalam percakapan dua pengguna, ke arah mana pun.
-     *
      * @param  Builder<ChatMessage>  $query
      * @return Builder<ChatMessage>
      */
@@ -70,8 +65,6 @@ class ChatMessage extends Model
     }
 
     /**
-     * Satu pesan, sama di API dan di event WebSocket. `read_at` untuk tanda "Dibaca".
-     *
      * @return array{id: int, sender_id: int, receiver_id: int, body: string, read_at: string|null, created_at: string|null}
      */
     public function toItem(): array

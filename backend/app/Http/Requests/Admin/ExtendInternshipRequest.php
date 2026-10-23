@@ -4,10 +4,6 @@ namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Dialog Perpanjang Magang (docs/design-admin.md 8.2): `end_date` tanggal selesai baru.
- * Aturan "setelah tanggal selesai saat ini" diperiksa di AccountManagement::extend() saat profil dikunci.
- */
 class ExtendInternshipRequest extends FormRequest
 {
     public function authorize(): bool

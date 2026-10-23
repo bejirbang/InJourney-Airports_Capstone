@@ -5,7 +5,6 @@ namespace App\Http\Requests\Intern;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Isi Daily Report. Pesan sama dengan validateReport di frontend/src/lib/mock-rules.ts.
  * Isian yang hanya spasi menjadi kosong lewat middleware TrimStrings, jadi ikut ditolak.
  */
 class DailyReportRequest extends FormRequest

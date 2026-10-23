@@ -7,10 +7,6 @@ use App\Models\Announcement;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 
-/**
- * Intern dan mentor hanya membuka pengumuman untuk role-nya (design-intern.md 16, design-mentor.md 14).
- * Admin melihat semua.
- */
 class AnnouncementPolicy
 {
     public const FORBIDDEN = 'Anda tidak memiliki akses ke pengumuman ini.';

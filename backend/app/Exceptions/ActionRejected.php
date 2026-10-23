@@ -6,11 +6,6 @@ use Exception;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Tindakan ditolak karena aturan bisnis (absensi, koreksi, Task).
- * `reason` membantu frontend memilih tampilan, misalnya tombol Coba lagi untuk `outside_radius`.
- * `data` berisi isi tambahan untuk tampilan itu, misalnya jumlah intern di dialog dampak libur.
- */
 class ActionRejected extends Exception
 {
     /**

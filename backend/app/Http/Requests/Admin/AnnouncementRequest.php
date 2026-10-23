@@ -5,10 +5,6 @@ namespace App\Http\Requests\Admin;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
-/**
- * Buat dan Ubah pengumuman (docs/design-admin.md 11): `title`, `body`, `for_intern`, `for_mentor`.
- * Judul dan isi wajib, minimal satu penerima. Judul paling panjang 255 karakter karena menjadi teks lonceng.
- */
 class AnnouncementRequest extends FormRequest
 {
     public const RECIPIENT_REQUIRED = 'Pilih minimal satu penerima.';

@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class ChatMessageFactory extends Factory
 {
     /**
-     * Pesan belum dibaca antara dua akun mentor.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

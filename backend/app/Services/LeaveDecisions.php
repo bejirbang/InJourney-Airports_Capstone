@@ -12,16 +12,6 @@ use App\Support\IndonesianDate;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Menyetujui atau menolak izin Pending (docs/design-mentor.md Alur 7, docs/design-admin.md Alur 5).
- *
- * Mentor memproses lebih dulu. Admin boleh menolak izin Pending kapan saja, tetapi hanya boleh menyetujui
- * izin yang Pending lebih dari 24 jam dan punya bukti yang sudah ia periksa (design-admin.md 7,
- * design-mentor.md 13.4; menolak tanpa menunggu 24 jam diputuskan pemilik repo 20 Okt 2026).
- * Keputusan admin memberi tahu mentor dan masuk Log Aktivitas.
- *
- * Status absensi tidak disimpan ulang: izin disetujui langsung terbaca sebagai Izin oleh AttendanceCalendar.
- */
 class LeaveDecisions
 {
     public const CANCELLED = 'Pengajuan ini sudah dibatalkan intern.';
@@ -39,8 +29,6 @@ class LeaveDecisions
     public function __construct(private Notifier $notifier) {}
 
     /**
-     * @param  bool  $evidenceChecked  hanya untuk admin: centang "Saya sudah memeriksa bukti"
-     *
      * @throws ActionRejected
      */
     public function decide(User $actor, LeaveRequest $leave, bool $approve, string $note, CarbonInterface $now, bool $evidenceChecked = false): LeaveRequest
@@ -78,11 +66,9 @@ class LeaveDecisions
             return $leave;
         });
 
-        // design-intern.md 16: "Izin Sakit 13-14 Okt disetujui." Klik membuka detail izin.
         $result = $approve ? 'disetujui' : 'ditolak';
         $this->notifier->send([$leave->intern_id], self::describe($leave)." {$result}.", '/izin', ['open' => $leave->id]);
 
-        // design-mentor.md 14: "Izin Dewi S. diproses oleh admin." untuk mentor saat ini.
         $mentorId = $leave->intern->internProfile()->value('mentor_id');
 
         if ($byAdmin && $mentorId !== null) {
@@ -92,10 +78,6 @@ class LeaveDecisions
         return $leave->load(['intern:id,name', 'decider:id,name,role']);
     }
 
-    /**
-     * Pesan untuk izin yang sudah tidak Pending saat keputusan dikirim (design-mentor.md 9.4, design-admin.md 7.4).
-     * Mentor melihat nama mentor lain; admin melihat "oleh mentor" atau "oleh admin".
-     */
     public static function alreadyClosed(LeaveRequest $leave, bool $forAdmin = false): ActionRejected
     {
         if ($leave->status === RequestStatus::Cancelled) {
@@ -114,9 +96,6 @@ class LeaveDecisions
     }
 
     /**
-     * Syarat admin untuk Setujui (design-admin.md 7): izin menggantung lebih dari 24 jam dan bukti sudah
-     * diperiksa. Tolak tidak punya syarat ini (7.4).
-     *
      * @throws ActionRejected
      */
     private static function ensureAdminMayApprove(LeaveRequest $leave, CarbonInterface $now, bool $evidenceChecked): void
@@ -134,9 +113,6 @@ class LeaveDecisions
         }
     }
 
-    /**
-     * "Izin Sakit 13-14 Okt".
-     */
     private static function describe(LeaveRequest $leave): string
     {
         return $leave->type->label().' '.IndonesianDate::range($leave->start_date, $leave->end_date);

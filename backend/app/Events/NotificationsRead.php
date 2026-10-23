@@ -9,10 +9,6 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 use Illuminate\Foundation\Events\Dispatchable;
 
-/**
- * Sinkron status dibaca ke tab atau perangkat lain milik pengguna yang sama (keputusan pemilik repo 23 Okt 2026).
- * `ids` null berarti "Tandai semua dibaca". Event `.notifications.read` di `users.{id}`.
- */
 class NotificationsRead implements ShouldBroadcast, ShouldDispatchAfterCommit
 {
     use Dispatchable, InteractsWithSockets;

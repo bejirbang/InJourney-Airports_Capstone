@@ -4,9 +4,6 @@ namespace App\Http\Requests\Shared;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * Kirim pesan chat: `body` teks saja, maksimal 2000 karakter (keputusan pemilik repo 23 Okt 2026).
- */
 class ChatMessageRequest extends FormRequest
 {
     public const BODY_REQUIRED = 'Pesan wajib diisi.';

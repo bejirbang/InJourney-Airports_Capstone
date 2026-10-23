@@ -12,16 +12,10 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Menu Warning dan tab Warning di detail intern (docs/design-admin.md, Alur 8). Hanya admin.
- */
 class WarningController extends Controller
 {
     public function __construct(private AdminWarnings $warnings) {}
 
-    /**
-     * Daftar intern di kiri halaman Warning, dengan jumlah catatan (`?q=` cari nama).
-     */
     public function index(Request $request): JsonResponse
     {
         $search = $request->filled('q') ? $request->string('q')->value() : null;

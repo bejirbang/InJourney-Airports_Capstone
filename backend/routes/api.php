@@ -55,10 +55,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('/auth/profile/photo', [ProfileController::class, 'uploadPhoto'])->name('auth.profile.photo.store');
         Route::delete('/auth/profile/photo', [ProfileController::class, 'deletePhoto'])->name('auth.profile.photo.destroy');
 
-        // Isi pengumuman saat notifikasi lonceng diklik; akses per role lewat AnnouncementPolicy.
         Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show'])->name('announcements.show');
 
-        // Lonceng notifikasi dan chat untuk semua role; pembaruan real-time lewat WebSocket `users.{id}`.
         Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
         Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('notifications.read');

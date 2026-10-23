@@ -6,8 +6,6 @@ use App\Models\Announcement;
 use Illuminate\Http\Request;
 
 /**
- * Baris daftar Pengumuman admin: isi pengumuman ditambah penerima.
- *
  * @mixin Announcement
  */
 class AdminAnnouncementResource extends AnnouncementResource
