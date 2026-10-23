@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\Mentor\LeaveController as MentorLeaveController;
 use App\Http\Controllers\Mentor\MenuController as MentorMenuController;
 use App\Http\Controllers\Mentor\PerformanceController as MentorPerformanceController;
 use App\Http\Controllers\Mentor\TaskController as MentorTaskController;
+use App\Http\Controllers\Shared\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])
@@ -48,6 +50,9 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::put('/auth/profile', [ProfileController::class, 'update'])->name('auth.profile.update');
         Route::post('/auth/profile/photo', [ProfileController::class, 'uploadPhoto'])->name('auth.profile.photo.store');
         Route::delete('/auth/profile/photo', [ProfileController::class, 'deletePhoto'])->name('auth.profile.photo.destroy');
+
+        // Isi pengumuman saat notifikasi lonceng diklik; akses per role lewat AnnouncementPolicy.
+        Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show'])->name('announcements.show');
 
         Route::middleware('role:intern')->prefix('intern')->name('intern.')->group(function () {
             Route::get('/menu', InternMenuController::class)->name('menu');
@@ -166,6 +171,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/offices/{office}/deactivate', [AdminOfficeController::class, 'deactivate'])->name('offices.deactivate');
             Route::post('/offices/{office}/activate', [AdminOfficeController::class, 'activate'])->name('offices.activate');
             Route::delete('/offices/{office}', [AdminOfficeController::class, 'destroy'])->name('offices.destroy');
+
+            Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('announcements.index');
+            Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->name('announcements.store');
+            Route::put('/announcements/{announcement}', [AdminAnnouncementController::class, 'update'])->name('announcements.update');
+            Route::delete('/announcements/{announcement}', [AdminAnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
