@@ -1032,6 +1032,8 @@ Berlaku untuk kode per 25 Okt 2026 (Tahap 1-8). Rincian field ada di butir Tahap
 - Header `Authorization: Bearer <token>`. 401: kembali ke login. 403 dengan pesan akun nonaktif atau masa magang: token sudah dicabut, kembali ke login. `must_change_password`: arahkan ke Ganti Password.
 - Penolakan aturan: 422 `{message, reason}` (kadang dengan data tambahan, misalnya `blockers`). Error isian: 422 `{message, errors}`. Tampilkan `message` apa adanya; teksnya sudah sesuai dokumen.
 - Menu sidebar dari `GET /api/{role}/menu` (`key`, `path`, `badge`). Lonceng, chat, dan WebSocket tetap seperti "Catatan integrasi frontend: Lonceng dan Chat".
+- Sesi berakhir setelah 30 menit tanpa aktivitas (401). Jangan polling API di latar belakang; saat 401, putuskan koneksi Reverb lalu kembali ke login.
+- Export Excel: ambil lewat `fetch` dengan header Authorization lalu simpan blob; nama file dari header `Content-Disposition` (sudah di-expose CORS). Error tetap JSON 422.
 - Filter lokasi global admin dikirim sebagai `airport_id` ke Dashboard, Presensi, Koreksi, Izin, Presentasi, Penilaian, dan Laporan. Pilihan bandara dari `GET /api/admin/airports`.
 - Kartu Dashboard admin dan mentor yang bisa diklik memakai `today.rows` / `yesterday.rows` (difilter per `status` di frontend); angka Performa memakai `dates`.
 
@@ -1130,13 +1132,13 @@ Backend mengirim alamat pendek; frontend memetakannya ke halaman role penerima.
 
 - [ ] ~~Jalankan `php artisan migrate` untuk kolom tambahan lama.~~ Diganti `migrate:fresh --seed` setelah rombak skema (lihat Tahap 1).
 - [ ] Pasang cron `schedule:run` di server production (pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin dan presentasi H-7 ke intern setiap hari, hapus token tidak aktif setiap malam).
-- [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
+- [ ] Development: jalankan `php artisan dev` (server API, Reverb, dan queue sekaligus) dan `php artisan schedule:work`, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
 - [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
 - [x] ~~Admin: jumlah hari Terlambat di daftar menu Absensi.~~ Ada di Admin Presensi (`recap.late`, Tahap 8).
 - [ ] Pastikan ekstensi PHP `zip` aktif di server production (dibutuhkan export Excel).
 - [x] Hapus `database/generate_migrations.php` setelah migration baru 25 Okt 2026 sudah di-commit. Sudah tidak ada di repo.
-- [ ] Lepas Inertia dari starter (`HandleInertiaRequests`, `resources/js`, `config/inertia.php`, `routes/web.php`). `tests/Feature/ExampleTest.php` masih gagal karena membuka halaman Inertia yang butuh build Vite; hapus bersama Inertia.
-- [ ] CORS: izinkan origin frontend (`http://localhost:<port>` saat development, domain Vercel saat production).
+- [x] Lepas Inertia dari starter (25 Okt 2026): `HandleInertiaRequests`, `config/inertia.php`, `routes/web.php`, seluruh `resources/`, `package.json`, `package-lock.json`, `pnpm-workspace.yaml`, `tsconfig.json`, `vite.config.ts`, dan `tests/Feature/ExampleTest.php` dihapus; paket Composer `inertiajs/inertia-laravel` dan `laravel/wayfinder` dilepas; langkah `npm` dibuang dari script `setup` dan `ci:check`. Semua test lulus (774).
+- [x] CORS (`config/cors.php`, sudah ada sebelumnya): production isi `FRONTEND_URL` (daftar origin dipisah koma, misalnya domain Vercel) dan/atau `CORS_ORIGIN_PATTERNS`; development otomatis mengizinkan `localhost`/`127.0.0.1` port apa pun. Ditambah 25 Okt 2026: `Content-Disposition` di-expose agar frontend bisa membaca nama file export Excel.
 - [ ] Sambungkan frontend: simpan token, kirim header `Authorization: Bearer <token>`, arahkan ke Ganti Password jika `must_change_password`, kembali ke login saat respons 401 atau 403 akun nonaktif.
 
 ## Keputusan pemilik repo
