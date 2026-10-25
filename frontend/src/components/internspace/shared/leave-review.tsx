@@ -249,7 +249,7 @@ function DecisionDialog({ leave, onClose }: { leave: Leave | null; onClose: () =
     }
     toast.success(
       status === "Disetujui"
-        ? "Izin disetujui. Status absensi hari terkait menjadi Izin."
+        ? "Izin disetujui. Status presensi hari terkait menjadi Izin."
         : "Izin ditolak.",
     );
     onClose();

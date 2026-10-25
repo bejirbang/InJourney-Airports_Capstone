@@ -60,11 +60,11 @@ export function InternAttendance() {
   return (
     <>
       <PageHeading
-        title="Absensi"
-        subtitle="Clock in, Daily Report, clock out, riwayat, dan koreksi absensi."
+        title="Presensi"
+        subtitle="Clock in, Daily Report, clock out, riwayat, dan koreksi presensi."
       />
       <Tabs
-        label="Bagian absensi"
+        label="Bagian presensi"
         value={tab}
         onChange={setTab}
         items={[
@@ -206,7 +206,7 @@ function GeoBox({
       <label className="form-field">
         Kantor
         <select
-          aria-label="Kantor untuk absensi"
+          aria-label="Kantor untuk presensi"
           value={selected?.id ?? ""}
           onChange={(e) => onOfficeChange(Number(e.target.value))}
         >
@@ -732,7 +732,7 @@ export function History({ onCorrect }: { onCorrect: (date: string) => void }) {
   const r = recap(rows);
   return (
     <Panel
-      title="Riwayat absensi"
+      title="Riwayat presensi"
       subtitle="Status ditetapkan otomatis setelah 23:59. Hari ini masih berjalan."
       action={
         <MonthNav
@@ -745,7 +745,7 @@ export function History({ onCorrect }: { onCorrect: (date: string) => void }) {
     >
       <RecapStrip r={r} />
       {rows.length === 0 ? (
-        <Empty>Belum ada data absensi pada bulan ini.</Empty>
+        <Empty>Belum ada data presensi pada bulan ini.</Empty>
       ) : (
         <div className="table-wrap">
           <table className="data-table clickable">

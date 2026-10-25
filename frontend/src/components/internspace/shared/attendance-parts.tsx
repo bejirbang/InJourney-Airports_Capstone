@@ -41,7 +41,7 @@ export function DayDetail({
           {name ? `${name} · ` : ""}
           {row && formatDate(row.date)}
         </DialogTitle>
-        <DialogDescription>Detail absensi dan Daily Report. Hanya baca.</DialogDescription>
+        <DialogDescription>Detail presensi dan Daily Report. Hanya baca.</DialogDescription>
         {row && (
           <DetailList
             items={[

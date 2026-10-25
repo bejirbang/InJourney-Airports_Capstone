@@ -752,12 +752,12 @@ afterEach(() => {
 });
 
 describe("Menu per role", () => {
-  it("Intern hanya melihat Dashboard, Absensi, Task, Izin", () => {
+  it("Intern hanya melihat Dashboard, Presensi, Task, Izin", () => {
     show("Intern", <Dashboard />);
     const nav = within(screen.getByRole("navigation", { name: "Menu utama" }));
     expect(nav.getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Dashboard",
-      "Absensi",
+      "Presensi",
       "Task",
       "Izin",
     ]);
@@ -784,7 +784,7 @@ describe("Menu per role", () => {
     expect(labels).toEqual([
       "Dashboard",
       "Pengguna",
-      "Absensi",
+      "Presensi",
       "Koreksi",
       "Izin",
       "Warning",
@@ -859,7 +859,7 @@ describe("Alur utama", () => {
       await screen.findByText("Clock in dulu untuk mengisi Daily Report."),
     ).toBeInTheDocument();
     // Tunggu daftar kantor dimuat; tombol Clock In nonaktif selama itu.
-    expect(await screen.findByLabelText("Kantor untuk absensi")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Kantor untuk presensi")).toBeInTheDocument();
     // Tombol baru bernama "Clock In" setelah pembacaan GPS selesai.
     fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
@@ -1263,7 +1263,7 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
   it("Kantor yang dipilih di dropdown mengubah peta, jarak, dan radius", async () => {
     apiState.offices = [KANTOR_T3, KANTOR_T2];
     show("Intern", <AttendancePage />, "/absensi");
-    const select = await screen.findByLabelText("Kantor untuk absensi");
+    const select = await screen.findByLabelText("Kantor untuk presensi");
     // Kantor terdekat dari posisi(user) terpilih otomatis.
     expect(await screen.findByText(/Jarak ke Kantor Pusat Terminal 3/)).toBeInTheDocument();
     expect(screen.getByText(/radius clock in 100 m/)).toBeInTheDocument();
@@ -1343,7 +1343,7 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
   it("Pengguna bisa memilih kantor lain dari dropdown kantor aktif", async () => {
     apiState.offices = [KANTOR_T3, KANTOR_T2];
     show("Intern", <AttendancePage />, "/absensi");
-    const select = await screen.findByLabelText("Kantor untuk absensi");
+    const select = await screen.findByLabelText("Kantor untuk presensi");
     expect(select).toHaveValue(String(KANTOR_T3.id));
     expect(
       within(select).getByRole("option", { name: "Kantor Pusat Terminal 3" }),

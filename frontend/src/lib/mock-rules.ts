@@ -305,7 +305,7 @@ export type CorrectionContext = {
   pendingDates: string[];
 };
 export const validateCorrection = (input: CorrectionInput, ctx: CorrectionContext) => {
-  if (!input.date) return "Pilih tanggal absensi.";
+  if (!input.date) return "Pilih tanggal presensi.";
   if (
     input.date > ctx.today ||
     input.date < ctx.periodStart ||

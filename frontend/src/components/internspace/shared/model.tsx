@@ -907,7 +907,7 @@ const seedNotices: Notice[] = [
   {
     id: 3,
     role: "Intern",
-    text: "Koreksi absensi 9 Okt disetujui.",
+    text: "Koreksi presensi 9 Okt disetujui.",
     at: "2026-10-10T13:02",
     to: "/absensi",
     search: { tab: "koreksi" },
@@ -969,7 +969,7 @@ const seedNotices: Notice[] = [
   {
     id: 20,
     role: "Admin",
-    text: "Nabila P. mengajukan koreksi absensi 6 Okt.",
+    text: "Nabila P. mengajukan koreksi presensi 6 Okt.",
     at: "2026-10-07T08:05",
     to: "/koreksi",
     search: { open: "1" },
@@ -1216,7 +1216,7 @@ export function MockProvider({
     {
       time: "2026-10-10T13:02",
       admin: "Ayu Wulandari",
-      action: "Absensi",
+      action: "Presensi",
       object: "Nabila Putri",
       detail: "Setujui koreksi 9 Okt: clock out 17:00.",
     },
@@ -1237,7 +1237,7 @@ export function MockProvider({
     {
       time: "2026-09-26T15:00",
       admin: "Rina Hartono",
-      action: "Absensi",
+      action: "Presensi",
       object: "Nabila Putri",
       detail: "Tolak koreksi 25 Sep.",
     },

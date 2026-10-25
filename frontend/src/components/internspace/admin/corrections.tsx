@@ -53,7 +53,7 @@ export function CorrectionsPage() {
   return (
     <>
       <PageHeading
-        title="Koreksi Absensi"
+        title="Koreksi Presensi"
         subtitle="Tanyakan dan verifikasi dulu sebelum menyetujui. Admin hanya mengubah jam, status dihitung ulang sistem."
       />
       <div className="toolbar">
@@ -110,7 +110,7 @@ export function CorrectionsPage() {
               <thead>
                 <tr>
                   <th>Intern</th>
-                  <th>Tanggal absensi</th>
+                  <th>Tanggal presensi</th>
                   <th>Diajukan pada</th>
                   <th>Status</th>
                   <th>Aksi</th>
@@ -209,19 +209,19 @@ function CorrectionDecision({
     if (c.intern === ME.Intern)
       m.notify(
         "Intern",
-        `Koreksi absensi ${formatShort(c.date)} ${approve ? "disetujui" : "ditolak"}.`,
+        `Koreksi presensi ${formatShort(c.date)} ${approve ? "disetujui" : "ditolak"}.`,
         "/absensi",
         { tab: "koreksi" },
       );
     m.log(
-      "Absensi",
+      "Presensi",
       c.intern,
       `${approve ? "Setujui" : "Tolak"} koreksi ${formatShort(c.date)}${approve ? `: ${finalIn} - ${finalOut}` : ""}.`,
     );
     toast.success(
       approve
-        ? "Koreksi disetujui. Status absensi dihitung ulang."
-        : "Koreksi ditolak. Data absensi tidak berubah.",
+        ? "Koreksi disetujui. Status presensi dihitung ulang."
+        : "Koreksi ditolak. Data presensi tidak berubah.",
     );
     onClose();
   };
@@ -260,7 +260,7 @@ function CorrectionDecision({
           onClick={() => {
             m.setChatDraft({
               to: c.intern,
-              text: `Halo ${c.intern.split(" ")[0]}, terkait koreksi absensi ${formatShort(c.date, true)}: `,
+              text: `Halo ${c.intern.split(" ")[0]}, terkait koreksi presensi ${formatShort(c.date, true)}: `,
             });
             void navigate({ to: "/chat", search: { to: c.intern } });
           }}
@@ -296,7 +296,7 @@ function CorrectionDecision({
               <p className="text-[11px] text-muted-foreground">Catatan verifikasi wajib diisi.</p>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Validasi lokasi tidak dijalankan ulang. Baris absensi akan diberi label "Dikoreksi
+              Validasi lokasi tidak dijalankan ulang. Baris presensi akan diberi label "Dikoreksi
               admin".
             </p>
             <DialogFooter>

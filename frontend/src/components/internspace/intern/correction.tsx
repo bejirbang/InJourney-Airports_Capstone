@@ -53,7 +53,7 @@ export function CorrectionTab({
   }, [presetDate]);
   return (
     <Panel
-      title="Koreksi absensi"
+      title="Koreksi presensi"
       subtitle="Permintaan diajukan ke admin. Admin memverifikasi dulu, bisa lewat chat."
       action={
         <Button onClick={() => setOpen(true)}>
@@ -69,7 +69,7 @@ export function CorrectionTab({
           <table className="data-table">
             <thead>
               <tr>
-                <th>Tanggal absensi</th>
+                <th>Tanggal presensi</th>
                 <th>Diajukan</th>
                 <th>Status</th>
                 <th>Catatan admin</th>
@@ -220,7 +220,7 @@ function CorrectionForm({
     ]);
     m.notify(
       "Admin",
-      `${shortName(ME.Intern)} mengajukan koreksi absensi ${formatShort(date)}.`,
+      `${shortName(ME.Intern)} mengajukan koreksi presensi ${formatShort(date)}.`,
       "/koreksi",
       { open: String(id) },
     );
@@ -230,7 +230,7 @@ function CorrectionForm({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <DialogTitle>Ajukan Koreksi Absensi</DialogTitle>
+        <DialogTitle>Ajukan Koreksi Presensi</DialogTitle>
         <DialogDescription>
           Admin dapat menghubungi Anda lewat chat untuk verifikasi.
         </DialogDescription>
@@ -242,7 +242,7 @@ function CorrectionForm({
           }}
         >
           <label className="form-field">
-            Tanggal absensi *
+            Tanggal presensi *
             <input
               type="date"
               value={date}

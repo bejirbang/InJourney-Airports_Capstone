@@ -63,7 +63,7 @@ type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
-  "/absensi": "Absensi",
+  "/absensi": "Presensi",
   "/task": "Task",
   "/izin": "Izin",
   "/chat": "Chat",
@@ -129,7 +129,7 @@ export function Workspace({ children }: { children: ReactNode }) {
     m.role === "Intern"
       ? [
           { to: "/", label: "Dashboard", icon: LayoutDashboard },
-          { to: "/absensi", label: "Absensi", icon: Clock3 },
+          { to: "/absensi", label: "Presensi", icon: Clock3 },
           { to: "/task", label: "Task", icon: ListTodo },
           { to: "/izin", label: "Izin", icon: CalendarCheck },
         ]
@@ -151,7 +151,7 @@ export function Workspace({ children }: { children: ReactNode }) {
         : [
             { to: "/", label: "Dashboard", icon: LayoutDashboard },
             { to: "/users", label: "Pengguna", icon: Users },
-            { to: "/absensi", label: "Absensi", icon: Clock3 },
+            { to: "/absensi", label: "Presensi", icon: Clock3 },
             {
               to: "/koreksi",
               label: "Koreksi",
