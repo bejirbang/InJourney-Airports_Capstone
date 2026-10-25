@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\Admin\AirportController as AdminAirportController;
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AssessmentController as AdminAssessmentController;
+use App\Http\Controllers\Admin\AttendanceController as AdminAttendanceController;
 use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
+use App\Http\Controllers\Admin\GeneralSettingController as AdminGeneralSettingController;
 use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
 use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
@@ -155,6 +158,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/users/{user}/attendance/days/{date}', [AdminInternRecordController::class, 'day'])->name('users.attendance.day');
             Route::get('/users/{user}/leaves', [AdminInternRecordController::class, 'leaves'])->name('users.leaves');
             Route::get('/users/{user}/corrections', [AdminInternRecordController::class, 'corrections'])->name('users.corrections');
+            Route::get('/users/{user}/logbooks', [AdminInternRecordController::class, 'logbooks'])->name('users.logbooks');
+
+            Route::get('/attendance', [AdminAttendanceController::class, 'index'])->name('attendance.index');
+            Route::get('/attendance/daily', [AdminAttendanceController::class, 'daily'])->name('attendance.daily');
 
             Route::get('/corrections', [AdminCorrectionController::class, 'index'])->name('corrections.index');
             Route::get('/corrections/{correction}', [AdminCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
@@ -184,11 +191,27 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::put('/holidays/{holiday}', [AdminHolidayController::class, 'update'])->name('holidays.update');
             Route::delete('/holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
 
+            Route::get('/settings', [AdminGeneralSettingController::class, 'show'])->name('settings.show');
+            Route::put('/settings', [AdminGeneralSettingController::class, 'update'])->name('settings.update');
+
             Route::get('/units', [AdminUnitController::class, 'index'])->name('units.index');
             Route::post('/units', [AdminUnitController::class, 'store'])->name('units.store');
             Route::put('/units/{unit}', [AdminUnitController::class, 'update'])->whereNumber('unit')->name('units.update');
             Route::post('/units/{unit}/deactivate', [AdminUnitController::class, 'deactivate'])->whereNumber('unit')->name('units.deactivate');
             Route::post('/units/{unit}/activate', [AdminUnitController::class, 'activate'])->whereNumber('unit')->name('units.activate');
+
+            Route::get('/airports', [AdminAirportController::class, 'index'])->name('airports.index');
+            Route::post('/airports', [AdminAirportController::class, 'store'])->name('airports.store');
+            Route::get('/airports/{airport}', [AdminAirportController::class, 'show'])->whereNumber('airport')->name('airports.show');
+            Route::put('/airports/{airport}', [AdminAirportController::class, 'update'])->whereNumber('airport')->name('airports.update');
+            Route::post('/airports/{airport}/deactivate', [AdminAirportController::class, 'deactivate'])->whereNumber('airport')->name('airports.deactivate');
+            Route::post('/airports/{airport}/activate', [AdminAirportController::class, 'activate'])->whereNumber('airport')->name('airports.activate');
+            Route::get('/airports/{airport}/weekly-schedules', [AdminAirportController::class, 'weeklyHistory'])->whereNumber('airport')->name('airports.weekly.index');
+            Route::put('/airports/{airport}/weekly-schedule', [AdminAirportController::class, 'saveWeekly'])->whereNumber('airport')->name('airports.weekly.save');
+            Route::get('/airports/{airport}/special-schedules', [AdminAirportController::class, 'specials'])->whereNumber('airport')->name('airports.specials.index');
+            Route::post('/airports/{airport}/special-schedules', [AdminAirportController::class, 'storeSpecial'])->whereNumber('airport')->name('airports.specials.store');
+            Route::put('/special-schedules/{special}', [AdminAirportController::class, 'updateSpecial'])->whereNumber('special')->name('specials.update');
+            Route::delete('/special-schedules/{special}', [AdminAirportController::class, 'destroySpecial'])->whereNumber('special')->name('specials.destroy');
 
             Route::get('/offices', [AdminOfficeController::class, 'index'])->name('offices.index');
             Route::post('/offices', [AdminOfficeController::class, 'store'])->name('offices.store');
@@ -203,6 +226,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::delete('/announcements/{announcement}', [AdminAnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
             Route::get('/reports/options', [AdminReportController::class, 'options'])->name('reports.options');
+            Route::post('/reports/preview', [AdminReportController::class, 'preview'])->name('reports.preview');
             Route::post('/reports/export', [AdminReportController::class, 'export'])->name('reports.export');
 
             Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');

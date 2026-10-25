@@ -19,13 +19,16 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Status absensi dihitung saat dibaca, jadi libur tanggal lampau langsung mengubah status tanpa proses hitung ulang.
+ * Libur berlaku untuk semua bandara. Status presensi dihitung saat dibaca, jadi libur tanggal lampau langsung
+ * mengubah status tanpa proses hitung ulang.
  */
 class AdminHolidays
 {
     public const DATE_TAKEN = 'Tanggal ini sudah menjadi hari libur.';
 
     public const PAST_DATE = 'Tanggal ini sudah lewat.';
+
+    public function __construct(private WorkSchedules $schedules) {}
 
     /**
      * @return Collection<int, Holiday>
@@ -91,13 +94,19 @@ class AdminHolidays
         });
     }
 
+    /**
+     * Intern dalam periode magang yang bandaranya bekerja pada tanggal itu menurut jadwal mingguan.
+     */
     public function affectedInterns(string $date): int
     {
         return InternProfile::query()
             ->whereDate('start_date', '<=', $date)
             ->whereDate('end_date', '>=', $date)
             ->whereHas('user', fn (Builder $q) => $q->where('role', Role::Intern))
-            ->count();
+            ->get(['airport_id'])
+            ->countBy('airport_id')
+            ->filter(fn (int $count, int $airportId): bool => $this->schedules->isRoutineWorkday($airportId, $date))
+            ->sum();
     }
 
     /**
@@ -158,7 +167,7 @@ class AdminHolidays
     private function log(User $admin, Holiday $holiday, string $detail, array $past): void
     {
         if ($past !== []) {
-            $detail .= " {$this->countAffected($past)} absensi dihitung ulang.";
+            $detail .= " {$this->countAffected($past)} presensi dihitung ulang.";
         }
 
         AuditLog::record($admin, AuditLog::ACTION_CALENDAR, IndonesianDate::withYear($holiday->date), $detail);

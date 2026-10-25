@@ -24,6 +24,7 @@ class CorrectionIndexRequest extends FormRequest
         return [
             'tab' => ['sometimes', 'nullable', Rule::in($tabs)],
             'intern_id' => ['sometimes', 'nullable', 'integer'],
+            'airport_id' => ['sometimes', 'nullable', 'integer'],
         ];
     }
 
@@ -35,12 +36,18 @@ class CorrectionIndexRequest extends FormRequest
         return [
             'tab.in' => 'Tab tidak valid.',
             'intern_id.integer' => 'Intern tidak valid.',
+            'airport_id.integer' => 'Bandara tidak valid.',
         ];
     }
 
     public function tab(): ?string
     {
         return $this->filled('tab') ? $this->string('tab')->value() : null;
+    }
+
+    public function airportId(): ?int
+    {
+        return $this->filled('airport_id') ? $this->integer('airport_id') : null;
     }
 
     public function internId(): ?int

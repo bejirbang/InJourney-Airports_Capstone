@@ -262,3 +262,15 @@ it('rejects interns and mentors from the admin leave pages', function (string $r
     adminLeaves($actor, 'GET', '/api/admin/leaves')->assertForbidden();
     adminLeaves($actor, 'POST', "/api/admin/leaves/{$this->overdue->id}/approve", ['note' => 'x'])->assertForbidden();
 })->with(['intern', 'mentor']);
+
+it('filters leaves by the global airport filter', function () {
+    $other = User::factory()->intern(['mentor_id' => $this->mentor->id])->create();
+    $mine = LeaveRequest::factory()->for($this->andi, 'intern')->approved()->create();
+    $theirs = LeaveRequest::factory()->for($other, 'intern')->approved()->create();
+
+    $ids = adminLeaves($this->admin, 'GET', "/api/admin/leaves?tab=all&airport_id={$this->andi->internProfile->airport_id}")
+        ->assertOk()
+        ->json('data.*.id');
+
+    expect($ids)->toContain($mine->id)->not->toContain($theirs->id);
+});

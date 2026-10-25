@@ -39,13 +39,13 @@ class AdminCorrections
      *
      * @return array{corrections: Collection<int, AttendanceCorrection>, counts: array{pending_admin: int, pending_mentor: int}}
      */
-    public function list(?string $tab, ?int $internId): array
+    public function list(?string $tab, ?int $internId, ?int $airportId = null): array
     {
         $tab ??= CorrectionStatus::PendingAdmin->value;
         $pending = $tab !== self::TAB_ALL;
         $orderColumn = $tab === CorrectionStatus::PendingAdmin->value ? 'mentor_decided_at' : 'created_at';
 
-        $corrections = $this->query()
+        $corrections = $this->query($airportId)
             ->with(['intern:id,name', 'mentor:id,name', 'admin:id,name'])
             ->when($pending, fn (Builder $q) => $q->where('status', $tab))
             ->when($internId !== null, fn (Builder $q) => $q->where('intern_id', $internId))
@@ -56,8 +56,8 @@ class AdminCorrections
         return [
             'corrections' => $corrections,
             'counts' => [
-                'pending_admin' => $this->query()->where('status', CorrectionStatus::PendingAdmin)->count(),
-                'pending_mentor' => $this->query()->where('status', CorrectionStatus::PendingMentor)->count(),
+                'pending_admin' => $this->query($airportId)->where('status', CorrectionStatus::PendingAdmin)->count(),
+                'pending_mentor' => $this->query($airportId)->where('status', CorrectionStatus::PendingMentor)->count(),
             ],
         ];
     }
@@ -222,8 +222,10 @@ class AdminCorrections
     /**
      * @return Builder<AttendanceCorrection>
      */
-    private function query(): Builder
+    private function query(?int $airportId = null): Builder
     {
-        return AttendanceCorrection::query()->whereHas('intern');
+        return AttendanceCorrection::query()
+            ->whereHas('intern')
+            ->when($airportId !== null, fn (Builder $q) => $q->whereHas('intern.internProfile', fn (Builder $p) => $p->where('airport_id', $airportId)));
     }
 }

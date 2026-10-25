@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Airport;
+use App\Models\AirportWeeklySchedule;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Holiday;
@@ -56,7 +58,7 @@ describe('kalender libur', function () {
             ->assertJsonPath('data.name', 'Cuti Bersama');
 
         expect(AuditLog::sole()->only(['action', 'detail']))->toBe([
-            'action' => 'Kalender dan jam kerja',
+            'action' => 'Kalender Libur',
             'detail' => 'Tambah libur "Cuti Bersama".',
         ]);
     })->with(['2026-10-16', '2026-10-12']);
@@ -90,7 +92,7 @@ describe('kalender libur', function () {
             ->and(dayStatus($budi, '2026-10-02'))->toBe('holiday')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '2 Okt 2026',
-                'detail' => 'Tambah libur "Libur Daerah". 2 absensi dihitung ulang.',
+                'detail' => 'Tambah libur "Libur Daerah". 2 presensi dihitung ulang.',
             ]);
     });
 
@@ -102,9 +104,22 @@ describe('kalender libur', function () {
             ->assertJsonValidationErrors(['date' => $message]);
     })->with([
         'tanpa tanggal' => [['date' => ''], 'Tanggal dan nama libur wajib diisi.'],
-        'sabtu' => [['date' => '2026-10-17'], 'Sabtu dan Minggu sudah libur otomatis.'],
         'sudah libur' => [['date' => '2026-10-16'], 'Tanggal ini sudah menjadi hari libur.'],
     ]);
+
+    it('accepts a weekend date, counting only interns whose airport works that day', function () {
+        $weekendAirport = Airport::factory()->create();
+        AirportWeeklySchedule::query()->where('airport_id', $weekendAirport->id)->where('day_of_week', 6)
+            ->update(['is_workday' => true, 'start_time' => '08:00:00', 'end_time' => '14:00:00']);
+        settingsIntern($this->mentor, 'Rina Wulandari');
+        settingsIntern($this->mentor, 'Budi Sabtu', ['airport_id' => $weekendAirport->id]);
+
+        settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-10', 'name' => 'Libur Daerah'])
+            ->assertUnprocessable()
+            ->assertJsonPath('affected', 1);
+
+        settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-17', 'name' => 'Libur Daerah'])->assertCreated();
+    });
 
     it('requires a name', function () {
         settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-15', 'name' => '  '])
@@ -139,7 +154,7 @@ describe('kalender libur', function () {
         expect(dayStatus($rina, '2026-10-02'))->toBe('absent')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '16 Okt 2026',
-                'detail' => 'Ubah libur "Libur Daerah" (sebelumnya 2 Okt 2026). 1 absensi dihitung ulang.',
+                'detail' => 'Ubah libur "Libur Daerah" (sebelumnya 2 Okt 2026). 1 presensi dihitung ulang.',
             ]);
     });
 
@@ -165,7 +180,7 @@ describe('kalender libur', function () {
             ->and(dayStatus($rina, '2026-10-02'))->toBe('absent')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '2 Okt 2026',
-                'detail' => 'Hapus libur "Libur Daerah". 1 absensi dihitung ulang.',
+                'detail' => 'Hapus libur "Libur Daerah". 1 presensi dihitung ulang.',
             ]);
     });
 

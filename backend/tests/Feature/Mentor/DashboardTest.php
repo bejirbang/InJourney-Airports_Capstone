@@ -2,10 +2,15 @@
 
 use App\Enums\LeaveType;
 use App\Enums\RequestStatus;
+use App\Models\Airport;
+use App\Models\AirportWeeklySchedule;
 use App\Models\Announcement;
 use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
+use App\Models\FinalPresentation;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\Logbook;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
@@ -18,6 +23,8 @@ beforeEach(function () {
 
 function mentorDashboard(User $mentor): TestResponse
 {
+    app('auth')->forgetGuards();
+
     return test()->getJson('/api/mentor/dashboard', [
         'Authorization' => 'Bearer '.$mentor->createToken('api')->plainTextToken,
     ]);
@@ -39,8 +46,11 @@ it('tells the frontend when the mentor has no interns yet', function () {
         ->assertJsonPath('data.date', '2026-10-12')
         ->assertJsonPath('data.holiday', null)
         ->assertJsonPath('data.interns_total', 0)
-        ->assertJsonPath('data.today', ['interns' => 0, 'clocked_in' => 0, 'on_leave' => 0, 'not_clocked_in' => 0])
+        ->assertJsonPath('data.today', ['interns' => 0, 'clocked_in' => 0, 'late' => 0, 'on_leave' => 0, 'not_clocked_in' => 0, 'rows' => []])
+        ->assertJsonPath('data.pending_logbooks', ['total' => 0, 'items' => []])
+        ->assertJsonPath('data.pending_corrections', ['total' => 0, 'items' => []])
         ->assertJsonPath('data.pending_leaves', ['total' => 0, 'items' => []])
+        ->assertJsonPath('data.ready_to_assess', ['total' => 0, 'items' => []])
         ->assertJsonMissingPath('data.review_tasks')
         ->assertJsonMissingPath('data.late_tasks');
 });
@@ -52,7 +62,7 @@ it('counts today per intern: clocked in, on leave, and not clocked in yet', func
     $budi = menteeOf($this->mentor, 'Budi Kurnia');
     $doni = menteeOf($this->mentor, 'Doni Andika');
 
-    Attendance::factory()->for($andi, 'intern')->create(['clock_out_at' => null]);
+    Attendance::factory()->for($andi, 'intern')->create(['clock_out_at' => null, 'clock_in_at' => '08:25:00']);
     Attendance::factory()->for($rina, 'intern')->create();
     LeaveRequest::factory()->for($dewi, 'intern')->approved()->create();
     Attendance::factory()->for($budi, 'intern')->create();
@@ -62,7 +72,20 @@ it('counts today per intern: clocked in, on leave, and not clocked in yet', func
     mentorDashboard($this->mentor)
         ->assertOk()
         ->assertJsonPath('data.interns_total', 5)
-        ->assertJsonPath('data.today', ['interns' => 5, 'clocked_in' => 3, 'on_leave' => 1, 'not_clocked_in' => 1]);
+        ->assertJsonPath('data.today.interns', 5)
+        ->assertJsonPath('data.today.clocked_in', 3)
+        ->assertJsonPath('data.today.late', 1)
+        ->assertJsonPath('data.today.on_leave', 1)
+        ->assertJsonPath('data.today.not_clocked_in', 1)
+        ->assertJsonPath('data.today.rows.0', [
+            'intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'],
+            'status' => 'late',
+            'clock_in_at' => '08:25',
+            'late_minutes' => 25,
+            'missed_clock_out' => false,
+            'leave_type' => null,
+        ])
+        ->assertJsonPath('data.today.rows.*.status', ['late', 'present', 'leave', 'not_clocked_in', 'present']);
 });
 
 it('leaves inactive, not yet started, ended, and other mentors\' interns out of the today card', function () {
@@ -145,6 +168,46 @@ it('lists pending leaves of current interns, longest pending first, with an over
         ->assertJsonPath('data.pending_leaves.items.1.is_overdue', false)
         ->assertJsonPath('data.pending_leaves.items.2.id', $recent->id)
         ->assertJsonPath('data.pending_leaves.items.2.pending_hours', 14);
+});
+
+it('lists logbooks waiting for review, corrections waiting for the mentor, and interns ready to assess', function () {
+    $andi = menteeOf($this->mentor, 'Andi Pratama');
+    $rina = menteeOf($this->mentor, 'Rina Wulandari');
+    $logbook = Logbook::factory()->pendingReview()->for(Attendance::factory()->for($andi, 'intern')->create(['date' => '2026-10-09']))->create(['work' => 'Menyusun ERD.']);
+    $correction = AttendanceCorrection::factory()->for($andi, 'intern')->create(['mentor_id' => $this->mentor->id, 'date' => '2026-10-07', 'reason' => 'Lupa clock out.']);
+    AttendanceCorrection::factory()->for($andi, 'intern')->pendingAdmin()->create(['mentor_id' => $this->mentor->id, 'date' => '2026-10-06']);
+    FinalPresentation::factory()->approved()->create(['intern_id' => $rina->id]);
+
+    mentorDashboard($this->mentor)
+        ->assertJsonPath('data.pending_logbooks', ['total' => 1, 'items' => [[
+            'id' => $logbook->id,
+            'intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'],
+            'date' => '2026-10-09',
+            'work' => 'Menyusun ERD.',
+            'is_corrected' => false,
+        ]]])
+        ->assertJsonPath('data.pending_corrections.total', 1)
+        ->assertJsonPath('data.pending_corrections.items.0.id', $correction->id)
+        ->assertJsonPath('data.pending_corrections.items.0.reason', 'Lupa clock out.')
+        ->assertJsonPath('data.ready_to_assess', ['total' => 1, 'items' => [[
+            'intern' => ['id' => $rina->id, 'name' => 'Rina Wulandari', 'short_name' => 'Rina W.'],
+            'end_date' => '2026-12-31',
+            'status' => 'ready',
+        ]]]);
+});
+
+it('follows the schedule of each intern airport', function () {
+    $saturday = Airport::factory()->create();
+    AirportWeeklySchedule::query()->where('airport_id', $saturday->id)->where('day_of_week', 6)
+        ->update(['is_workday' => true, 'start_time' => '08:00:00', 'end_time' => '12:00:00']);
+    $this->travelTo(Carbon::parse('2026-10-17 09:00:00'));
+    menteeOf($this->mentor, 'Andi Pratama');
+    $rina = menteeOf($this->mentor, 'Rina Wulandari', ['airport_id' => $saturday->id]);
+
+    mentorDashboard($this->mentor)
+        ->assertJsonPath('data.holiday', null)
+        ->assertJsonPath('data.today.interns', 1)
+        ->assertJsonPath('data.today.rows.*.intern.id', [$rina->id]);
 });
 
 it('shows the three latest announcements for mentors', function () {

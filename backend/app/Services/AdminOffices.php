@@ -22,9 +22,14 @@ class AdminOffices
     /**
      * @return Collection<int, Office>
      */
-    public function all(): Collection
+    public function all(?int $airportId = null): Collection
     {
-        return Office::query()->with('airport:id,name')->orderBy('name')->orderBy('id')->get();
+        return Office::query()
+            ->with('airport:id,name')
+            ->when($airportId !== null, fn ($q) => $q->where('airport_id', $airportId))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
     }
 
     /**

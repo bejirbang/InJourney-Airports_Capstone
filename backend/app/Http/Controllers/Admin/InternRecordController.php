@@ -28,6 +28,14 @@ class InternRecordController extends Controller
         return response()->json(['data' => $history->day(self::intern($user), $date, Date::now())]);
     }
 
+    /**
+     * Tab Logbook hanya baca; review adalah hak mentor.
+     */
+    public function logbooks(AttendanceHistoryRequest $request, User $user, AttendanceHistory $history): JsonResponse
+    {
+        return response()->json(['data' => $history->logbooks(self::intern($user), $request->month(), Date::now())]);
+    }
+
     public function leaves(User $user, AdminUsers $users): JsonResponse
     {
         return response()->json(['data' => $users->leaves(self::intern($user))]);

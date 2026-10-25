@@ -218,3 +218,14 @@ it('rejects interns and mentors', function (string $role) {
     adminCorrections($actor, 'GET', '/api/admin/corrections')->assertForbidden();
     adminCorrections($actor, 'POST', "/api/admin/corrections/{$correction->id}/approve", ['note' => 'Oke.'])->assertForbidden();
 })->with(['intern', 'mentor']);
+
+it('filters the list and the tab counts by the global airport filter', function () {
+    $other = User::factory()->intern(['mentor_id' => $this->mentor->id])->create();
+    $mine = forwarded($this->nabila, '2026-10-06');
+    forwarded($other, '2026-10-06');
+
+    adminCorrections($this->admin, 'GET', "/api/admin/corrections?airport_id={$this->nabila->internProfile->airport_id}")
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$mine->id])
+        ->assertJsonPath('meta.pending_admin', 1);
+});

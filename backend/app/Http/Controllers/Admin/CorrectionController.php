@@ -18,7 +18,7 @@ class CorrectionController extends Controller
 
     public function index(CorrectionIndexRequest $request): JsonResponse
     {
-        $result = $this->corrections->list($request->tab(), $request->internId());
+        $result = $this->corrections->list($request->tab(), $request->internId(), $request->airportId());
 
         return response()->json([
             'data' => AttendanceCorrectionResource::collection($result['corrections']),

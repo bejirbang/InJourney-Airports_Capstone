@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
+use App\Support\DaySchedule;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
@@ -15,6 +16,7 @@ use Illuminate\Support\Carbon;
  * Status presensi dihitung saat dibaca dengan batas hari 23:59, tidak disimpan.
  *
  * @phpstan-type CalendarDay array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, missed_clock_out: bool, is_corrected: bool, holiday_name: string|null, leave: LeaveRequest|null}
+ * @phpstan-type StatusDay array{intern: User, status: AttendanceStatus, attendance: Attendance|null, leave: LeaveRequest|null, missed_clock_out: bool, schedule: DaySchedule}
  * @phpstan-type Recap array{month: string, present: int, late: int, missed_clock_in: int, leave: int, absent: int, missed_clock_out: int, corrected: int, working_days: int}
  */
 class AttendanceCalendar
@@ -88,6 +90,77 @@ class AttendanceCalendar
         }
 
         return $days;
+    }
+
+    /**
+     * Status satu tanggal untuk banyak intern sekaligus, masing-masing dengan jadwal bandaranya. Intern di luar
+     * periode magang pada tanggal itu dilewati.
+     *
+     * @param  iterable<User>  $interns  dengan `internProfile`
+     * @return array<int, StatusDay>
+     */
+    public function statusesOn(iterable $interns, string $date, CarbonInterface $now): array
+    {
+        $inPeriod = [];
+
+        foreach ($interns as $intern) {
+            $profile = $intern->internProfile;
+
+            if ($profile !== null && $profile->start_date->toDateString() <= $date && $date <= $profile->end_date->toDateString()) {
+                $inPeriod[$intern->id] = $intern;
+            }
+        }
+
+        if ($inPeriod === []) {
+            return [];
+        }
+
+        $ids = array_keys($inPeriod);
+        $attendances = Attendance::query()->whereIn('intern_id', $ids)->whereDate('date', $date)->get()->keyBy('intern_id');
+        $leaves = LeaveRequest::query()->whereIn('intern_id', $ids)->approvedBetween($date, $date)->get()->keyBy('intern_id');
+        $today = $now->toDateString();
+        $schedules = [];
+        $days = [];
+
+        foreach ($inPeriod as $id => $intern) {
+            $airportId = (int) $intern->internProfile?->airport_id;
+            $schedule = $schedules[$airportId] ??= $this->schedules->forDate($airportId, $date);
+            $attendance = $attendances->get($id);
+            $leave = $leaves->get($id);
+            $status = self::status($date, $attendance, ! $schedule->isWorkday, $leave !== null, $today);
+
+            $days[$id] = [
+                'intern' => $intern,
+                'status' => $status,
+                'attendance' => $status->isAttended() ? $attendance : null,
+                'leave' => $status === AttendanceStatus::Leave ? $leave : null,
+                'missed_clock_out' => $status->isAttended() && $attendance !== null && $attendance->missedClockOut($today),
+                'schedule' => $schedule,
+            ];
+        }
+
+        return $days;
+    }
+
+    /**
+     * Baris nama di kartu Dashboard (klik kotak untuk melihat nama).
+     *
+     * @param  StatusDay  $day
+     * @return array<string, mixed>
+     */
+    public static function dayRow(array $day): array
+    {
+        $intern = $day['intern'];
+        $attendance = $day['attendance'];
+
+        return [
+            'intern' => ['id' => $intern->id, 'name' => $intern->name, 'short_name' => $intern->shortName()],
+            'status' => $day['status']->value,
+            'clock_in_at' => self::time($attendance?->clock_in_at),
+            'late_minutes' => $day['status'] === AttendanceStatus::Late ? $attendance?->lateMinutes() : null,
+            'missed_clock_out' => $day['missed_clock_out'],
+            'leave_type' => $day['leave']?->type->value,
+        ];
     }
 
     /**

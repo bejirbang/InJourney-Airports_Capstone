@@ -67,7 +67,7 @@ it('adds an active office and logs it', function () {
 
     expect(AuditLog::sole()->only(['admin_name', 'action', 'object', 'detail']))->toBe([
         'admin_name' => 'Sinta Admin',
-        'action' => 'Lokasi kantor',
+        'action' => 'Lokasi & Jadwal',
         'object' => 'Kantor Cabang Terminal 1',
         'detail' => 'Tambah kantor di -6.1275, 106.6537, radius 150 m / 150 m.',
     ]);

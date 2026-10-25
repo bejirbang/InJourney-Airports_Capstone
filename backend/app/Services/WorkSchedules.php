@@ -89,6 +89,19 @@ class WorkSchedules
         });
     }
 
+    /**
+     * Hari kerja menurut jadwal mingguan saja, tanpa melihat kalender libur (untuk menghitung dampak libur).
+     */
+    public function isRoutineWorkday(int $airportId, string $date): bool
+    {
+        return AirportWeeklySchedule::query()
+            ->where('airport_id', $airportId)
+            ->where('day_of_week', Carbon::parse($date)->isoWeekday())
+            ->whereDate('effective_from', '<=', $date)
+            ->orderByDesc('effective_from')
+            ->value('is_workday') === true;
+    }
+
     public function workingDays(User $intern, string $from, string $to): int
     {
         return count(array_filter(

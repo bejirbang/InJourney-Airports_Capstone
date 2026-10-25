@@ -16,9 +16,9 @@ class OfficeController extends Controller
 {
     public function __construct(private AdminOffices $offices) {}
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $offices = $this->offices->all();
+        $offices = $this->offices->all($request->filled('airport_id') ? $request->integer('airport_id') : null);
 
         return response()->json([
             'data' => AdminOfficeResource::collection($offices),

@@ -17,7 +17,7 @@ class AdminLeaves
      * Tab "pending" hanya berisi izin yang menunggu lebih dari batas eskalasi, karena hanya itu yang
      * diputuskan admin. "Kuota habis" menyaring intern yang sudah memakai seluruh kuotanya.
      *
-     * @param  array{tab?: string|null, type?: string|null, intern_id?: int|null, quota_exhausted?: bool}  $filters
+     * @param  array{tab?: string|null, type?: string|null, intern_id?: int|null, airport_id?: int|null, quota_exhausted?: bool}  $filters
      * @return array{leaves: Collection<int, LeaveRequest>, pending_count: int}
      */
     public function list(array $filters, CarbonInterface $now): array
@@ -25,6 +25,7 @@ class AdminLeaves
         $hours = $this->settings->leaveEscalationHours();
         $base = LeaveRequest::query()
             ->whereHas('intern')
+            ->when($filters['airport_id'] ?? null, fn (Builder $q, int $id) => $q->whereHas('intern.internProfile', fn (Builder $p) => $p->where('airport_id', $id)))
             ->when($filters['quota_exhausted'] ?? false, fn (Builder $q) => $q->whereIn('intern_id', $this->quotas->exhaustedInternIds()));
 
         $leaves = $base->clone()

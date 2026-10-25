@@ -3,6 +3,7 @@
 use App\Models\Attendance;
 use App\Models\LeaveRequest;
 use App\Models\Logbook;
+use App\Models\LogbookReview;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
@@ -28,20 +29,24 @@ function presentOn(User $intern, string $date, bool $report = true, ?string $out
     $attendance = Attendance::factory()->for($intern, 'intern')->create(['date' => $date, 'clock_in_at' => '08:10:00', 'clock_out_at' => $out]);
 
     if ($report) {
-        Logbook::factory()->for($attendance)->create();
+        Logbook::factory()->approved()->for($attendance)->create();
     }
 }
 
 function performance(User $mentor, string $query = ''): TestResponse
 {
+    app('auth')->forgetGuards();
+
     return test()->getJson('/api/mentor/performance'.$query, ['Authorization' => 'Bearer '.$mentor->createToken('api')->plainTextToken]);
 }
 
-it('computes the monthly recap and KPI per intern with the prototype formulas', function () {
+it('computes the monthly recap, the KPI, and the dates behind each number', function () {
     $andi = performanceIntern($this->mentor, 'Andi Pratama');
     foreach (['2026-10-01', '2026-10-02', '2026-10-05'] as $date) {
         presentOn($andi, $date);
     }
+    $revised = Logbook::query()->whereHas('attendance', fn ($q) => $q->whereDate('date', '2026-10-02'))->sole();
+    LogbookReview::factory()->create(['logbook_id' => $revised->id, 'mentor_id' => $this->mentor->id, 'action' => 'revision', 'comment' => 'Lengkapi.']);
     presentOn($andi, '2026-10-06', report: false);
     LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
     presentOn($andi, '2026-10-08', out: null);
@@ -54,15 +59,28 @@ it('computes the monthly recap and KPI per intern with the prototype formulas', 
         ->assertJsonPath('data.interns.0', [
             'intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'],
             'is_active' => true,
-            'recap' => ['present' => 5, 'late' => 0, 'missed_clock_in' => 0, 'leave' => 1, 'absent' => 1, 'missed_clock_out' => 1, 'working_days' => 7],
+            'recap' => ['present' => 5, 'late' => 0, 'missed_clock_in' => 0, 'missed_clock_out' => 1, 'leave' => 1, 'absent' => 1, 'working_days' => 7],
             'kpi' => [
                 'enough_data' => true,
                 // 5 / (7 - 1); hari Lupa Clock Out tetap terhitung hadir.
                 'attendance_rate' => 83,
-                'daily_report_rate' => 80,
+                'on_time_rate' => 100,
+                // 4 dari 5 hari berpresensi; 6 Okt tanpa logbook.
+                'logbook_approved_rate' => 80,
+                'logbook_revisions' => 1,
+            ],
+            'dates' => [
+                'present' => ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06', '2026-10-08'],
+                'late' => [],
+                'missed_clock_in' => [],
+                'missed_clock_out' => ['2026-10-08'],
+                'leave' => ['2026-10-07'],
+                'absent' => ['2026-10-09'],
+                'logbook_not_approved' => ['2026-10-06'],
+                'logbook_revisions' => ['2026-10-02'],
             ],
         ])
-        ->assertJsonPath('data.summary', ['attendance_rate' => 83, 'daily_report_rate' => 80]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => 83, 'on_time_rate' => 100, 'logbook_approved_rate' => 80]);
 });
 
 it('marks interns with less than five working days as not enough data and leaves them out of the summary', function () {
@@ -75,7 +93,7 @@ it('marks interns with less than five working days as not enough data and leaves
 
     $response = performance($this->mentor)
         ->assertOk()
-        ->assertJsonPath('data.summary', ['attendance_rate' => 100, 'daily_report_rate' => 100]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => 100, 'on_time_rate' => 100, 'logbook_approved_rate' => 100]);
 
     $rows = collect($response->json('data.interns'))->keyBy('intern.name');
     expect($rows['Rina Wulandari']['kpi']['enough_data'])->toBeFalse()
@@ -114,7 +132,7 @@ it('returns an empty page for a mentor without interns', function () {
         ->assertJsonPath('data.interns_total', 0)
         ->assertJsonPath('data.selectable_months', null)
         ->assertJsonPath('data.interns', [])
-        ->assertJsonPath('data.summary', ['attendance_rate' => null, 'daily_report_rate' => null]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => null, 'on_time_rate' => null, 'logbook_approved_rate' => null]);
 });
 
 it('counts late and missed clock in days as attended', function () {
@@ -126,7 +144,9 @@ it('counts late and missed clock in days as attended', function () {
 
     expect($row['recap'])->toMatchArray(['present' => 0, 'late' => 1, 'missed_clock_in' => 1, 'absent' => 5])
         // 2 hadir dari 7 hari kerja.
-        ->and($row['kpi']['attendance_rate'])->toBe(29);
+        ->and($row['kpi']['attendance_rate'])->toBe(29)
+        // Lupa Clock In tidak dihitung di Tepat waktu karena tidak ada jam masuk.
+        ->and($row['kpi']['on_time_rate'])->toBe(0);
 });
 
 it('rejects an invalid month and other roles', function () {

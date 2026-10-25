@@ -1,13 +1,16 @@
 <?php
 
+use App\Enums\CorrectionStatus;
 use App\Enums\LeaveType;
 use App\Enums\TodayState;
 use App\Models\Announcement;
 use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Logbook;
 use App\Models\User;
+use App\Models\Warning;
 use App\Services\AttendanceCalendar;
 use Illuminate\Support\Carbon;
 
@@ -229,4 +232,22 @@ it('rejects an intern who has not changed the temporary password', function () {
 
 it('rejects requests without a token', function () {
     $this->getJson('/api/intern/dashboard')->assertUnauthorized();
+});
+
+it('lists new warnings and recently decided corrections and leaves under action needed', function () {
+    Warning::factory()->create(['intern_id' => $this->intern->id, 'created_at' => '2026-10-10 09:00:00']);
+    Warning::factory()->create(['intern_id' => $this->intern->id, 'created_at' => '2026-09-30 09:00:00']);
+    $correction = AttendanceCorrection::factory()->for($this->intern, 'intern')
+        ->decidedByAdmin(CorrectionStatus::Approved, User::factory()->admin()->create())->create(['date' => '2026-10-06', 'admin_decided_at' => '2026-10-11 10:00:00']);
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->pendingAdmin()->create(['date' => '2026-10-07']);
+    $leave = LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => '2026-10-13', 'end_date' => '2026-10-13', 'decided_at' => '2026-10-12 08:00:00']);
+    LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => '2026-09-21', 'end_date' => '2026-09-21', 'decided_at' => '2026-09-20 08:00:00']);
+
+    dashboardFor($this->intern)
+        ->assertOk()
+        ->assertJsonCount(1, 'data.action_needed.warnings')
+        ->assertJsonPath('data.action_needed.corrections', [[
+            'id' => $correction->id, 'date' => '2026-10-06', 'status' => 'approved', 'decided_at' => '2026-10-11T10:00:00+07:00',
+        ]])
+        ->assertJsonPath('data.action_needed.leaves.*.id', [$leave->id]);
 });

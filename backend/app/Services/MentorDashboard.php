@@ -2,23 +2,33 @@
 
 namespace App\Services;
 
+use App\Enums\CorrectionStatus;
 use App\Enums\RequestStatus;
 use App\Models\Announcement;
-use App\Models\Attendance;
-use App\Models\Holiday;
+use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
+use App\Models\Logbook;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Dashboard mentor: kartu presensi intern bimbingan hari ini dan antrean tindakan (logbook, koreksi, izin, siap
+ * dinilai). Setiap kotak maksimal lima baris; kotak kosong disembunyikan frontend.
+ */
 class MentorDashboard
 {
     public const LIST_LIMIT = 5;
 
     public const ANNOUNCEMENT_LIMIT = 3;
 
-    public function __construct(private AccountAccess $access, private SystemSettings $settings) {}
+    public function __construct(
+        private AccountAccess $access,
+        private SystemSettings $settings,
+        private DashboardCards $cards,
+        private MentorLogbooks $logbooks,
+        private Assessments $assessments,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -31,51 +41,59 @@ class MentorDashboard
             ->orderBy('name')
             ->get();
 
-        $date = $now->toDateString();
-        $holidayName = Holiday::query()->whereDate('date', $date)->value('name');
-        $isHoliday = $holidayName !== null || $now->isWeekend();
+        $active = $interns->filter(fn (User $intern): bool => $this->access->denialReason($intern, $now) === null);
+        $today = $this->cards->today($active, $now);
 
         return [
-            'date' => $date,
-            'holiday' => $isHoliday ? ['name' => $holidayName] : null,
+            'date' => $now->toDateString(),
             'interns_total' => $interns->count(),
-            'today' => $isHoliday ? null : $this->today($interns, $now),
+            'holiday' => $today['holiday'],
+            'today' => $today['card'],
+            'pending_logbooks' => $this->pendingLogbooks($mentor),
+            'pending_corrections' => $this->pendingCorrections($mentor),
             'pending_leaves' => $this->pendingLeaves($mentor, $now),
+            'ready_to_assess' => $this->readyToAssess($mentor),
             'announcements' => $this->announcements(),
         ];
     }
 
     /**
-     * @param  Collection<int, User>  $interns
-     * @return array{interns: int, clocked_in: int, on_leave: int, not_clocked_in: int}
+     * @return array{total: int, items: list<array<string, mixed>>}
      */
-    private function today(Collection $interns, CarbonInterface $now): array
+    private function pendingLogbooks(User $mentor): array
     {
-        $ids = $interns
-            ->filter(fn (User $intern): bool => $this->access->denialReason($intern, $now) === null)
-            ->pluck('id');
-
-        $date = $now->toDateString();
-
-        $clockedIn = Attendance::query()
-            ->whereIn('intern_id', $ids)
-            ->whereDate('date', $date)
-            ->pluck('intern_id')
-            ->unique();
-
-        // Hari yang sudah clock in tetap dihitung Sudah Clock In walau ada izin disetujui.
-        $onLeave = LeaveRequest::query()
-            ->whereIn('intern_id', $ids->diff($clockedIn))
-            ->approvedBetween($date, $date)
-            ->pluck('intern_id')
-            ->unique();
+        $result = $this->logbooks->list($mentor, MentorLogbooks::TAB_PENDING, null);
 
         return [
-            'interns' => $ids->count(),
-            'clocked_in' => $clockedIn->count(),
-            'on_leave' => $onLeave->count(),
-            'not_clocked_in' => $ids->count() - $clockedIn->count() - $onLeave->count(),
+            'total' => $result['counts']['pending_review'],
+            'items' => array_values($result['logbooks']->take(self::LIST_LIMIT)->map(fn (Logbook $logbook): array => [
+                'id' => $logbook->id,
+                'intern' => $this->person($logbook->attendance->intern),
+                'date' => $logbook->attendance->date->toDateString(),
+                'work' => $logbook->work,
+                'is_corrected' => $logbook->attendance->is_corrected,
+            ])->all()),
         ];
+    }
+
+    /**
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    private function pendingCorrections(User $mentor): array
+    {
+        $query = AttendanceCorrection::query()
+            ->where('mentor_id', $mentor->id)
+            ->where('status', CorrectionStatus::PendingMentor)
+            ->whereHas('intern');
+
+        return $this->box($query, $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id'), fn (AttendanceCorrection $correction): array => [
+            'id' => $correction->id,
+            'intern' => $this->person($correction->intern),
+            'date' => $correction->date->toDateString(),
+            'recorded_status' => $correction->recorded_status->value,
+            'recorded_missed_clock_out' => $correction->recorded_missed_clock_out,
+            'reason' => $correction->reason,
+        ]);
     }
 
     /**
@@ -87,9 +105,7 @@ class MentorDashboard
             ->where('status', RequestStatus::Pending)
             ->whereHas('intern.internProfile', fn (Builder $q) => $q->where('mentor_id', $mentor->id));
 
-        $ordered = $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id');
-
-        return $this->box($query, $ordered, fn (LeaveRequest $leave): array => [
+        return $this->box($query, $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id'), fn (LeaveRequest $leave): array => [
             'id' => $leave->id,
             'intern' => $this->person($leave->intern),
             'type' => $leave->type->value,
@@ -99,6 +115,25 @@ class MentorDashboard
             'pending_hours' => $leave->pendingHours($now),
             'is_overdue' => $leave->isOverduePending($now, $this->settings->leaveEscalationHours()),
         ]);
+    }
+
+    /**
+     * Intern yang bisa dinilai sekarang (presentasi disetujui, semua logbook disetujui, belum disubmit).
+     *
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    private function readyToAssess(User $mentor): array
+    {
+        $ready = array_values(array_filter($this->assessments->mentorList($mentor), fn (array $row): bool => $row['can_assess']));
+
+        return [
+            'total' => count($ready),
+            'items' => array_map(fn (array $row): array => [
+                'intern' => $row['intern'],
+                'end_date' => $row['end_date'],
+                'status' => $row['status'],
+            ], array_slice($ready, 0, self::LIST_LIMIT)),
+        ];
     }
 
     /**
@@ -117,9 +152,7 @@ class MentorDashboard
             return ['total' => 0, 'items' => []];
         }
 
-        $items = array_values($ordered->with('intern:id,name')->limit(self::LIST_LIMIT)->get()->map($row)->all());
-
-        return ['total' => $total, 'items' => $items];
+        return ['total' => $total, 'items' => array_values($ordered->limit(self::LIST_LIMIT)->get()->map($row)->all())];
     }
 
     /**

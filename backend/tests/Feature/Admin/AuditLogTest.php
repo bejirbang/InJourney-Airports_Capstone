@@ -51,7 +51,7 @@ it('filters by date, admin, and action type', function (string $query, Closure $
 })->with([
     'tanggal' => ['?from=2026-10-10&to=2026-10-10', fn () => [test()->correction->id, test()->holiday->id]],
     'admin' => [fn () => '?admin_id='.test()->dedi->id, fn () => [test()->reset->id]],
-    'jenis aksi' => ['?action=Kalender dan jam kerja', fn () => [test()->holiday->id]],
+    'jenis aksi' => ['?action=Kalender Libur', fn () => [test()->holiday->id]],
 ]);
 
 it('keeps the name used at the time of the action', function () {
@@ -94,7 +94,7 @@ it('offers the admins found in the log and every action type', function () {
                 ['id' => $this->dedi->id, 'name' => 'Dedi Admin'],
                 ['id' => $this->sinta->id, 'name' => 'Sinta Admin'],
             ],
-            'actions' => ['Akun', 'Absensi', 'Koreksi Presensi', 'Izin', 'Presentasi', 'Kalender dan jam kerja', 'Lokasi kantor', 'Unit', 'Warning', 'Pengumuman', 'Laporan'],
+            'actions' => ['Akun', 'Presensi', 'Koreksi Presensi', 'Izin', 'Presentasi', 'Lokasi & Jadwal', 'Kalender Libur', 'Pengaturan Umum', 'Unit', 'Warning', 'Pengumuman', 'Laporan'],
         ]]);
 });
 

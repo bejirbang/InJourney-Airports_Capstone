@@ -23,6 +23,7 @@ class LeaveController extends Controller
             'tab' => $request->input('tab'),
             'type' => $request->input('type'),
             'intern_id' => $request->filled('intern_id') ? $request->integer('intern_id') : null,
+            'airport_id' => $request->filled('airport_id') ? $request->integer('airport_id') : null,
             'quota_exhausted' => $request->boolean('quota_exhausted'),
         ], Date::now());
 
