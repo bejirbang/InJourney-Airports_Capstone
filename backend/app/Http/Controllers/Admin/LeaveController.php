@@ -23,7 +23,8 @@ class LeaveController extends Controller
             'tab' => $request->input('tab'),
             'type' => $request->input('type'),
             'intern_id' => $request->filled('intern_id') ? $request->integer('intern_id') : null,
-        ]);
+            'quota_exhausted' => $request->boolean('quota_exhausted'),
+        ], Date::now());
 
         return response()->json([
             'data' => AdminLeaveResource::collection($result['leaves']),

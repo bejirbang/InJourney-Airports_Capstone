@@ -25,6 +25,7 @@ class MentorInterns
         private AttendanceCalendar $calendar,
         private AttendanceHistory $history,
         private WorkSchedules $schedules,
+        private LeaveQuotas $quotas,
     ) {}
 
     public function relation(User $mentor, User $intern): ?string
@@ -88,6 +89,7 @@ class MentorInterns
             'email' => $intern->email,
             'phone' => $intern->phone,
             'current_mentor' => $currentMentor === null ? null : ['id' => $currentMentor->id, 'name' => $currentMentor->name],
+            'leave_quota' => $this->quotas->summary($intern),
             'selectable_months' => $this->history->selectableMonths($intern, $now),
         ];
     }

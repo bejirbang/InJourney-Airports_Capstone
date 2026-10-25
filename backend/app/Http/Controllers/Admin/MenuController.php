@@ -6,6 +6,7 @@ use App\Enums\CorrectionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
+use App\Services\SystemSettings;
 use Illuminate\Http\JsonResponse;
 
 class MenuController extends Controller
@@ -24,11 +25,11 @@ class MenuController extends Controller
         ['key' => 'audit_log', 'path' => '/admin/audit-log'],
     ];
 
-    public function __invoke(): JsonResponse
+    public function __invoke(SystemSettings $settings): JsonResponse
     {
         $badges = [
             'corrections' => AttendanceCorrection::query()->where('status', CorrectionStatus::PendingAdmin)->whereHas('intern')->count(),
-            'leaves' => LeaveRequest::query()->overduePending(now())->whereHas('intern')->count(),
+            'leaves' => LeaveRequest::query()->overduePending(now(), $settings->leaveEscalationHours())->whereHas('intern')->count(),
         ];
 
         $menu = array_map(

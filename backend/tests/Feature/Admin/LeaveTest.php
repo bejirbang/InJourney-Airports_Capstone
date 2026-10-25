@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\SystemSettings;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -38,14 +39,14 @@ function approveLeave(LeaveRequest $leave, array $data = []): TestResponse
 }
 
 describe('daftar dan detail', function () {
-    it('lists pending leaves of every intern with mentor, overdue mark, and decision buttons', function () {
+    it('lists only leaves pending past the escalation limit, with mentor and decision buttons', function () {
         $dewi = User::factory()->intern()->create(['name' => 'Dewi Sartika']);
         $fresh = LeaveRequest::factory()->for($dewi, 'intern')->create(['type' => LeaveType::Urgent, 'created_at' => '2026-10-12 08:00:00']);
         LeaveRequest::factory()->for($dewi, 'intern')->approved()->create(['created_at' => '2026-10-01 08:00:00']);
 
         adminLeaves($this->admin, 'GET', '/api/admin/leaves')
             ->assertOk()
-            ->assertJsonPath('data.*.id', [$this->overdue->id, $fresh->id])
+            ->assertJsonPath('data.*.id', [$this->overdue->id])
             ->assertJsonPath('data.0.intern.short_name', 'Andi P.')
             ->assertJsonPath('data.0.mentor', ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'])
             ->assertJsonPath('data.0.working_days', 2)
@@ -54,22 +55,47 @@ describe('daftar dan detail', function () {
             ->assertJsonPath('data.0.is_overdue', true)
             ->assertJsonPath('data.0.can_decide', true)
             ->assertJsonPath('data.0.can_approve', true)
-            ->assertJsonPath('data.1.is_overdue', false)
-            ->assertJsonPath('data.1.can_decide', true)
-            ->assertJsonPath('data.1.can_approve', false)
-            ->assertJsonPath('meta.pending_count', 2)
+            ->assertJsonPath('meta.pending_count', 1)
             ->assertJsonPath('meta.interns.*.name', ['Andi Pratama', 'Dewi Sartika']);
 
-        adminLeaves($this->admin, 'GET', '/api/admin/leaves?tab=all')->assertJsonCount(3, 'data');
+        // Izin yang belum lewat batas tampil di tab Semua, hanya baca untuk admin.
+        adminLeaves($this->admin, 'GET', '/api/admin/leaves?tab=all')
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.1.id', $fresh->id)
+            ->assertJsonPath('data.1.is_overdue', false)
+            ->assertJsonPath('data.1.can_decide', false)
+            ->assertJsonPath('data.1.can_approve', false);
         adminLeaves($this->admin, 'GET', '/api/admin/leaves?tab=all&type=urgent')->assertJsonPath('data.*.id', [$fresh->id]);
         adminLeaves($this->admin, 'GET', "/api/admin/leaves?tab=all&intern_id={$this->andi->id}")->assertJsonPath('data.*.id', [$this->overdue->id]);
     });
 
-    it('shows the detail with reason and evidence link', function () {
+    it('shows the detail with reason, evidence link, and the quota used', function () {
         adminLeaves($this->admin, 'GET', "/api/admin/leaves/{$this->overdue->id}")
             ->assertOk()
             ->assertJsonPath('data.reason', 'Demam.')
-            ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view');
+            ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view')
+            ->assertJsonPath('data.quota', ['used' => 1, 'limit' => 3, 'remaining' => 2, 'exhausted' => false]);
+    });
+
+    it('filters interns whose quota is used up', function () {
+        LeaveRequest::factory()->count(2)->for($this->andi, 'intern')->approved()->create(['created_at' => '2026-10-01 08:00:00']);
+        $dewi = User::factory()->intern()->create(['name' => 'Dewi Sartika']);
+        LeaveRequest::factory()->for($dewi, 'intern')->approved()->create(['created_at' => '2026-10-01 08:00:00']);
+        LeaveRequest::factory()->count(2)->for($dewi, 'intern')->create(['status' => RequestStatus::Rejected]);
+
+        adminLeaves($this->admin, 'GET', '/api/admin/leaves?tab=all&quota_exhausted=1')
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.*.intern.name', ['Andi Pratama', 'Andi Pratama', 'Andi Pratama']);
+    });
+
+    it('uses the escalation limit from the settings', function () {
+        app(SystemSettings::class)->set(SystemSettings::LEAVE_ESCALATION_HOURS, '48');
+
+        adminLeaves($this->admin, 'GET', '/api/admin/leaves')->assertJsonCount(0, 'data');
+        approveLeave($this->overdue)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Izin ini masih menunggu mentor. Admin dapat memutuskannya setelah Pending lebih dari 48 jam.');
     });
 
     it('disables approve for a leave without attachment', function () {
@@ -134,7 +160,7 @@ describe('setujui dan tolak', function () {
             fn (LeaveRequest $l) => LeaveRequest::query()->whereKey($l->id)->update(['created_at' => '2026-10-11 14:39:00']),
             fn (LeaveRequest $l) => approveLeave($l),
             'not_overdue',
-            'Izin ini masih menunggu mentor. Admin dapat menyetujuinya setelah Pending lebih dari 24 jam.',
+            'Izin ini masih menunggu mentor. Admin dapat memutuskannya setelah Pending lebih dari 24 jam.',
         ],
         'tanpa bukti' => [
             fn (LeaveRequest $l) => $l->update(['evidence_url' => null]),
@@ -168,18 +194,27 @@ describe('setujui dan tolak', function () {
         ],
     ]);
 
-    it('lets the admin reject a pending leave before 24 hours', function () {
+    it('does not let the admin reject before the escalation limit either', function () {
         LeaveRequest::query()->whereKey($this->overdue->id)->update(['created_at' => '2026-10-12 08:00:00']);
 
         adminLeaves($this->admin, 'GET', "/api/admin/leaves/{$this->overdue->id}")
-            ->assertJsonPath('data.can_decide', true)
+            ->assertJsonPath('data.can_decide', false)
             ->assertJsonPath('data.can_approve', false);
 
         adminLeaves($this->admin, 'POST', "/api/admin/leaves/{$this->overdue->id}/reject", ['note' => 'Tanggal bentrok dengan presentasi.'])
-            ->assertOk()
-            ->assertJsonPath('data.status', 'rejected');
+            ->assertUnprocessable()
+            ->assertJsonPath('reason', 'not_overdue');
 
-        expect(AuditLog::sole()->detail)->toBe('Tolak Izin Sakit 13-14 Okt.');
+        expect($this->overdue->refresh()->status)->toBe(RequestStatus::Pending)
+            ->and(AuditLog::count())->toBe(0);
+    });
+
+    it('still lets the mentor decide after the limit while the admin has not', function () {
+        adminLeaves($this->mentor, 'POST', "/api/mentor/leaves/{$this->overdue->id}/approve", ['note' => 'Semoga lekas sembuh.'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'approved');
+
+        approveLeave($this->overdue)->assertJsonPath('message', 'Izin ini sudah diproses oleh mentor.');
     });
 
     it('requires a note', function () {

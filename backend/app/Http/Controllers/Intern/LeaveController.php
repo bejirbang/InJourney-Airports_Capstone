@@ -10,6 +10,7 @@ use App\Http\Resources\InternLeaveResource;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\InternLeaves;
+use App\Services\LeaveQuotas;
 use App\Services\WorkSchedules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 class LeaveController extends Controller
 {
-    public function index(LeaveIndexRequest $request): AnonymousResourceCollection
+    public function index(LeaveIndexRequest $request, LeaveQuotas $quotas): AnonymousResourceCollection
     {
         /** @var User $intern */
         $intern = $request->user();
@@ -31,7 +32,7 @@ class LeaveController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        return InternLeaveResource::collection($leaves);
+        return InternLeaveResource::collection($leaves)->additional(['meta' => ['quota' => $quotas->summary($intern)]]);
     }
 
     public function workingDays(LeaveWorkingDaysRequest $request, WorkSchedules $schedules): JsonResponse

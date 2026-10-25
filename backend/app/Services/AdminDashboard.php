@@ -23,7 +23,7 @@ class AdminDashboard
 
     private const HOLIDAY_LOOKBACK_DAYS = 60;
 
-    public function __construct(private EndingInternships $endings) {}
+    public function __construct(private EndingInternships $endings, private SystemSettings $settings) {}
 
     /**
      * @return array<string, mixed>
@@ -131,7 +131,7 @@ class AdminDashboard
      */
     private function overdueLeaves(CarbonInterface $now): array
     {
-        $query = LeaveRequest::query()->overduePending($now)->whereHas('intern');
+        $query = LeaveRequest::query()->overduePending($now, $this->settings->leaveEscalationHours())->whereHas('intern');
 
         $ordered = $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id');
 

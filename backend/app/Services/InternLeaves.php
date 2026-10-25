@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LeaveType;
 use App\Enums\RequestStatus;
 use App\Exceptions\ActionRejected;
+use App\Models\InternProfile;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Support\IndonesianDate;
@@ -21,11 +22,12 @@ class InternLeaves
 
     public const ALREADY_CANCELLED = 'Pengajuan izin ini sudah dibatalkan.';
 
-    public function __construct(private WorkSchedules $schedules, private Notifier $notifier) {}
+    public function __construct(private WorkSchedules $schedules, private LeaveQuotas $quotas, private Notifier $notifier) {}
 
     /**
      * @param  array{type: string, start_date: string, end_date: string, reason: string, evidence_url: string|null}  $input
      *
+     * @throws ActionRejected
      * @throws ValidationException
      */
     public function submit(User $intern, array $input): LeaveRequest
@@ -42,11 +44,16 @@ class InternLeaves
         }
 
         $leave = DB::transaction(function () use ($intern, $input, $start, $end): LeaveRequest {
-            // Baris akun dikunci agar dua pengajuan bersamaan tidak lolos cek tumpang tindih.
-            User::query()->whereKey($intern->id)->lockForUpdate()->first();
+            // Profil dikunci agar dua pengajuan yang dikirim bersamaan tidak sama-sama lolos cek kuota
+            // dan tumpang tindih.
+            $profile = InternProfile::query()->where('user_id', $intern->id)->lockForUpdate()->firstOrFail();
+
+            if ($this->quotas->used($profile) >= $this->quotas->limit()) {
+                throw new ActionRejected($this->quotas->exhaustedMessage(), 'quota_exhausted');
+            }
 
             $overlaps = $intern->leaveRequests()
-                ->whereIn('status', [RequestStatus::Pending, RequestStatus::Approved])
+                ->countingQuota()
                 ->whereDate('start_date', '<=', $end)
                 ->whereDate('end_date', '>=', $start)
                 ->exists();

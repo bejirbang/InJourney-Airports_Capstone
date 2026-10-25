@@ -18,7 +18,7 @@ class MentorDashboard
 
     public const ANNOUNCEMENT_LIMIT = 3;
 
-    public function __construct(private AccountAccess $access) {}
+    public function __construct(private AccountAccess $access, private SystemSettings $settings) {}
 
     /**
      * @return array<string, mixed>
@@ -97,7 +97,7 @@ class MentorDashboard
             'end_date' => $leave->end_date->toDateString(),
             'created_at' => $leave->created_at?->toIso8601String(),
             'pending_hours' => $leave->pendingHours($now),
-            'is_overdue' => $leave->isOverduePending($now),
+            'is_overdue' => $leave->isOverduePending($now, $this->settings->leaveEscalationHours()),
         ]);
     }
 

@@ -112,7 +112,11 @@ describe('detail dan lampiran', function () {
             ->assertJsonPath('data.reason', 'Demam, disarankan istirahat dokter.')
             ->assertJsonPath('data.decision_note', null)
             ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view')
+            ->assertJsonPath('data.quota', ['used' => 1, 'limit' => 3, 'remaining' => 2, 'exhausted' => false])
             ->assertJsonPath('data.can_decide', true);
+
+        mentorLeaves($this->mentor, 'GET', "/api/mentor/interns/{$this->andi->id}")
+            ->assertJsonPath('data.leave_quota.remaining', 2);
     });
 
     it('marks a leave without evidence', function () {

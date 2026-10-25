@@ -293,7 +293,11 @@ class AccountManagement
                 throw ValidationException::withMessages(['end_date' => self::EXTEND_IN_PAST]);
             }
 
-            $profile->update(['end_date' => $endDate]);
+            $profile->update([
+                'end_date' => $endDate,
+                'leave_quota_since' => $now->toDateString(),
+                'presentation_reminded_at' => null,
+            ]);
 
             $detail = 'Perpanjang magang dari '.IndonesianDate::withYear($oldEnd).' ke '.IndonesianDate::withYear($profile->end_date).'.';
 

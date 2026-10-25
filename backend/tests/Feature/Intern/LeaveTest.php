@@ -6,6 +6,7 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\SystemSettings;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -222,4 +223,65 @@ it('rejects mentors and admins', function (string $role) {
 it('rejects requests without a token', function () {
     $this->getJson('/api/intern/leaves')->assertUnauthorized();
     $this->postJson('/api/intern/leaves', [])->assertUnauthorized();
+});
+
+describe('kuota izin', function () {
+    it('shows the remaining quota on the leave page and the dashboard', function () {
+        leaveFor($this->intern, ['start_date' => '2026-10-05', 'end_date' => '2026-10-05', 'status' => RequestStatus::Approved]);
+        leaveFor($this->intern, ['start_date' => '2026-10-06', 'end_date' => '2026-10-06', 'status' => RequestStatus::Rejected]);
+        leaveFor($this->intern, ['start_date' => '2026-10-07', 'end_date' => '2026-10-07', 'status' => RequestStatus::Cancelled]);
+
+        asLeaveIntern('GET', '/api/intern/leaves')
+            ->assertOk()
+            ->assertJsonPath('meta.quota', ['used' => 1, 'limit' => 3, 'remaining' => 2, 'exhausted' => false]);
+
+        asLeaveIntern('GET', '/api/intern/dashboard')->assertJsonPath('data.leave_quota.remaining', 2);
+    });
+
+    it('counts one request as one use, however many days it covers', function () {
+        applyLeave(['start_date' => '2026-10-13', 'end_date' => '2026-10-16'])->assertCreated();
+
+        asLeaveIntern('GET', '/api/intern/leaves')->assertJsonPath('meta.quota.used', 1);
+    });
+
+    it('blocks a new request once pending and approved requests reach the quota', function () {
+        leaveFor($this->intern, ['start_date' => '2026-10-01', 'end_date' => '2026-10-01', 'status' => RequestStatus::Approved]);
+        leaveFor($this->intern, ['start_date' => '2026-10-02', 'end_date' => '2026-10-02', 'status' => RequestStatus::Approved]);
+        leaveFor($this->intern, ['start_date' => '2026-10-20', 'end_date' => '2026-10-20']);
+
+        applyLeave()
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => 'Kuota izin Anda (3 kali) sudah habis. Silakan hubungi mentor.', 'reason' => 'quota_exhausted']);
+
+        expect(LeaveRequest::count())->toBe(3)
+            ->and(Notification::count())->toBe(0);
+        asLeaveIntern('GET', '/api/intern/leaves')->assertJsonPath('meta.quota.exhausted', true);
+    });
+
+    it('gives the quota back when a pending request is cancelled', function () {
+        leaveFor($this->intern, ['start_date' => '2026-10-01', 'end_date' => '2026-10-01', 'status' => RequestStatus::Approved]);
+        leaveFor($this->intern, ['start_date' => '2026-10-02', 'end_date' => '2026-10-02', 'status' => RequestStatus::Approved]);
+        $pending = leaveFor($this->intern, ['start_date' => '2026-10-20', 'end_date' => '2026-10-20']);
+
+        asLeaveIntern('POST', "/api/intern/leaves/{$pending->id}/cancel")->assertOk();
+
+        applyLeave()->assertCreated();
+    });
+
+    it('uses the quota from the settings', function () {
+        app(SystemSettings::class)->set(SystemSettings::LEAVE_QUOTA, '1');
+        leaveFor($this->intern, ['start_date' => '2026-10-01', 'end_date' => '2026-10-01', 'status' => RequestStatus::Approved]);
+
+        applyLeave()->assertJsonPath('message', 'Kuota izin Anda (1 kali) sudah habis. Silakan hubungi mentor.');
+    });
+
+    it('counts only requests made since the quota was last reset by an extension', function () {
+        foreach (['2026-10-01', '2026-10-02', '2026-10-05'] as $date) {
+            LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => $date, 'end_date' => $date, 'created_at' => '2026-10-01 08:00:00']);
+        }
+        $this->intern->internProfile->update(['leave_quota_since' => '2026-10-10']);
+
+        asLeaveIntern('GET', '/api/intern/leaves')->assertJsonPath('meta.quota.used', 0);
+        applyLeave()->assertCreated();
+    });
 });

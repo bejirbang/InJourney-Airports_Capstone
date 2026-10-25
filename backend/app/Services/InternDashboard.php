@@ -11,7 +11,7 @@ class InternDashboard
 {
     public const ANNOUNCEMENT_LIMIT = 3;
 
-    public function __construct(private AttendanceCalendar $calendar, private InternLogbooks $logbooks) {}
+    public function __construct(private AttendanceCalendar $calendar, private InternLogbooks $logbooks, private LeaveQuotas $quotas) {}
 
     /**
      * @return array<string, mixed>
@@ -28,6 +28,7 @@ class InternDashboard
             'logbook_reminder' => $today['state'] === TodayState::ClockedIn && $today['logbook'] === null,
             'action_needed' => ['logbooks' => $this->logbooks->actionNeeded($intern)],
             'monthly_recap' => $this->calendar->monthlyRecap($intern, $now),
+            'leave_quota' => $this->quotas->summary($intern),
             'internship' => $profile === null ? null : [
                 'start_date' => $profile->start_date->toDateString(),
                 'end_date' => $profile->end_date->toDateString(),

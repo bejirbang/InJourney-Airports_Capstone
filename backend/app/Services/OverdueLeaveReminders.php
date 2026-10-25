@@ -9,12 +9,13 @@ use Carbon\CarbonInterface;
 
 class OverdueLeaveReminders
 {
-    public function __construct(private Notifier $notifier) {}
+    public function __construct(private Notifier $notifier, private SystemSettings $settings) {}
 
     public function send(CarbonInterface $now): int
     {
+        $hours = $this->settings->leaveEscalationHours();
         $leaves = LeaveRequest::query()
-            ->overduePending($now)
+            ->overduePending($now, $hours)
             ->whereNull('overdue_notified_at')
             ->whereHas('intern')
             ->with('intern:id,name')
@@ -39,7 +40,7 @@ class OverdueLeaveReminders
 
             $this->notifier->send(
                 $admins,
-                "Izin {$leave->intern->shortName()} belum diproses mentor lebih dari 24 jam.",
+                "Izin {$leave->intern->shortName()} belum diproses mentor lebih dari {$hours} jam.",
                 '/izin',
                 ['open' => $leave->id],
             );

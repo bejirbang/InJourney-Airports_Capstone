@@ -26,7 +26,7 @@ class AdminUsers
 
     public const STATUSES = [self::STATUS_ACTIVE, self::STATUS_INACTIVE, self::STATUS_ALL];
 
-    public function __construct(private AccountAccess $access, private WorkSchedules $schedules) {}
+    public function __construct(private AccountAccess $access, private WorkSchedules $schedules, private LeaveQuotas $quotas) {}
 
     /**
      * @param  array{q?: string|null, role?: string|null, status?: string|null}  $filters
@@ -75,7 +75,7 @@ class AdminUsers
     public function detail(User $user, CarbonInterface $now): array
     {
         return match ($user->role) {
-            Role::Intern => ['former_mentors' => $this->formerMentors($user)],
+            Role::Intern => ['former_mentors' => $this->formerMentors($user), 'leave_quota' => $this->quotas->summary($user)],
             Role::Mentor => ['interns' => User::query()
                 ->with('internProfile')
                 ->whereHas('internProfile', fn (Builder $q) => $q->where('mentor_id', $user->id))

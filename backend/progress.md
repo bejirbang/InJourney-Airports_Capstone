@@ -937,7 +937,7 @@ Penyesuaian sementara agar kode lama tetap jalan di skema baru (dirombak di taha
 - Daily Report disimpan di `logbooks` berstatus `draft`; endpoint dan nama field (`daily_report`, `sent_at` = waktu terakhir disimpan) belum berubah sampai Tahap 2.
 - Clock in menyalin `scheduled_start`, `scheduled_end`, dan `late_tolerance_minutes`; clock out memakai jam pulang salinan itu. Aturan status (Terlambat dengan toleransi, Lupa Clock In, batas clock in sebelum jam pulang, titik milik bandara) masih aturan lama sampai Tahap 2. `late_minutes` dihitung dari `scheduled_start` tanpa toleransi.
 - Kelola Akun sudah memakai `unit_id` (wajib intern/mentor, kosong untuk admin), `airport_id`, `university`, `major`; pilihan nonaktif ditolak untuk akun baru tetapi boleh dipertahankan akun lama. `leave_quota_since` ikut tanggal mulai selama belum pernah diperpanjang. Ganti mentor memindahkan koreksi `pending_mentor` (bagian Tahap 7). Lokasi Kantor mewajibkan `airport_id` saat tambah, tidak bisa pindah bandara, dan tidak bisa dihapus (405).
-- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` dan `LeaveRequest::OVERDUE_PENDING_HOURS` masih konstanta (Tahap 4 dan 7).
+- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` masih konstanta (Tahap 7; batas izin pending sudah memakai `system_settings` sejak Tahap 4).
 
 ### Tahap 2 - Presensi dan logbook intern
 
@@ -966,10 +966,10 @@ Ikut berubah di Tahap 2:
 
 ### Tahap 4 - Izin
 
-- [ ] `evidence_url` dengan Rule link, tanpa file.
-- [ ] Kuota 3 kali per masa magang dengan `lockForUpdate()` pada `intern_profiles`. Sisa kuota di respons intern, mentor, admin.
-- [ ] Admin hanya memutuskan izin pending lebih dari `leave_escalation_hours`, Setujui hanya jika ada link. Mentor tetap bisa memutuskan setelah batas selama admin belum.
-- [ ] Filter "Kuota habis" di admin.
+- [x] `evidence_url` dengan Rule link, tanpa file (dikerjakan di Tahap 1).
+- [x] Kuota (`LeaveQuotas`, 25 Okt 2026): `system_settings.leave_quota` kali per masa magang, 1 pengajuan = 1 kali. Dihitung pengajuan Menunggu dan Disetujui dengan `created_at` sejak `leave_quota_since`; ditolak dan dibatalkan tidak dihitung, jadi membatalkan mengembalikan kuota. Cek kuota dan tumpang tindih dalam satu transaksi dengan `lockForUpdate()` pada `intern_profiles` (sebelumnya mengunci `users`). Kuota habis: 422 `quota_exhausted` "Kuota izin Anda (3 kali) sudah habis. Silakan hubungi mentor." Sisa kuota (`used`, `limit`, `remaining`, `exhausted`) di `meta.quota` daftar izin intern, `leave_quota` Dashboard intern, `quota` detail izin mentor dan admin, `leave_quota` detail Intern Saya, dan `leave_quota` detail akun intern di Kelola Akun.
+- [x] Admin hanya memutuskan (Setujui **dan** Tolak) izin yang menunggu lebih dari `leave_escalation_hours` (sebelumnya Tolak boleh kapan saja); pesan "Izin ini masih menunggu mentor. Admin dapat memutuskannya setelah Pending lebih dari 24 jam." Setujui tetap butuh link dan centang pemeriksaan bukti. Tab `pending` admin kini hanya berisi izin yang lewat batas (izin lain terlihat di tab `all`, `can_decide` false); `meta.pending_count` dan lencana menu ikut. Mentor tetap bisa memutuskan setelah batas selama admin belum. Batas jam diambil dari `system_settings` di semua tempat (daftar, detail, Dashboard admin dan mentor, pengingat scheduler beserta teksnya); konstanta `LeaveRequest::OVERDUE_PENDING_HOURS` dihapus.
+- [x] Filter `quota_exhausted=1` di daftar izin admin: hanya intern yang kuotanya habis.
 
 ### Tahap 5 - Review logbook oleh mentor
 
@@ -989,7 +989,7 @@ Ikut berubah di Tahap 2:
 - [ ] Warning: intern dan mentor membaca (hanya baca), notifikasi ke intern dan mentor saat dibuat.
 - [ ] Scheduler: hapus pengingat Task, tambah pengingat presentasi H-7 untuk intern (`presentation_reminded_at`), pengingat akhir magang dan izin pending memakai `system_settings`.
 - [x] Ganti mentor: pindahkan koreksi `pending_mentor` (perbarui `mentor_id`). Logbook dan izin pending ikut otomatis. (Dikerjakan di Tahap 1, menggantikan pemindahan Task.)
-- [ ] Perpanjang: `leave_quota_since` = hari ini, kosongkan `presentation_reminded_at`.
+- [x] Perpanjang: `leave_quota_since` = hari ini, kosongkan `presentation_reminded_at`. (Dikerjakan di Tahap 4 bersama kuota izin.)
 - [ ] Sesuaikan semua teks notifikasi dengan tabel notifikasi tiap dokumen.
 
 ### Tahap 8 - Dashboard, performa, laporan, admin lain

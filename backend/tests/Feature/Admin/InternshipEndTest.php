@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,24 @@ describe('perpanjang magang', function () {
         ]);
 
         internshipRequest($this->admin, 'GET', '/api/admin/dashboard')->assertJsonPath('data.ending_internships.total', 0);
+    });
+
+    it('resets the leave quota from the day of the extension and the presentation reminder', function () {
+        foreach (['2026-08-03', '2026-09-01', '2026-10-05'] as $date) {
+            LeaveRequest::factory()->for($this->rina, 'intern')->approved()->create(['start_date' => $date, 'end_date' => $date, 'created_at' => "{$date} 08:00:00"]);
+        }
+        $this->rina->internProfile->update(['presentation_reminded_at' => '2026-10-10 07:00:00']);
+
+        internshipRequest($this->admin, 'GET', "/api/admin/users/{$this->rina->id}")->assertJsonPath('data.leave_quota.exhausted', true);
+
+        extendInternship($this->rina, '2026-12-31')->assertOk();
+
+        $profile = $this->rina->internProfile->refresh();
+        expect($profile->leave_quota_since->toDateString())->toBe('2026-10-12')
+            ->and($profile->presentation_reminded_at)->toBeNull();
+
+        internshipRequest($this->admin, 'GET', "/api/admin/users/{$this->rina->id}")
+            ->assertJsonPath('data.leave_quota', ['used' => 0, 'limit' => 3, 'remaining' => 3, 'exhausted' => false]);
     });
 
     it('requires a new end date after the current one', function (string $endDate) {

@@ -20,13 +20,11 @@ class LeaveDecisions
 
     public const BY_MENTOR = 'Izin ini sudah diproses oleh mentor.';
 
-    public const NOT_OVERDUE = 'Izin ini masih menunggu mentor. Admin dapat menyetujuinya setelah Pending lebih dari 24 jam.';
-
     public const NO_EVIDENCE = 'Tidak ada surat resmi atau bukti.';
 
     public const EVIDENCE_UNCHECKED = 'Centang "Saya sudah memeriksa surat resmi atau bukti" lebih dulu.';
 
-    public function __construct(private Notifier $notifier) {}
+    public function __construct(private Notifier $notifier, private SystemSettings $settings) {}
 
     /**
      * @throws ActionRejected
@@ -43,8 +41,8 @@ class LeaveDecisions
                 throw self::alreadyClosed($leave, $byAdmin);
             }
 
-            if ($byAdmin && $approve) {
-                self::ensureAdminMayApprove($leave, $now, $evidenceChecked);
+            if ($byAdmin) {
+                $this->ensureAdminMayDecide($leave, $approve, $now, $evidenceChecked);
             }
 
             $leave->update([
@@ -96,12 +94,21 @@ class LeaveDecisions
     }
 
     /**
+     * Admin baru boleh memutuskan setelah izin menunggu lebih dari `leave_escalation_hours`. Mentor tetap boleh
+     * memutuskan setelah batas itu selama admin belum.
+     *
      * @throws ActionRejected
      */
-    private static function ensureAdminMayApprove(LeaveRequest $leave, CarbonInterface $now, bool $evidenceChecked): void
+    private function ensureAdminMayDecide(LeaveRequest $leave, bool $approve, CarbonInterface $now, bool $evidenceChecked): void
     {
-        if (! $leave->isOverduePending($now)) {
-            throw new ActionRejected(self::NOT_OVERDUE, 'not_overdue');
+        $hours = $this->settings->leaveEscalationHours();
+
+        if (! $leave->isOverduePending($now, $hours)) {
+            throw new ActionRejected("Izin ini masih menunggu mentor. Admin dapat memutuskannya setelah Pending lebih dari {$hours} jam.", 'not_overdue');
+        }
+
+        if (! $approve) {
+            return;
         }
 
         if ($leave->evidence_url === null) {
