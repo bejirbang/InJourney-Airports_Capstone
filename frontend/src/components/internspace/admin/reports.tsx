@@ -59,7 +59,7 @@ export function ReportsPage() {
       setPreview(null);
       return setError("Tidak ada data pada periode ini.");
     }
-    const label = { absensi: "Rekap Absensi", task: "Rekap Task" }[type];
+    const label = { absensi: "Rekap Presensi", task: "Rekap Task" }[type];
     setPreview({
       head,
       rows,
@@ -84,7 +84,7 @@ export function ReportsPage() {
             <div className="radio-list">
               {(
                 [
-                  ["absensi", "Rekap Absensi"],
+                  ["absensi", "Rekap Presensi"],
                   ["task", "Rekap Task"],
                 ] as const
               ).map(([v, l]) => (

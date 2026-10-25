@@ -123,7 +123,7 @@ export function OfficesPage() {
             Clock out memakai radius clock out.
           </span>
           <span>
-            Mengubah titik atau radius hanya berlaku untuk absensi berikutnya. Batas radius{" "}
+            Mengubah titik atau radius hanya berlaku untuk presensi berikutnya. Batas radius{" "}
             {RADIUS_MIN}-{RADIUS_MAX} m dan aturan intern boleh memakai kantor mana pun masih
             menunggu keputusan.
           </span>
@@ -148,7 +148,7 @@ export function OfficesPage() {
       >
         {lastActive
           ? "Ini kantor aktif terakhir. Setelah dinonaktifkan, intern tidak bisa clock in maupun clock out sampai ada kantor aktif lagi."
-          : "Intern tidak bisa lagi clock in atau clock out di kantor ini. Riwayat absensi yang menunjuk kantor ini tetap tersimpan."}
+          : "Intern tidak bisa lagi clock in atau clock out di kantor ini. Riwayat presensi yang menunjuk kantor ini tetap tersimpan."}
       </Confirm>
     </>
   );

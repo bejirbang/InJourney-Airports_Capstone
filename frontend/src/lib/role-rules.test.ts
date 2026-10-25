@@ -21,6 +21,7 @@ import {
   taskIsLate,
   todayState,
   validateCorrection,
+  validateEvidenceFile,
   validateLeave,
   validatePassword,
   validateReport,
@@ -198,6 +199,20 @@ describe("Izin (design-intern.md Alur 11)", () => {
   it("menandai izin yang diajukan setelah tanggalnya", () => {
     expect(leaveSubmittedLate("2026-10-09", "2026-10-10T09:00")).toBe(true);
     expect(leaveSubmittedLate("2026-10-14", "2026-10-12T07:30")).toBe(false);
+  });
+  it("lampiran bukti dibatasi jenis dokumen dan 2 MB", () => {
+    const file = (name: string, bytes = 10) =>
+      new File([new Uint8Array(bytes)], name, { type: "application/octet-stream" });
+    expect(validateEvidenceFile(file("surat-dokter.pdf"))).toBeNull();
+    expect(validateEvidenceFile(file("surat-dokter.PDF"))).toBeNull();
+    expect(validateEvidenceFile(file("surat-dokter.docx"))).toBeNull();
+    expect(validateEvidenceFile(file("foto.png"))).toBe(
+      "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint.",
+    );
+    expect(validateEvidenceFile(file("surat-dokter.pdf", 2 * 1024 * 1024))).toBeNull();
+    expect(validateEvidenceFile(file("surat-dokter.pdf", 2 * 1024 * 1024 + 1))).toBe(
+      "Ukuran file maksimal 2 MB.",
+    );
   });
   it("format rentang tanggal", () => {
     expect(formatRange("2026-10-13", "2026-10-14")).toBe("13-14 Okt");

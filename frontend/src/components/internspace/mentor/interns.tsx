@@ -66,7 +66,7 @@ export function MyInternsPage() {
     <>
       <PageHeading
         title="Intern Saya"
-        subtitle="Absensi dan Daily Report hanya dapat dilihat. Perubahan data intern dikelola admin."
+        subtitle="Presensi dan Daily Report hanya dapat dilihat. Perubahan data intern dikelola admin."
       />
       <div className="toolbar">
         <label className="search-field">
@@ -221,7 +221,7 @@ function InternDetail({
         value={tab}
         onChange={setTab}
         items={[
-          { value: "absensi", label: "Rekap Absensi" },
+          { value: "absensi", label: "Rekap Presensi" },
           { value: "laporan", label: "Daily Report" },
           { value: "task", label: "Task" },
           { value: "izin", label: "Izin" },
@@ -229,7 +229,7 @@ function InternDetail({
       />
       {(tab === "absensi" || tab === "laporan") && (
         <Panel
-          title={tab === "absensi" ? "Rekap Absensi" : "Daily Report"}
+          title={tab === "absensi" ? "Rekap Presensi" : "Daily Report"}
           subtitle="Hanya baca."
           action={
             <MonthNav
@@ -242,7 +242,7 @@ function InternDetail({
         >
           {tab === "absensi" && <RecapStrip r={recap(rows)} />}
           {working.length === 0 ? (
-            <Empty>Belum ada data absensi pada bulan ini.</Empty>
+            <Empty>Belum ada data presensi pada bulan ini.</Empty>
           ) : tab === "absensi" ? (
             <div className="table-wrap">
               <table className="data-table clickable">

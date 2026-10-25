@@ -54,6 +54,15 @@ export type Task = {
   revisePending?: boolean;
   comments: Comment[];
   unread: { Intern: number; Mentor: number };
+  // ---- Diisi data API (Task intern); data mock menghitung sendiri lewat taskIsLate/lateLabel ----
+  /** Tanda Terlambat menurut server. */
+  late?: boolean;
+  /** "Lewat 2 hari"; hanya ada bila server mengirimnya. */
+  lateLabel?: string;
+  /** Hasil terakhir dikumpulkan lewat tenggat. */
+  submittedLate?: boolean;
+  /** Jarak jam antara tenggat dan pengumpulan terakhir. */
+  lateHours?: number | null;
 };
 export type Leave = {
   id: number;
@@ -69,6 +78,12 @@ export type Leave = {
   byRole?: Role;
   note?: string;
   decidedAt?: string;
+  /** Jumlah hari kerja dari server (mode API); kalau tidak ada, dihitung di klien. */
+  workingDays?: number;
+  /** Keputusan server (mode API); fallback-nya aturan Pending di `canCancelLeave`. */
+  canCancel?: boolean;
+  /** Tanda "Diajukan setelah tanggal izin" dari server; fallback-nya hitung di klien. */
+  submittedLate?: boolean;
 };
 export type Correction = {
   id: number;
@@ -892,7 +907,7 @@ const seedNotices: Notice[] = [
   {
     id: 3,
     role: "Intern",
-    text: "Koreksi absensi 9 Okt disetujui.",
+    text: "Koreksi presensi 9 Okt disetujui.",
     at: "2026-10-10T13:02",
     to: "/absensi",
     search: { tab: "koreksi" },
@@ -954,7 +969,7 @@ const seedNotices: Notice[] = [
   {
     id: 20,
     role: "Admin",
-    text: "Nabila P. mengajukan koreksi absensi 6 Okt.",
+    text: "Nabila P. mengajukan koreksi presensi 6 Okt.",
     at: "2026-10-07T08:05",
     to: "/koreksi",
     search: { open: "1" },
@@ -1201,7 +1216,7 @@ export function MockProvider({
     {
       time: "2026-10-10T13:02",
       admin: "Ayu Wulandari",
-      action: "Absensi",
+      action: "Presensi",
       object: "Nabila Putri",
       detail: "Setujui koreksi 9 Okt: clock out 17:00.",
     },
@@ -1222,7 +1237,7 @@ export function MockProvider({
     {
       time: "2026-09-26T15:00",
       admin: "Rina Hartono",
-      action: "Absensi",
+      action: "Presensi",
       object: "Nabila Putri",
       detail: "Tolak koreksi 25 Sep.",
     },

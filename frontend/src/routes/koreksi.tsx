@@ -6,10 +6,10 @@ export const Route = createFileRoute("/koreksi")({
   validateSearch: pageSearch,
   head: () => ({
     meta: [
-      { title: "Koreksi Absensi | InternSpace InJourney Airports" },
-      { name: "description", content: "Permintaan koreksi absensi dari intern." },
-      { property: "og:title", content: "Koreksi Absensi | InternSpace InJourney Airports" },
-      { property: "og:description", content: "Permintaan koreksi absensi dari intern." },
+      { title: "Koreksi Presensi | InternSpace InJourney Airports" },
+      { name: "description", content: "Permintaan koreksi presensi dari intern." },
+      { property: "og:title", content: "Koreksi Presensi | InternSpace InJourney Airports" },
+      { property: "og:description", content: "Permintaan koreksi presensi dari intern." },
     ],
   }),
   component: CorrectionsPage,

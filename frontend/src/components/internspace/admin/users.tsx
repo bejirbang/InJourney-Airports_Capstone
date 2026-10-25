@@ -724,7 +724,7 @@ function UserDetail({
           onChange={setTab}
           items={[
             { value: "profil", label: "Profil" },
-            { value: "absensi", label: "Absensi" },
+            { value: "absensi", label: "Presensi" },
             { value: "izin", label: "Izin" },
             { value: "koreksi", label: "Koreksi" },
             { value: "warning", label: "Warning" },
@@ -768,7 +768,7 @@ function UserDetail({
       )}
       {tab === "absensi" && (
         <Panel
-          title="Absensi"
+          title="Presensi"
           action={
             <MonthNav
               value={month}
@@ -797,7 +797,7 @@ function UserDetail({
               ))}
           </div>
           {rows.length === 0 ? (
-            <Empty>Belum ada data absensi pada bulan ini.</Empty>
+            <Empty>Belum ada data presensi pada bulan ini.</Empty>
           ) : (
             <div className="table-wrap">
               <table className="data-table">
@@ -852,7 +852,7 @@ function UserDetail({
         <Panel title="Koreksi">
           <SimpleTable
             empty="Belum ada permintaan koreksi."
-            head={["Tanggal absensi", "Diajukan", "Status", "Catatan admin"]}
+            head={["Tanggal presensi", "Diajukan", "Status", "Catatan admin"]}
             rows={m.corrections
               .filter((c) => c.intern === person.name)
               .map((c) => [

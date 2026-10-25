@@ -1,4 +1,5 @@
 import { useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -11,54 +12,75 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  type LeaveStatus,
-  TODAY,
+  DOCUMENT_EXTENSIONS,
+  MAX_FILE_MB,
+  type LeaveType,
   canCancelLeave,
   formatDate,
   formatRange,
   formatShortTime,
   leaveSubmittedLate,
   leaveTypes,
+  validateEvidenceFile,
   validateLeave,
-  workingDays,
 } from "@/lib/mock-rules";
+import { ApiError, internToken, leaveApi, type ApiLeaveStatus } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { type PageSearch } from "@/lib/search";
 import {
-  type Leave,
-  ME,
-  shortName,
-  useMock,
-  typeShort,
-} from "@/components/internspace/shared/model";
+  LEAVES_KEY,
+  toApiLeaveType,
+  toViewLeave,
+  useInternLeaveDetail,
+  useInternLeaveList,
+  useLeaveWorkingDays,
+} from "@/components/internspace/intern/leaves-data";
+import { ME, type Leave, typeShort } from "@/components/internspace/shared/model";
 import {
   Attachment,
   Confirm,
   DetailList,
   Empty,
-  FileField,
+  ErrorState,
   FormError,
+  LoadingState,
   PageHeading,
   Panel,
   Status,
 } from "@/components/internspace/shared/ui";
 
 // ---------- Intern (design-intern.md Alur 11) ----------
+// Riwayat, pengajuan, dan pembatalan izin dibaca langsung dari API Laravel.
 export function InternLeave() {
-  const m = useMock();
+  const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as PageSearch;
-  const mine = m.leaves
-    .filter((l) => l.intern === ME.Intern)
-    .sort((a, b) => b.submitted.localeCompare(a.submitted));
-  const [filter, setFilter] = useState<"Semua" | LeaveStatus>("Semua");
+  const [filter, setFilter] = useState<"Semua" | ApiLeaveStatus>("Semua");
   const [form, setForm] = useState(false);
-  const [view, setView] = useState<Leave | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [cancel, setCancel] = useState<Leave | null>(null);
+  const listQuery = useInternLeaveList(filter);
+
   useEffect(() => {
-    const l = m.leaves.find((x) => String(x.id) === search.open);
-    if (l) setView(l);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (search.open) setOpenId(String(search.open));
   }, [search.open]);
-  const list = mine.filter((l) => filter === "Semua" || l.status === filter);
+
+  const leaves = (listQuery.data ?? []).map((leave) => toViewLeave(leave, ME.Intern));
+
+  const cancelLeave = () => {
+    if (!cancel) return;
+    leaveApi
+      .cancel(internToken(), cancel.id)
+      .then((res) => toast.success(res.message))
+      .catch((e: unknown) => {
+        // Mentor atau admin bisa sudah memproses sejak dialog konfirmasi dibuka.
+        toast.error(e instanceof ApiError ? e.message : "Izin tidak dapat dibatalkan. Coba lagi.");
+      })
+      .finally(() => {
+        setCancel(null);
+        void queryClient.invalidateQueries({ queryKey: LEAVES_KEY });
+      });
+  };
+
   return (
     <>
       <PageHeading
@@ -81,13 +103,21 @@ export function InternLeave() {
             onChange={(e) => setFilter(e.target.value as typeof filter)}
           >
             <option value="Semua">Status: Semua</option>
-            {(["Pending", "Disetujui", "Ditolak", "Dibatalkan"] as const).map((s) => (
-              <option key={s}>{s}</option>
-            ))}
+            <option value="pending">Pending</option>
+            <option value="approved">Disetujui</option>
+            <option value="rejected">Ditolak</option>
+            <option value="cancelled">Dibatalkan</option>
           </select>
         }
       >
-        {list.length === 0 ? (
+        {listQuery.isPending ? (
+          <LoadingState />
+        ) : listQuery.isError ? (
+          <ErrorState
+            message={listQuery.error instanceof ApiError ? listQuery.error.message : undefined}
+            onRetry={() => void listQuery.refetch()}
+          />
+        ) : leaves.length === 0 ? (
           <Empty>Belum ada pengajuan izin.</Empty>
         ) : (
           <div className="table-wrap">
@@ -103,20 +133,20 @@ export function InternLeave() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((l) => (
+                {leaves.map((l) => (
                   <tr key={l.id}>
                     <td>{typeShort(l.type)}</td>
                     <td>{formatRange(l.start, l.end)}</td>
-                    <td>{workingDays(l.start, l.end, m.holidayDates)}</td>
+                    <td>{l.workingDays}</td>
                     <td>
                       <Status status={l.status} />
                     </td>
                     <td>{l.by ? `${l.by}${l.byRole === "Admin" ? " (admin)" : ""}` : "-"}</td>
                     <td className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => setView(l)}>
+                      <Button size="sm" variant="ghost" onClick={() => setOpenId(String(l.id))}>
                         Lihat
                       </Button>
-                      {canCancelLeave(l.status) && (
+                      {(l.canCancel ?? canCancelLeave(l.status)) && (
                         <Button size="sm" variant="outline" onClick={() => setCancel(l)}>
                           Batalkan
                         </Button>
@@ -129,8 +159,8 @@ export function InternLeave() {
           </div>
         )}
       </Panel>
-      <LeaveForm open={form} onClose={() => setForm(false)} />
-      <LeaveDetail leave={view} onClose={() => setView(null)} />
+      <LeaveForm open={form} existing={leaves} onClose={() => setForm(false)} />
+      <LeaveDetail openId={openId} onClose={() => setOpenId(null)} />
       <Confirm
         open={!!cancel}
         title="Batalkan pengajuan izin?"
@@ -138,24 +168,7 @@ export function InternLeave() {
         cancelLabel="Kembali"
         destructive
         onClose={() => setCancel(null)}
-        onConfirm={() => {
-          if (!cancel) return;
-          const current = m.leaves.find((l) => l.id === cancel.id);
-          if (current && current.status !== "Pending") {
-            toast.error(`Izin ini sudah diproses oleh ${current.by ?? "pihak lain"}.`);
-          } else {
-            m.setLeaves((old) =>
-              old.map((l) => (l.id === cancel.id ? { ...l, status: "Dibatalkan" } : l)),
-            );
-            m.notify(
-              "Mentor",
-              `${shortName(ME.Intern)} membatalkan pengajuan izin ${formatRange(cancel.start, cancel.end)}.`,
-              "/izin",
-            );
-            toast.success("Pengajuan izin dibatalkan.");
-          }
-          setCancel(null);
-        }}
+        onConfirm={cancelLeave}
       >
         {cancel &&
           `${cancel.type} ${formatRange(cancel.start, cancel.end)} akan dibatalkan dan tidak diproses lagi.`}
@@ -164,25 +177,78 @@ export function InternLeave() {
   );
 }
 
-function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const m = useMock();
+function LeaveForm({
+  open,
+  existing,
+  onClose,
+}: {
+  open: boolean;
+  /** Izin yang sudah ada, dipakai klien untuk menolak tumpang tindih sebelum kirim. */
+  existing: Leave[];
+  onClose: () => void;
+}) {
+  const auth = useAuth();
+  const queryClient = useQueryClient();
   const [type, setType] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [reason, setReason] = useState("");
-  const [file, setFile] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    if (open) {
-      setType("");
-      setStart("");
-      setEnd("");
-      setReason("");
-      setFile("");
-      setError(null);
-    }
+    if (!open) return;
+    setType("");
+    setStart("");
+    setEnd("");
+    setReason("");
+    setFile(null);
+    setFileError(null);
+    setError(null);
+    setBusy(false);
   }, [open]);
-  const days = start && end && end >= start ? workingDays(start, end, m.holidayDates) : 0;
+
+  const profile = auth.user?.intern_profile;
+  const daysQuery = useLeaveWorkingDays(start, end, open);
+
+  const send = async () => {
+    const err = validateLeave(
+      { type, start, end, reason },
+      {
+        periodStart: profile?.start_date ?? "",
+        periodEnd: profile?.end_date ?? "9999-12-31",
+        // Libur dan hari kerja ikut diperiksa server dengan kalender terbaru.
+        holidays: [],
+        existing: existing.map((l) => ({ start: l.start, end: l.end, status: l.status })),
+      },
+    );
+    setError(err);
+    if (err) return;
+    setBusy(true);
+    try {
+      const result = await leaveApi.store(internToken(), {
+        type: toApiLeaveType(type as LeaveType),
+        start_date: start,
+        end_date: end,
+        reason: reason.trim(),
+        evidence: file,
+      });
+      toast.success(result.message);
+      await queryClient.invalidateQueries({ queryKey: LEAVES_KEY });
+      onClose();
+    } catch (e) {
+      // Pesan penolakan server (tumpang tindih, di luar periode, jenis file) tampil apa adanya.
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : "Izin belum terkirim. Isian Anda tidak hilang, coba lagi.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -194,40 +260,7 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
           className="form-grid"
           onSubmit={(e) => {
             e.preventDefault();
-            const err = validateLeave(
-              { type, start, end, reason },
-              {
-                periodStart: m.me.start ?? TODAY,
-                periodEnd: m.me.end,
-                holidays: m.holidayDates,
-                existing: m.leaves.filter((l) => l.intern === ME.Intern),
-              },
-            );
-            setError(err);
-            if (err) return;
-            const id = Date.now();
-            m.setLeaves((old) => [
-              ...old,
-              {
-                id,
-                intern: ME.Intern,
-                type: type as Leave["type"],
-                start,
-                end,
-                reason: reason.trim(),
-                evidence: file,
-                status: "Pending",
-                submitted: m.nowIso(),
-              },
-            ]);
-            m.notify(
-              "Mentor",
-              `${shortName(ME.Intern)} mengajukan ${type} ${formatRange(start, end)}.`,
-              "/izin",
-              { open: String(id) },
-            );
-            toast.success("Izin diajukan. Menunggu mentor.");
-            onClose();
+            void send();
           }}
         >
           <fieldset className="form-field">
@@ -253,8 +286,8 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
               <input
                 type="date"
                 value={start}
-                min={m.me.start}
-                max={m.me.end}
+                min={profile?.start_date}
+                max={profile?.end_date}
                 onChange={(e) => setStart(e.target.value)}
               />
             </label>
@@ -263,16 +296,26 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
               <input
                 type="date"
                 value={end}
-                min={start || m.me.start}
-                max={m.me.end}
+                min={start || profile?.start_date}
+                max={profile?.end_date}
                 onChange={(e) => setEnd(e.target.value)}
               />
             </label>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Total: <strong>{days} hari kerja</strong> (Sabtu, Minggu, dan libur tidak dihitung)
-            {start && start < TODAY && " · Diajukan setelah tanggal izin"}
-          </p>
+          {start && end && end >= start && (
+            <p className="text-[11px] text-muted-foreground">
+              {daysQuery.isPending ? (
+                "Menghitung hari kerja..."
+              ) : daysQuery.isError ? (
+                "Jumlah hari kerja belum bisa dihitung. Kirim tetap diperiksa server."
+              ) : (
+                <>
+                  Total: <strong>{daysQuery.data} hari kerja</strong> (Sabtu, Minggu, dan libur
+                  tidak dihitung)
+                </>
+              )}
+            </p>
+          )}
           <label className="form-field">
             Alasan *
             <textarea
@@ -281,17 +324,38 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
               onChange={(e) => setReason(e.target.value)}
             />
           </label>
-          <FileField label="Lampiran bukti (misalnya surat dokter)" onFile={setFile} />
+          <label className="form-field">
+            Lampiran bukti (misalnya surat dokter)
+            <input
+              type="file"
+              aria-label="Lampiran bukti"
+              accept={DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+              onChange={(e) => {
+                const picked = e.target.files?.[0] ?? null;
+                const err = picked ? validateEvidenceFile(picked) : null;
+                setFileError(err);
+                // File yang ditolak tidak dipakai, agar tidak terkirim diam-diam.
+                setFile(err ? null : picked);
+                if (err) e.target.value = "";
+              }}
+            />
+            <small className="text-muted-foreground">
+              {DOCUMENT_EXTENSIONS.join(", ").toUpperCase()}. Maksimal {MAX_FILE_MB} MB.
+            </small>
+            <FormError text={fileError} />
+          </label>
           <p className="banner muted">
             Tanpa lampiran, izin hanya dapat diproses mentor. Admin hanya membantu bila ada surat
             resmi atau bukti.
           </p>
           <FormError text={error} />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
               Batal
             </Button>
-            <Button type="submit">Kirim</Button>
+            <Button type="submit" disabled={busy}>
+              {busy ? "Mengirim..." : "Kirim"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -299,31 +363,54 @@ function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-function LeaveDetail({ leave, onClose }: { leave: Leave | null; onClose: () => void }) {
-  const m = useMock();
+function LeaveDetail({ openId, onClose }: { openId: string | null; onClose: () => void }) {
+  const query = useInternLeaveDetail(openId);
+  const leave = query.data ? toViewLeave(query.data, ME.Intern) : null;
+
+  const downloadEvidence = (id: number) => {
+    leaveApi.evidence(internToken(), id, `lampiran-izin-${id}.pdf`).catch((e: unknown) => {
+      toast.error(e instanceof ApiError ? e.message : "Lampiran tidak dapat diunduh. Coba lagi.");
+    });
+  };
+
   return (
-    <Dialog open={!!leave} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={openId !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogTitle>
-          {leave?.type} · {leave && formatRange(leave.start, leave.end)}
+          {leave ? `${leave.type} · ${formatRange(leave.start, leave.end)}` : "Detail izin"}
         </DialogTitle>
         <DialogDescription>Status dan catatan pemroses.</DialogDescription>
-        {leave && (
+        {query.isPending ? (
+          <LoadingState />
+        ) : query.isError ? (
+          <ErrorState
+            message={query.error instanceof ApiError ? query.error.message : undefined}
+            onRetry={() => void query.refetch()}
+          />
+        ) : leave ? (
           <DetailList
             items={[
               ["Status", <Status key="s" status={leave.status} />],
               [
                 "Tanggal",
-                `${formatDate(leave.start)} - ${formatDate(leave.end)} (${workingDays(leave.start, leave.end, m.holidayDates)} hari kerja)`,
+                `${formatDate(leave.start)} - ${formatDate(leave.end)} (${leave.workingDays} hari kerja)`,
               ],
               ["Alasan", leave.reason],
               [
                 "Lampiran",
-                leave.evidence ? <Attachment key="a" name={leave.evidence} /> : "Tanpa bukti",
+                leave.evidence ? (
+                  <Attachment
+                    key="a"
+                    name={leave.evidence}
+                    onDownload={() => downloadEvidence(leave.id)}
+                  />
+                ) : (
+                  "Tanpa bukti"
+                ),
               ],
               [
                 "Diajukan",
-                `${formatShortTime(leave.submitted)}${leaveSubmittedLate(leave.start, leave.submitted) ? " · Diajukan setelah tanggal izin" : ""}`,
+                `${formatShortTime(leave.submitted)}${(leave.submittedLate ?? leaveSubmittedLate(leave.start, leave.submitted)) ? " · Diajukan setelah tanggal izin" : ""}`,
               ],
               [
                 "Diproses oleh",
@@ -332,7 +419,7 @@ function LeaveDetail({ leave, onClose }: { leave: Leave | null; onClose: () => v
               ["Catatan", leave.note ?? "-"],
             ]}
           />
-        )}
+        ) : null}
       </DialogContent>
     </Dialog>
   );

@@ -1,4 +1,5 @@
 import { Link, useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Columns3,
@@ -11,7 +12,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,8 +42,19 @@ import {
   taskStatuses,
   validateComment,
 } from "@/lib/mock-rules";
+import { ApiError, taskApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { type PageSearch } from "@/lib/search";
-import { SubmitDialog } from "@/components/internspace/intern/task-submit";
+import { SubmitDialog, type SubmitInput } from "@/components/internspace/intern/task-submit";
+import {
+  TASKS_KEY,
+  TASK_DETAIL_PREFIX,
+  internToken,
+  toApiStatus,
+  toViewTask,
+  useInternTaskDetail,
+  useInternTaskList,
+} from "@/components/internspace/intern/tasks-data";
 import { TaskForm } from "@/components/internspace/mentor/task-form";
 import { AcceptDialog, ReviseDialog } from "@/components/internspace/mentor/task-review";
 import { ME, type Task, shortName, useMock } from "@/components/internspace/shared/model";
@@ -50,7 +62,9 @@ import {
   Attachment,
   Confirm,
   Empty,
+  ErrorState,
   FormError,
+  LoadingState,
   Locked,
   PageHeading,
   Panel,
@@ -59,13 +73,19 @@ import {
 } from "@/components/internspace/shared/ui";
 
 type Sort = "tenggat" | "terbaru" | "intern";
+/** Sumber data halaman Task: intern memakai API, mentor masih data prototipe. */
+type TaskMode = "api" | "mock";
 
 export function TasksPage() {
   const m = useMock();
+  const auth = useAuth();
+  const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as PageSearch;
+  const mode: TaskMode = m.role === "Intern" ? "api" : "mock";
   const isMentor = m.role === "Mentor";
+  const viewerName = auth.user?.name ?? m.me.name;
   const myInterns = m.internsOf(ME.Mentor);
-  const scope = m.tasks.filter((t) =>
+  const mockScope = m.tasks.filter((t) =>
     isMentor ? myInterns.some((p) => p.name === t.intern) : t.intern === ME.Intern,
   );
 
@@ -90,23 +110,75 @@ export function TasksPage() {
     if (search.open) setOpenId(search.open);
   }, [search.open]);
 
-  const filtered = scope
-    .filter((t) => t.title.toLowerCase().includes(query.toLowerCase()))
-    .filter((t) => intern === "Semua" || t.intern === intern)
-    .filter((t) => status === "Semua" || t.status === status)
-    .filter((t) => !onlyLate || taskIsLate(t.due, t.status, t.submittedAt))
-    .filter((t) => (!from || t.due.slice(0, 10) >= from) && (!to || t.due.slice(0, 10) <= to))
-    .filter((t) => allDone || t.status !== "Done" || (t.doneAt ?? "") >= addDays(TODAY, -30))
-    .sort((a, b) =>
-      sort === "terbaru"
-        ? b.createdAt.localeCompare(a.createdAt)
-        : sort === "intern"
-          ? a.intern.localeCompare(b.intern) || a.due.localeCompare(b.due)
-          : a.due.localeCompare(b.due),
-    );
+  // Ketikan ditunda sedikit agar tidak mengirim request untuk tiap huruf.
+  const deferredQuery = useDeferredValue(query);
+  const listQuery = useInternTaskList(
+    // "Nama intern" hanya ada untuk mentor, jadi server tidak pernah menerimanya.
+    {
+      q: deferredQuery,
+      status,
+      late: onlyLate,
+      sort: sort === "intern" ? "tenggat" : sort,
+      allDone,
+    },
+    mode === "api",
+  );
+  const detailQuery = useInternTaskDetail(openId, mode === "api");
+  const hiddenDone = listQuery.data?.hiddenDone ?? 0;
+
+  const scope: Task[] =
+    mode === "api"
+      ? (listQuery.data?.tasks ?? []).map((task) => toViewTask(task, viewerName))
+      : mockScope;
+
+  const filtered: Task[] =
+    mode === "api"
+      ? scope
+      : scope
+          .filter((t) => t.title.toLowerCase().includes(query.toLowerCase()))
+          .filter((t) => intern === "Semua" || t.intern === intern)
+          .filter((t) => status === "Semua" || t.status === status)
+          .filter((t) => !onlyLate || taskIsLate(t.due, t.status, t.submittedAt))
+          .filter((t) => (!from || t.due.slice(0, 10) >= from) && (!to || t.due.slice(0, 10) <= to))
+          .filter((t) => allDone || t.status !== "Done" || (t.doneAt ?? "") >= addDays(TODAY, -30))
+          .sort((a, b) =>
+            sort === "terbaru"
+              ? b.createdAt.localeCompare(a.createdAt)
+              : sort === "intern"
+                ? a.intern.localeCompare(b.intern) || a.due.localeCompare(b.due)
+                : a.due.localeCompare(b.due),
+          );
 
   const update = (id: string, change: (t: Task) => Task) =>
     m.setTasks((old) => old.map((t) => (t.id === id ? change(t) : t)));
+
+  /** Muat ulang daftar dan detail setelah ada perubahan di server. */
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: TASKS_KEY }),
+      // Semua detail yang terbuka ikut segar: komentar dan hasil kumpulan terbaru.
+      queryClient.invalidateQueries({ queryKey: TASK_DETAIL_PREFIX }),
+    ]);
+  };
+
+  /** Pindah status lewat API; pesan penolakan datang dari server. */
+  const moveOnServer = (task: Task, target: TaskStatus) => {
+    void taskApi
+      .move(internToken(), Number(task.id), toApiStatus(target), toApiStatus(task.status))
+      .then(() => listQuery.refetch())
+      .then(() =>
+        toast.success(
+          target === "In Progress" ? "Task mulai dikerjakan." : "Task kembali ke To Do.",
+        ),
+      )
+      .catch((err: unknown) => {
+        // Status bisa sudah berubah di pihak lain; biarkan daftar terbaru yang menentukan kolom kartu.
+        void listQuery.refetch();
+        toast.error(
+          err instanceof ApiError ? err.message : "Tidak bisa memindahkan Task. Coba lagi.",
+        );
+      });
+  };
 
   const move = (task: Task, target: TaskStatus) => {
     const result = isMentor
@@ -116,15 +188,77 @@ export function TasksPage() {
       if (result.message) toast.error(result.message);
       return;
     }
+    // Ke In Review hanya lewat dialog submit: kartu pindah setelah hasil terkirim.
+    if (result.action === "submit") {
+      setSubmitId(task.id);
+      return;
+    }
+    if (mode === "api") {
+      moveOnServer(task, target);
+      return;
+    }
     if (result.action === "start") {
       update(task.id, (t) => ({ ...t, status: "In Progress" }));
       toast.success("Task mulai dikerjakan.");
     } else if (result.action === "back") {
       update(task.id, (t) => ({ ...t, status: "To Do" }));
       toast.success("Task kembali ke To Do.");
-    } else if (result.action === "submit") setSubmitId(task.id);
-    else if (result.action === "accept") setAcceptId(task.id);
+    } else if (result.action === "accept") setAcceptId(task.id);
     else if (result.action === "revise") setReviseId(task.id);
+  };
+
+  /** Kumpulkan hasil lewat API; pesan sukses maupun penolakan datang dari server. */
+  const submitToApi = async (task: Task, input: SubmitInput) => {
+    const { message } = await taskApi.submit(internToken(), Number(task.id), {
+      link: input.link || null,
+      file: input.file,
+      from: toApiStatus(task.status),
+    });
+    await refresh();
+    toast.success(message);
+  };
+
+  /** Versi prototipe (mentor): perbarui provider mock dan beri tahu mentor lewat notifikasi. */
+  const submitToMock = async (task: Task, input: SubmitInput) => {
+    const wasReview = task.status === "In Review";
+    update(task.id, (t) => {
+      const next: Task = {
+        ...t,
+        status: "In Review",
+        everSubmitted: true,
+        submittedAt: m.nowIso(),
+        revisePending: false,
+      };
+      delete next.link;
+      delete next.file;
+      if (input.link) next.link = input.link;
+      if (input.file) next.file = input.file.name;
+      return next;
+    });
+    m.notify(
+      "Mentor",
+      wasReview
+        ? `${shortName(task.intern)} mengganti hasil Task '${task.title}'.`
+        : `${shortName(task.intern)} mengumpulkan Task '${task.title}'.`,
+      "/task",
+      { open: task.id },
+    );
+    toast.success("Hasil terkumpul. Menunggu pemeriksaan mentor.");
+  };
+
+  /** Komentar lewat API; server menandai terbaca, jadi daftar ikut dimuat ulang. */
+  const commentOnApi = async (task: Task, body: string) => {
+    await taskApi.comment(internToken(), Number(task.id), body);
+    await refresh();
+  };
+
+  /** File hasil tidak punya URL publik, jadi diunduh dengan token lalu lewat blob. */
+  const downloadFromApi = (task: Task) => {
+    taskApi
+      .downloadFile(internToken(), Number(task.id), task.file ?? "hasil")
+      .catch((err: unknown) =>
+        toast.error(err instanceof ApiError ? err.message : "File gagal diunduh. Coba lagi."),
+      );
   };
 
   const card = (t: Task) => {
@@ -180,6 +314,14 @@ export function TasksPage() {
       </article>
     );
   };
+
+  // Detail datang dari server untuk intern (lengkap, dengan komentar), dari mock untuk mentor.
+  const detailTask: Task | null =
+    mode === "api"
+      ? detailQuery.data
+        ? toViewTask(detailQuery.data, viewerName)
+        : null
+      : (scope.find((t) => t.id === openId) ?? null);
 
   return (
     <>
@@ -311,7 +453,14 @@ export function TasksPage() {
         </div>
       </div>
 
-      {scope.length === 0 ? (
+      {mode === "api" && listQuery.isPending ? (
+        <LoadingState />
+      ) : mode === "api" && listQuery.isError ? (
+        <ErrorState
+          message={listQuery.error instanceof ApiError ? listQuery.error.message : undefined}
+          onRetry={() => void listQuery.refetch()}
+        />
+      ) : scope.length === 0 ? (
         <Panel title="Task">
           <Empty>
             {isMentor ? "Belum ada Task untuk intern bimbingan." : "Belum ada Task dari mentor."}
@@ -324,6 +473,11 @@ export function TasksPage() {
               ? "Hanya kartu In Review yang bisa diseret: ke Done (Accept) atau ke In Progress (Revise)."
               : "Seret kartu: To Do ke In Progress untuk mulai, In Progress ke In Review untuk mengumpulkan. Angka kecil = komentar baru."}
           </p>
+          {mode === "api" && hiddenDone > 0 && (
+            <p className="text-[11px] text-muted-foreground mb-3">
+              {hiddenDone} Task Done lama disembunyikan. Centang "Semua Done" untuk melihatnya.
+            </p>
+          )}
           <div className="kanban">
             {taskStatuses.map((s) => {
               const items = filtered.filter((t) => t.status === s);
@@ -339,7 +493,8 @@ export function TasksPage() {
                   onDrop={(e) => {
                     e.preventDefault();
                     const id = e.dataTransfer.getData("text/plain") || dragId;
-                    const task = m.tasks.find((t) => t.id === id);
+                    // Kartu bisa dari mana pun di layar ini, termasuk hasil Muat ulang.
+                    const task = scope.find((t) => t.id === id);
                     setOverCol(null);
                     setDragId(null);
                     if (task) move(task, s);
@@ -413,18 +568,32 @@ export function TasksPage() {
       )}
 
       <TaskDetail
-        task={scope.find((t) => t.id === openId) ?? null}
+        open={openId !== null}
+        task={detailTask}
+        mode={mode}
+        loading={mode === "api" && detailQuery.isPending}
+        error={
+          mode === "api" && detailQuery.isError
+            ? detailQuery.error instanceof ApiError
+              ? detailQuery.error.message
+              : "Detail Task gagal dimuat."
+            : null
+        }
+        onRetry={() => void detailQuery.refetch()}
         onClose={() => setOpenId(null)}
         onSubmit={(id) => setSubmitId(id)}
         onRevise={(id) => setReviseId(id)}
         onAccept={(id) => setAcceptId(id)}
         onEdit={(t) => setFormTask(t)}
+        onMove={move}
+        onComment={commentOnApi}
+        onDownload={downloadFromApi}
         update={update}
       />
       <SubmitDialog
         task={scope.find((t) => t.id === submitId) ?? null}
         onClose={() => setSubmitId(null)}
-        update={update}
+        submit={mode === "api" ? submitToApi : submitToMock}
       />
       <ReviseDialog
         task={scope.find((t) => t.id === reviseId) ?? null}
@@ -444,37 +613,75 @@ export function TasksPage() {
 export type Update = (id: string, change: (t: Task) => Task) => void;
 
 function TaskDetail({
+  open,
   task,
+  mode,
+  loading,
+  error: loadError,
+  onRetry,
   onClose,
   onSubmit,
   onRevise,
   onAccept,
   onEdit,
+  onMove,
+  onComment,
+  onDownload,
   update,
 }: {
+  open: boolean;
   task: Task | null;
+  /** Sumber data: "api" untuk intern, "mock" untuk mentor. */
+  mode: TaskMode;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
   onClose: () => void;
   onSubmit: (id: string) => void;
   onRevise: (id: string) => void;
   onAccept: (id: string) => void;
   onEdit: (t: Task) => void;
+  onMove: (task: Task, target: TaskStatus) => void;
+  onComment: (task: Task, body: string) => Promise<void>;
+  onDownload: (task: Task) => void;
   update: Update;
 }) {
   const m = useMock();
   const isMentor = m.role === "Mentor";
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [posting, setPosting] = useState(false);
   const [del, setDel] = useState(false);
   useEffect(() => {
     if (!task) return;
     setComment("");
     setError(null);
+    // Sisi intern: server menandai komentar terbaca saat detail dimuat, jadi mock tidak disentuh.
+    if (mode !== "mock") return;
     const key = isMentor ? "Mentor" : "Intern";
     if (task.unread[key] > 0) update(task.id, (t) => ({ ...t, unread: { ...t.unread, [key]: 0 } }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
-  if (!task) return <Dialog open={false} />;
-  const late = taskIsLate(task.due, task.status, task.submittedAt);
+  if (!open) return <Dialog open={false} />;
+  if (!task)
+    // Detail belum sampai (atau gagal): dialog tetap terbuka agar ada umpan balik.
+    return (
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
+          <DialogTitle>Detail Task</DialogTitle>
+          {loading ? (
+            <LoadingState />
+          ) : (
+            <ErrorState message={loadError ?? undefined} onRetry={onRetry} />
+          )}
+        </DialogContent>
+      </Dialog>
+    );
+  // Tanda Terlambat untuk task API dihitung server; data mock memakai aturan jam browser.
+  const late = task.late ?? taskIsLate(task.due, task.status, task.submittedAt);
+  const lateNote =
+    task.lateLabel ??
+    (late && !task.submittedAt && task.status !== "Done" ? lateLabel(task.due) : null);
   const internPerson = m.person(task.intern);
   const internInactive = !!internPerson && !m.isActive(internPerson);
   const action = internTaskAction(task.status);
@@ -482,6 +689,16 @@ function TaskDetail({
     const err = validateComment(comment);
     setError(err);
     if (err) return;
+    if (mode === "api") {
+      setPosting(true);
+      onComment(task, comment.trim())
+        .then(() => setComment(""))
+        .catch((e: unknown) =>
+          setError(e instanceof ApiError ? e.message : "Komentar gagal dikirim. Coba lagi."),
+        )
+        .finally(() => setPosting(false));
+      return;
+    }
     const me = m.me.name;
     update(task.id, (t) => ({
       ...t,
@@ -520,16 +737,16 @@ function TaskDetail({
             </span>
             <span>
               Tenggat: <strong>{formatDateTime(task.due)}</strong>{" "}
-              {late && <Status status="Terlambat" />}{" "}
-              {late && !task.submittedAt && task.status !== "Done" && (
-                <em>{lateLabel(task.due)}</em>
-              )}
+              {late && <Status status="Terlambat" />} {lateNote && <em>{lateNote}</em>}
             </span>
             {task.submittedAt && (
               <span>
                 Dikumpulkan: {formatShortTime(task.submittedAt)}
-                {task.submittedAt > task.due &&
-                  ` (terlambat ${Math.round(hoursBetween(task.due, task.submittedAt))} jam)`}
+                {/* Keterlambatan pengumpulan dihitung server untuk data API. */}
+                {(task.submittedLate ?? task.submittedAt > task.due) &&
+                  ` (terlambat ${Math.round(
+                    task.lateHours ?? hoursBetween(task.due, task.submittedAt),
+                  )} jam)`}
               </span>
             )}
           </div>
@@ -565,14 +782,19 @@ function TaskDetail({
                     className="text-primary underline truncate"
                     href={task.link}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                   >
                     {task.link}
                   </a>
                   <ExternalLink size={12} />
                 </span>
               )}
-              {task.file && <Attachment name={task.file} />}
+              {task.file && (
+                <Attachment
+                  name={task.file}
+                  onDownload={mode === "api" ? () => onDownload(task) : undefined}
+                />
+              )}
             </div>
           )}
           {!isMentor && action && task.status !== "To Do" && (
@@ -582,14 +804,8 @@ function TaskDetail({
           )}
           {!isMentor && task.status === "To Do" && (
             <div className="flex justify-end mt-3">
-              <Button
-                onClick={() => {
-                  update(task.id, (t) => ({ ...t, status: "In Progress" }));
-                  toast.success("Task mulai dikerjakan.");
-                }}
-              >
-                Mulai Kerjakan
-              </Button>
+              {/* Sama dengan menyeret kartu ke In Progress: induk yang memilih API atau mock. */}
+              <Button onClick={() => onMove(task, "In Progress")}>Mulai Kerjakan</Button>
             </div>
           )}
         </section>
@@ -626,9 +842,9 @@ function TaskDetail({
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
               />
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" disabled={posting}>
                 <Send />
-                Kirim
+                {posting ? "Mengirim..." : "Kirim"}
               </Button>
             </form>
           ) : (

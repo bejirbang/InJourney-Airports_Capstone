@@ -7,9 +7,9 @@ export const Route = createFileRoute("/intern-saya")({
   head: () => ({
     meta: [
       { title: "Intern Saya | InternSpace InJourney Airports" },
-      { name: "description", content: "Intern bimbingan, absensi, dan Daily Report." },
+      { name: "description", content: "Intern bimbingan, presensi, dan Daily Report." },
       { property: "og:title", content: "Intern Saya | InternSpace InJourney Airports" },
-      { property: "og:description", content: "Intern bimbingan, absensi, dan Daily Report." },
+      { property: "og:description", content: "Intern bimbingan, presensi, dan Daily Report." },
     ],
   }),
   component: MyInternsPage,

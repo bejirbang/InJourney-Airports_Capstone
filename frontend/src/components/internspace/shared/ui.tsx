@@ -9,12 +9,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DOCUMENT_EXTENSIONS,
   MAX_FILE_MB,
   TODAY,
   addMonths,
   formatDateLong,
   formatMonth,
-  validateFileSize,
+  validateEvidenceFile,
 } from "@/lib/mock-rules";
 import { initials } from "@/components/internspace/shared/model";
 
@@ -261,15 +262,27 @@ export function Confirm({
   );
 }
 
-export function Attachment({ name }: { name: string }) {
+/**
+ * Nama file hasil beserta aksinya. File dari API tidak punya URL publik, jadi `onDownload`
+ * mengambilnya lewat token; tanpa itu tombol Pratinjau/Unduh tampil sebagai prototipe.
+ */
+export function Attachment({
+  name,
+  onDownload,
+}: {
+  name: string;
+  onDownload?: (() => void) | undefined;
+}) {
   return (
     <span className="attachment">
       <Paperclip size={13} />
       {name}
-      <Button variant="link" size="sm" className="h-auto p-0">
-        Pratinjau
-      </Button>
-      <Button variant="link" size="sm" className="h-auto p-0">
+      {!onDownload && (
+        <Button variant="link" size="sm" className="h-auto p-0">
+          Pratinjau
+        </Button>
+      )}
+      <Button variant="link" size="sm" className="h-auto p-0" onClick={onDownload}>
         Unduh
       </Button>
     </span>
@@ -298,10 +311,17 @@ export function Locked({ text }: { text: string }) {
   );
 }
 
-export function ErrorState({ onRetry }: { onRetry: () => void }) {
+export function ErrorState({
+  onRetry,
+  message,
+}: {
+  onRetry: () => void;
+  /** Pesan dari server (ApiError) bila tersedia; kalau tidak, tampil pesan bawaan. */
+  message?: string | undefined;
+}) {
   return (
-    <div className="state-box">
-      <p>Data gagal dimuat.</p>
+    <div className="state-box" role="alert">
+      <p>{message || "Data gagal dimuat."}</p>
       <Button variant="outline" onClick={onRetry}>
         <RotateCw />
         Coba lagi
@@ -333,7 +353,10 @@ export function NoAccess() {
   );
 }
 
-/** Input file dengan batas 2 MB (keputusan Draft 2). File yang terlalu besar tidak dipakai. */
+/**
+ * Input file lampiran bukti (izin dan koreksi). Jenis file dibatasi PDF, Word, Excel, atau
+ * PowerPoint, dan ukuran maksimal 2 MB (keputusan 13 Okt 2026). File yang ditolak tidak dipakai.
+ */
 export function FileField({ label, onFile }: { label: string; onFile: (name: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   return (
@@ -341,16 +364,17 @@ export function FileField({ label, onFile }: { label: string; onFile: (name: str
       {label}
       <input
         type="file"
+        accept={DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          const err = file ? validateFileSize(file.size) : null;
+          const err = file ? validateEvidenceFile(file) : null;
           setError(err);
           if (err) e.target.value = "";
           onFile(file && !err ? file.name : "");
         }}
       />
       <small className="text-muted-foreground">
-        Maksimal {MAX_FILE_MB} MB. Jenis file yang diizinkan masih ditetapkan tim backend.
+        {DOCUMENT_EXTENSIONS.join(", ").toUpperCase()}. Maksimal {MAX_FILE_MB} MB.
       </small>
       <FormError text={error} />
     </label>

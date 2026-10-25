@@ -6,15 +6,15 @@ export const Route = createFileRoute("/absensi")({
   validateSearch: pageSearch,
   head: () => ({
     meta: [
-      { title: "Absensi | InternSpace InJourney Airports" },
+      { title: "Presensi | InternSpace InJourney Airports" },
       {
         name: "description",
-        content: "Clock in, Daily Report, clock out, riwayat, dan koreksi absensi.",
+        content: "Clock in, Daily Report, clock out, riwayat, dan koreksi presensi.",
       },
-      { property: "og:title", content: "Absensi | InternSpace InJourney Airports" },
+      { property: "og:title", content: "Presensi | InternSpace InJourney Airports" },
       {
         property: "og:description",
-        content: "Clock in, Daily Report, clock out, riwayat, dan koreksi absensi.",
+        content: "Clock in, Daily Report, clock out, riwayat, dan koreksi presensi.",
       },
     ],
   }),

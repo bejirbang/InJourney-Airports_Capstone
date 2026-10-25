@@ -34,11 +34,11 @@ export function AdminAttendance() {
   return (
     <>
       <PageHeading
-        title="Absensi"
-        subtitle="Data absensi seluruh intern dan rekap bulanan. Perubahan hanya lewat permintaan koreksi."
+        title="Presensi"
+        subtitle="Data presensi seluruh intern dan rekap bulanan. Perubahan hanya lewat permintaan koreksi."
       />
       <Tabs
-        label="Tampilan absensi"
+        label="Tampilan presensi"
         value={tab}
         onChange={setTab}
         items={[
@@ -200,7 +200,7 @@ export function AdminAttendance() {
       )}
       <DayDetail row={detail} name={detail?.intern} onClose={() => setDetail(null)} />
       <p className="text-[11px] text-muted-foreground mt-3">
-        Admin tidak mengubah absensi langsung. Perubahan hanya lewat menu Koreksi.
+        Admin tidak mengubah presensi langsung. Perubahan hanya lewat menu Koreksi.
       </p>
     </>
   );

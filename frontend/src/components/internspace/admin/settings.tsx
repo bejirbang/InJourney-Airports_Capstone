@@ -86,7 +86,7 @@ function WorkHoursTab() {
               `Ubah jam kerja menjadi ${start} - ${end} mulai ${formatShort(from, true)}.`,
             );
             toast.success("Perubahan tersimpan.", {
-              description: "Data absensi sebelumnya tidak berubah.",
+              description: "Data presensi sebelumnya tidak berubah.",
             });
           }}
         >
@@ -150,7 +150,7 @@ function HolidayTab() {
         a.date.localeCompare(b.date),
       ),
     );
-    const recount = h.date < TODAY ? ` ${affected(h.date)} absensi dihitung ulang.` : "";
+    const recount = h.date < TODAY ? ` ${affected(h.date)} presensi dihitung ulang.` : "";
     m.log(
       "Kalender dan jam kerja",
       formatShort(h.date, true),
@@ -274,7 +274,7 @@ function HolidayTab() {
         onConfirm={() => past && save(past)}
       >
         {past &&
-          `${formatShort(past.date, true)} akan menjadi hari libur. Status absensi ${affected(past.date)} intern pada tanggal ini akan dihitung ulang (contoh: Tidak Hadir menjadi Libur).`}
+          `${formatShort(past.date, true)} akan menjadi hari libur. Status presensi ${affected(past.date)} intern pada tanggal ini akan dihitung ulang (contoh: Tidak Hadir menjadi Libur).`}
       </Confirm>
       <Confirm
         open={!!del}
@@ -295,7 +295,7 @@ function HolidayTab() {
         }}
       >
         {del &&
-          `${formatDate(del.date)} (${del.name}) akan kembali menjadi hari kerja.${del.date < TODAY ? " Status absensi tanggal itu dihitung ulang." : ""}`}
+          `${formatDate(del.date)} (${del.name}) akan kembali menjadi hari kerja.${del.date < TODAY ? " Status presensi tanggal itu dihitung ulang." : ""}`}
       </Confirm>
     </div>
   );
