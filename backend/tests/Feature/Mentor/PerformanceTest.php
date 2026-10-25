@@ -25,7 +25,7 @@ function performanceIntern(User $mentor, string $name, string $start = '2026-09-
 
 function presentOn(User $intern, string $date, bool $report = true, ?string $out = '17:00:00'): void
 {
-    $attendance = Attendance::factory()->for($intern, 'intern')->create(['date' => $date, 'clock_in_at' => '08:30:00', 'clock_out_at' => $out]);
+    $attendance = Attendance::factory()->for($intern, 'intern')->create(['date' => $date, 'clock_in_at' => '08:10:00', 'clock_out_at' => $out]);
 
     if ($report) {
         Logbook::factory()->for($attendance)->create();
@@ -54,15 +54,15 @@ it('computes the monthly recap and KPI per intern with the prototype formulas', 
         ->assertJsonPath('data.interns.0', [
             'intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'],
             'is_active' => true,
-            'recap' => ['present' => 4, 'leave' => 1, 'absent' => 1, 'missed_clock_out' => 1, 'working_days' => 7],
+            'recap' => ['present' => 5, 'late' => 0, 'missed_clock_in' => 0, 'leave' => 1, 'absent' => 1, 'missed_clock_out' => 1, 'working_days' => 7],
             'kpi' => [
                 'enough_data' => true,
-                // 4 / (7 - 1)
-                'attendance_rate' => 67,
-                'daily_report_rate' => 75,
+                // 5 / (7 - 1); hari Lupa Clock Out tetap terhitung hadir.
+                'attendance_rate' => 83,
+                'daily_report_rate' => 80,
             ],
         ])
-        ->assertJsonPath('data.summary', ['attendance_rate' => 67, 'daily_report_rate' => 75]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => 83, 'daily_report_rate' => 80]);
 });
 
 it('marks interns with less than five working days as not enough data and leaves them out of the summary', function () {
@@ -117,14 +117,16 @@ it('returns an empty page for a mentor without interns', function () {
         ->assertJsonPath('data.summary', ['attendance_rate' => null, 'daily_report_rate' => null]);
 });
 
-it('never sends the late clock-in mark to mentors', function () {
+it('counts late and missed clock in days as attended', function () {
     $andi = performanceIntern($this->mentor, 'Andi Pratama');
-    presentOn($andi, '2026-10-01');
+    Attendance::factory()->for($andi, 'intern')->create(['date' => '2026-10-01', 'clock_in_at' => '08:40:00']);
+    Attendance::factory()->for($andi, 'intern')->create(['date' => '2026-10-02', 'clock_in_at' => null]);
 
     $row = performance($this->mentor)->assertOk()->json('data.interns.0');
 
-    expect($row['recap'])->not->toHaveKey('late')
-        ->and($row['kpi'])->not->toHaveKey('late_days');
+    expect($row['recap'])->toMatchArray(['present' => 0, 'late' => 1, 'missed_clock_in' => 1, 'absent' => 5])
+        // 2 hadir dari 7 hari kerja.
+        ->and($row['kpi']['attendance_rate'])->toBe(29);
 });
 
 it('rejects an invalid month and other roles', function () {

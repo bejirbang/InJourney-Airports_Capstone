@@ -122,18 +122,20 @@ class AdminReports
                 $intern->name,
                 $intern->internProfile->mentor->name ?? '-',
                 $recap['present'],
+                $recap['late'],
+                $recap['missed_clock_in'],
                 $recap['leave'],
                 $recap['absent'],
                 $recap['missed_clock_out'],
-                $recap['late'],
+                $recap['corrected'],
                 $recap['working_days'],
             ];
         }
 
         return [
-            ['Intern', 'Mentor', 'Hadir', 'Izin', 'Tidak Hadir', 'Lupa Clock Out', 'Hari Terlambat', 'Total Hari Kerja'],
+            ['Intern', 'Mentor', 'Hadir', 'Terlambat', 'Lupa Clock In', 'Izin', 'Tidak Hadir', 'Lupa Clock Out', 'Dikoreksi', 'Total Hari Kerja'],
             $rows,
-            [28, 24, 10, 10, 12, 15, 15, 17],
+            [28, 24, 10, 12, 14, 10, 12, 15, 11, 17],
         ];
     }
 

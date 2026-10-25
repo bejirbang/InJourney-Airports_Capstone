@@ -937,17 +937,24 @@ Penyesuaian sementara agar kode lama tetap jalan di skema baru (dirombak di taha
 - Daily Report disimpan di `logbooks` berstatus `draft`; endpoint dan nama field (`daily_report`, `sent_at` = waktu terakhir disimpan) belum berubah sampai Tahap 2.
 - Clock in menyalin `scheduled_start`, `scheduled_end`, dan `late_tolerance_minutes`; clock out memakai jam pulang salinan itu. Aturan status (Terlambat dengan toleransi, Lupa Clock In, batas clock in sebelum jam pulang, titik milik bandara) masih aturan lama sampai Tahap 2. `late_minutes` dihitung dari `scheduled_start` tanpa toleransi.
 - Kelola Akun sudah memakai `unit_id` (wajib intern/mentor, kosong untuk admin), `airport_id`, `university`, `major`; pilihan nonaktif ditolak untuk akun baru tetapi boleh dipertahankan akun lama. `leave_quota_since` ikut tanggal mulai selama belum pernah diperpanjang. Ganti mentor memindahkan koreksi `pending_mentor` (bagian Tahap 7). Lokasi Kantor mewajibkan `airport_id` saat tambah, tidak bisa pindah bandara, dan tidak bisa dihapus (405).
-- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` dan `LeaveRequest::OVERDUE_PENDING_HOURS` masih konstanta (Tahap 4 dan 7), profil masih bisa mengubah nama (Tahap 2).
+- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` dan `LeaveRequest::OVERDUE_PENDING_HOURS` masih konstanta (Tahap 4 dan 7).
 
 ### Tahap 2 - Presensi dan logbook intern
 
-- [ ] Tulis ulang `AttendanceCalendar`: status Hadir, Terlambat, Lupa Clock In, Izin, Tidak Hadir, Libur + tanda Lupa Clock Out dan Dikoreksi, memakai jadwal bandara dan salinan jadwal/toleransi.
-- [ ] Clock in: hanya titik milik bandara intern, hanya sebelum jam pulang, menyalin jadwal dan toleransi, pesan Terlambat dengan lama menit.
-- [ ] Clock out: tidak sebelum jam pulang, logbook wajib terisi, ubah logbook menjadi `pending_review`. Lupa Clock In: buat baris presensi dan logbook dalam satu permintaan.
-- [ ] Logbook intern: isi/ubah draft, daftar (termasuk "Belum diisi" dan "Perlu ditindak"), perbaiki dan kirim ulang saat Revisi, isi hari hasil koreksi, riwayat review.
-- [ ] Riwayat presensi dan rekap bulanan dengan filter status (dipakai juga oleh kotak Dashboard).
-- [ ] `GET /api/intern/offices` hanya titik milik bandara intern.
-- [ ] Profil: intern, mentor, admin hanya mengubah nomor telepon. Respons profil intern memuat unit, bandara, universitas, jurusan, mentor, periode.
+- [x] `AttendanceCalendar` (25 Okt 2026). Status: `present`, `late`, `missed_clock_in`, `leave`, `absent`, `holiday`, dan `not_clocked_in` (hari ini, belum ada baris). Tanda terpisah `missed_clock_out` dan `is_corrected`. Status dihitung dari `Attendance::status()`: dikoreksi → Hadir; tanpa jam masuk → Lupa Clock In; lewat `scheduled_start` + `late_tolerance_minutes` (per menit, 08:15 masih Hadir, 08:16 Terlambat) → Terlambat. `late_minutes` dihitung dari jam masuk dan hanya terisi saat Terlambat. Hari yang punya baris presensi mengikuti presensinya walau ada izin disetujui. Rekap: `present`, `late`, `missed_clock_in`, `leave`, `absent`, `missed_clock_out`, `corrected`, `working_days`; status `ongoing` dan `missed_clock_out` dihapus dari enum.
+- [x] Clock in: hanya titik aktif milik bandara intern, hanya sebelum jam pulang (`after_work_end` setelahnya), menyalin jadwal dan toleransi. Pesan: "Clock in berhasil pukul 08:20. Anda tercatat Terlambat 20 menit."
+- [x] Clock out: urutan cek jam pulang (`before_work_end`), logbook (`logbook_missing`, "Isi logbook dulu sebelum clock out."), lalu lokasi titik milik bandara. Boleh mengirim `work`/`notes` sekaligus (dialog logbook). Logbook menjadi `pending_review` tanpa notifikasi ke mentor (design-mentor 14). Lupa Clock In: setelah jam pulang tanpa clock in, baris presensi (`clock_in_at` kosong) dan logbook dibuat dalam satu permintaan; `work` wajib. Pesan: "Clock out berhasil pukul 17:03. Logbook terkirim ke mentor."
+- [x] Logbook intern (`InternLogbooks`, `/api/intern/logbooks`): `GET ?month&status` (daftar per hari kerja + `action_needed`), `GET /{date}` (detail, riwayat review, `action`), `PUT /{date}`. Aksi: `save` (draft hari ini sebelum clock out), `resubmit` (Revisi → Menunggu Review, notifikasi mentor "Andi P. memperbaiki logbook 8 Okt."), `submit` (hari dikoreksi yang belum terkirim → langsung Menunggu Review). `logbook_state` `missing` = hari dikoreksi tanpa logbook terkirim. Hari Lupa Clock Out yang belum dikoreksi tetap `draft` dan terkunci (`needs_correction`). Menu Logbook dengan angka "perlu ditindak".
+- [x] Riwayat presensi dengan filter `status` (`present`, `late`, `missed_clock_in`, `leave`, `absent`, `holiday`, `missed_clock_out`) untuk intern, mentor, dan admin; rekap tetap sebulan penuh. `can_request_correction` untuk Terlambat, Lupa Clock In, Tidak Hadir, atau tanda Lupa Clock Out, selama tidak ada koreksi aktif (`has_active_correction`).
+- [x] `GET /api/intern/offices` hanya titik aktif milik bandara intern.
+- [x] Profil: semua role hanya mengubah `phone` (wajib dikirim, boleh kosong). `user.intern_profile` berisi `mentor`, `airport`, `university`, `major`, `start_date`, `end_date`.
+
+Ikut berubah di Tahap 2:
+
+- Kartu Hari Ini: `state` ditambah `missed_clock_in` (lewat jam pulang tanpa clock in, tombol Clock Out). Field baru `schedule`, `status`, `clock_out_from`, `can_clock_out`, `logbook`; `work_hours` dan `daily_report_sent` dihapus. Dashboard intern: `logbook_reminder` dan `action_needed.logbooks` (menggantikan `daily_report_reminder`).
+- Endpoint `/api/intern/attendance/daily-report` dihapus, diganti `/api/intern/logbooks/{date}`. Tab mentor `/interns/{id}/daily-reports` menjadi `/interns/{id}/logbooks`. Field `daily_report*` di riwayat menjadi `logbook`, `logbook_state`, `logbook_work`; `has_pending_correction` menjadi `has_active_correction`.
+- Mentor kini melihat status Terlambat dan `late_minutes` (bagian Tahap 8 "hapus penyaringan lama"), karena Terlambat sudah menjadi status presensi.
+- Laporan Excel Rekap Absensi dan Dashboard admin (kemarin) memakai kolom status baru. KPI performa menghitung Hadir + Terlambat + Lupa Clock In sebagai hadir (sementara, KPI baru di Tahap 8).
 
 ### Tahap 3 - Koreksi presensi dua tahap
 
@@ -987,7 +994,7 @@ Penyesuaian sementara agar kode lama tetap jalan di skema baru (dirombak di taha
 ### Tahap 8 - Dashboard, performa, laporan, admin lain
 
 - [ ] Dashboard intern, mentor, admin sesuai dokumen baru (kartu bisa diklik, antrean tindakan, filter bandara global untuk admin, asal kampus).
-- [ ] Mentor melihat Terlambat (hapus penyaringan lama). Performa: rekap baru dan KPI Kehadiran, Tepat waktu, Logbook disetujui, Revisi logbook.
+- [ ] Mentor melihat Terlambat (sudah sejak Tahap 2). Performa: rekap baru dan KPI Kehadiran, Tepat waktu, Logbook disetujui, Revisi logbook.
 - [ ] Admin Presensi (`/admin/attendance`): data presensi dan rekap bulanan semua intern. Endpoint ini belum pernah ada.
 - [ ] Admin Lokasi & Jadwal: CRUD bandara (dengan jadwal mingguan), titik presensi, jadwal mingguan (atur sekaligus/per hari, `effective_from` tidak di masa lalu, riwayat), jadwal khusus (tanpa tumpang tindih).
 - [ ] Admin Pengaturan Umum (`system_settings`), kalender libur berlaku untuk semua bandara.

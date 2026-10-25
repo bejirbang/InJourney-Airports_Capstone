@@ -43,7 +43,7 @@ it('returns an empty dashboard when nothing needs action', function () {
             'holiday' => null,
             'has_active_office' => false,
             'today' => ['interns' => 0, 'clocked_in' => 0, 'on_leave' => 0, 'not_clocked_in' => 0, 'late' => 0, 'late_interns' => []],
-            'yesterday' => ['date' => '2026-10-09', 'present' => 0, 'leave' => 0, 'absent' => 0, 'missed_clock_out' => 0],
+            'yesterday' => ['date' => '2026-10-09', 'present' => 0, 'late' => 0, 'missed_clock_in' => 0, 'leave' => 0, 'absent' => 0, 'missed_clock_out' => 0],
             'overdue_leaves' => ['total' => 0, 'items' => []],
             'pending_corrections' => ['total' => 0, 'items' => []],
             'ending_internships' => ['total' => 0, 'items' => []],
@@ -64,14 +64,16 @@ it('counts today for active interns in their internship period only', function (
     $budi = managedIntern($this->mentor, 'Budi Kurniawan');
     $andi = managedIntern($this->mentor, 'Andi Pratama');
     $dewi = managedIntern($this->mentor, 'Dewi Sartika');
-    managedIntern($this->mentor, 'Doni Akbar');
+    $doni = managedIntern($this->mentor, 'Doni Akbar');
+    managedIntern($this->mentor, 'Eka Putri');
     $inactive = managedIntern($this->mentor, 'Nonaktif Satu', attributes: ['is_active' => false]);
     $notStarted = managedIntern($this->mentor, 'Belum Mulai', ['start_date' => '2026-10-13']);
     $ended = managedIntern($this->mentor, 'Sudah Selesai', ['end_date' => '2026-10-11']);
 
-    Attendance::factory()->for($rina, 'intern')->clockedIn()->create(['clock_in_at' => '08:15:00']);
+    Attendance::factory()->for($rina, 'intern')->clockedIn()->create(['clock_in_at' => '08:25:00']);
     Attendance::factory()->for($budi, 'intern')->create(['clock_in_at' => '07:55:00']);
-    Attendance::factory()->for($andi, 'intern')->create(['clock_in_at' => '08:01:00']);
+    Attendance::factory()->for($andi, 'intern')->create(['clock_in_at' => '08:16:00']);
+    Attendance::factory()->for($doni, 'intern')->create(['clock_in_at' => '08:15:00']);
     LeaveRequest::factory()->for($dewi, 'intern')->approved()->create(['start_date' => '2026-10-12', 'end_date' => '2026-10-13']);
     foreach ([$inactive, $notStarted, $ended] as $outside) {
         Attendance::factory()->for($outside, 'intern')->create(['clock_in_at' => '09:00:00']);
@@ -80,14 +82,14 @@ it('counts today for active interns in their internship period only', function (
     adminDashboard($this->admin)
         ->assertOk()
         ->assertJsonPath('data.today', [
-            'interns' => 5,
-            'clocked_in' => 3,
+            'interns' => 6,
+            'clocked_in' => 4,
             'on_leave' => 1,
             'not_clocked_in' => 1,
             'late' => 2,
             'late_interns' => [
-                ['intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'], 'clock_in_at' => '08:01', 'late_minutes' => 1],
-                ['intern' => ['id' => $rina->id, 'name' => 'Rina Wulandari', 'short_name' => 'Rina W.'], 'clock_in_at' => '08:15', 'late_minutes' => 15],
+                ['intern' => ['id' => $andi->id, 'name' => 'Andi Pratama', 'short_name' => 'Andi P.'], 'clock_in_at' => '08:16', 'late_minutes' => 16],
+                ['intern' => ['id' => $rina->id, 'name' => 'Rina Wulandari', 'short_name' => 'Rina W.'], 'clock_in_at' => '08:25', 'late_minutes' => 25],
             ],
         ]);
 });
@@ -149,7 +151,10 @@ it('summarises the final statuses of the previous working day', function () {
         ->assertOk()
         ->assertJsonPath('data.yesterday', [
             'date' => '2026-10-08',
+            // Hadir Satu, Lupa Keluar (Hadir + Lupa Clock Out), dan Hari Terakhir.
             'present' => 3,
+            'late' => 1,
+            'missed_clock_in' => 0,
             'leave' => 1,
             'absent' => 1,
             'missed_clock_out' => 1,

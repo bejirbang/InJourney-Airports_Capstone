@@ -3,15 +3,13 @@
 namespace App\Http\Controllers\Intern;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Intern\ClockOutRequest;
 use App\Http\Requests\Intern\ClockRequest;
-use App\Http\Requests\Intern\DailyReportRequest;
 use App\Http\Requests\Shared\AttendanceHistoryRequest;
 use App\Http\Resources\AttendanceResource;
-use App\Http\Resources\DailyReportResource;
 use App\Models\User;
 use App\Services\AttendanceClock;
 use App\Services\AttendanceHistory;
-use App\Services\DailyReports;
 use App\Support\Duration;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,8 +33,8 @@ class AttendanceController extends Controller
         $message = 'Clock in berhasil pukul '.substr((string) $attendance->clock_in_at, 0, 5).'.';
         $lateMinutes = $attendance->lateMinutes();
 
-        if ($lateMinutes > 0) {
-            $message .= ' Anda terlambat '.Duration::minutes($lateMinutes).'.';
+        if ($lateMinutes !== null) {
+            $message .= ' Anda tercatat Terlambat '.Duration::minutes($lateMinutes).'.';
         }
 
         return response()->json([
@@ -45,7 +43,7 @@ class AttendanceController extends Controller
         ], Response::HTTP_CREATED);
     }
 
-    public function clockOut(ClockRequest $request, AttendanceClock $clock): JsonResponse
+    public function clockOut(ClockOutRequest $request, AttendanceClock $clock): JsonResponse
     {
         /** @var User $intern */
         $intern = $request->user();
@@ -54,11 +52,13 @@ class AttendanceController extends Controller
             $intern,
             $request->float('latitude'),
             $request->float('longitude'),
+            $request->filled('work') ? $request->string('work')->value() : null,
+            $request->filled('notes') ? $request->string('notes')->value() : null,
             Date::now(),
-        )->load(['clockInOffice', 'clockOutOffice']);
+        )->load(['clockInOffice', 'clockOutOffice', 'logbook']);
 
         return response()->json([
-            'message' => 'Clock out berhasil pukul '.substr((string) $attendance->clock_out_at, 0, 5).'. Terima kasih.',
+            'message' => 'Clock out berhasil pukul '.substr((string) $attendance->clock_out_at, 0, 5).'. Logbook terkirim ke mentor.',
             'data' => new AttendanceResource($attendance),
         ]);
     }
@@ -68,9 +68,7 @@ class AttendanceController extends Controller
         /** @var User $intern */
         $intern = $request->user();
 
-        $month = $request->filled('month') ? $request->string('month')->value() : null;
-
-        return response()->json(['data' => $history->month($intern, $month, Date::now())]);
+        return response()->json(['data' => $history->month($intern, $request->month(), $request->statusFilter(), Date::now())]);
     }
 
     public function day(Request $request, string $date, AttendanceHistory $history): JsonResponse
@@ -79,33 +77,5 @@ class AttendanceController extends Controller
         $intern = $request->user();
 
         return response()->json(['data' => $history->day($intern, $date, Date::now())]);
-    }
-
-    public function showDailyReport(Request $request, DailyReports $reports): JsonResponse
-    {
-        /** @var User $intern */
-        $intern = $request->user();
-
-        $report = $reports->todayAttendance($intern, Date::now())?->logbook;
-
-        return response()->json(['data' => $report === null ? null : new DailyReportResource($report)]);
-    }
-
-    public function saveDailyReport(DailyReportRequest $request, DailyReports $reports): JsonResponse
-    {
-        /** @var User $intern */
-        $intern = $request->user();
-
-        [$report, $created] = $reports->save(
-            $intern,
-            $request->string('work')->value(),
-            $request->filled('notes') ? $request->string('notes')->value() : null,
-            Date::now(),
-        );
-
-        return response()->json([
-            'message' => $created ? 'Daily Report terkirim.' : 'Perubahan tersimpan.',
-            'data' => new DailyReportResource($report),
-        ], $created ? Response::HTTP_CREATED : Response::HTTP_OK);
     }
 }

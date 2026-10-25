@@ -7,7 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 /**
  * Isian yang hanya spasi menjadi kosong lewat middleware TrimStrings, jadi ikut ditolak.
  */
-class DailyReportRequest extends FormRequest
+class LogbookRequest extends FormRequest
 {
     public const WORK_REQUIRED = 'Isi apa yang Anda kerjakan hari ini.';
 

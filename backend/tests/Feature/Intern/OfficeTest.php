@@ -15,7 +15,7 @@ function officeList(User $user)
 }
 
 it('returns active offices with coordinates and both radii for the intern', function () {
-    $office = Office::factory()->create(['name' => 'Kantor Pusat Terminal 3']);
+    $office = Office::factory()->for($this->intern->internProfile->airport)->create(['name' => 'Kantor Pusat Terminal 3']);
 
     $data = officeList($this->intern)->assertOk()->json('data');
 
@@ -29,8 +29,9 @@ it('returns active offices with coordinates and both radii for the intern', func
 });
 
 it('excludes inactive offices', function () {
-    Office::factory()->create(['name' => 'Kantor Aktif']);
-    Office::factory()->inactive()->create(['name' => 'Kantor Tutup']);
+    Office::factory()->for($this->intern->internProfile->airport)->create(['name' => 'Kantor Aktif']);
+    Office::factory()->for($this->intern->internProfile->airport)->inactive()->create(['name' => 'Kantor Tutup']);
+    Office::factory()->create(['name' => 'Bandara Lain']);
 
     $names = array_column(officeList($this->intern)->assertOk()->json('data'), 'name');
 

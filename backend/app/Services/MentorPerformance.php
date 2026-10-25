@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\AttendanceStatus;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -65,18 +64,21 @@ class MentorPerformance
         $reports = count(array_filter(
             $days,
             fn (array $day, string $date): bool => $date < $today
-                && $day['status'] === AttendanceStatus::Present
+                && $day['status']->isAttended()
                 && $day['attendance']?->logbook !== null,
             ARRAY_FILTER_USE_BOTH,
         ));
 
-        $present = $recap['present'];
+        // Hadir, Terlambat, dan Lupa Clock In terhitung hadir.
+        $attended = $recap['present'] + $recap['late'] + $recap['missed_clock_in'];
 
         return [
             'intern' => ['id' => $intern->id, 'name' => $intern->name, 'short_name' => $intern->shortName()],
             'is_active' => $this->access->denialReason($intern, $now) === null,
             'recap' => [
-                'present' => $present,
+                'present' => $recap['present'],
+                'late' => $recap['late'],
+                'missed_clock_in' => $recap['missed_clock_in'],
                 'leave' => $recap['leave'],
                 'absent' => $recap['absent'],
                 'missed_clock_out' => $recap['missed_clock_out'],
@@ -84,8 +86,8 @@ class MentorPerformance
             ],
             'kpi' => [
                 'enough_data' => $recap['working_days'] >= self::MIN_KPI_DAYS,
-                'attendance_rate' => self::percent($present, $recap['working_days'] - $recap['leave']),
-                'daily_report_rate' => self::percent($reports, $present),
+                'attendance_rate' => self::percent($attended, $recap['working_days'] - $recap['leave']),
+                'daily_report_rate' => self::percent($reports, $attended),
             ],
         ];
     }

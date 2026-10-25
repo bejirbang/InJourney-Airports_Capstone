@@ -66,7 +66,7 @@ function tableRows(array $rows, string $firstHeader): array
 }
 
 describe('rekap absensi', function () {
-    it('counts final statuses per intern in the period, with late days', function () {
+    it('counts final statuses per intern in the period, with late and corrected days', function () {
         Attendance::factory()->for($this->rina, 'intern')->create(['date' => '2026-10-05', 'clock_in_at' => '07:55:00']);
         Attendance::factory()->for($this->rina, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => '08:15:00']);
         Attendance::factory()->for($this->rina, 'intern')->clockedIn()->create(['date' => '2026-10-07', 'clock_in_at' => '08:30:00']);
@@ -93,7 +93,7 @@ describe('rekap absensi', function () {
             'Dibuat: 12 Okt 2026 10:00 oleh Admin Sinta',
             'Hari ini belum dihitung karena status final ditetapkan setelah 23:59.',
         ])->and(tableRows($rows, 'Intern'))->toBe([
-            ['Rina Wulandari', 'Sari Wijaya', 2, 1, 1, 1, 2, 5],
+            ['Rina Wulandari', 'Sari Wijaya', 2, 1, 0, 1, 1, 1, 0, 5],
         ]);
 
         expect(AuditLog::sole()->only(['action', 'object', 'detail']))->toBe([
@@ -108,7 +108,7 @@ describe('rekap absensi', function () {
 
         $rows = xlsxRows(exportReport($this->admin, ['type' => 'attendance', 'from' => '2026-10-01', 'to' => '2026-10-09', 'intern_id' => $andi->id])->assertOk());
 
-        expect(tableRows($rows, 'Intern'))->toBe([['Andi Pratama', 'Budi Santoso', 0, 0, 7, 0, 0, 7]]);
+        expect(tableRows($rows, 'Intern'))->toBe([['Andi Pratama', 'Budi Santoso', 0, 0, 0, 0, 7, 0, 0, 7]]);
     });
 
     it('tells the admin when there is no data', function () {

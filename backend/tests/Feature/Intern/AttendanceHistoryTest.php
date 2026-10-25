@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\AttendanceStatus;
 use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Logbook;
@@ -18,9 +20,9 @@ beforeEach(function () {
     $this->token = $this->intern->createToken('api')->plainTextToken;
 });
 
-function history(?string $month = null)
+function history(string $query = '')
 {
-    return test()->getJson('/api/intern/attendance'.($month === null ? '' : "?month={$month}"), [
+    return test()->getJson('/api/intern/attendance'.$query, [
         'Authorization' => 'Bearer '.test()->token,
     ]);
 }
@@ -32,18 +34,22 @@ function historyDay(string $date)
     ]);
 }
 
+/**
+ * Oktober: 1 Hadir, 2 Hadir + Lupa Clock Out, 5 Izin, 6 Hadir (Dikoreksi), 7 Tidak Hadir,
+ * 8 Terlambat 30 menit, 9 libur, 12 hari ini (sudah clock in).
+ */
 function seedOctober(User $intern, Office $office): void
 {
     $attend = fn (string $date, string $in, ?string $out, array $extra = []) => Attendance::factory()
         ->for($intern, 'intern')
         ->create(['date' => $date, 'clock_in_at' => $in, 'clock_out_at' => $out, 'clock_in_office_id' => $office->id, ...$extra]);
 
-    Logbook::factory()->for($attend('2026-10-01', '08:10:00', '17:05:00', ['clock_out_office_id' => $office->id]))
-        ->create(['work' => 'Menyusun ERD.', 'notes' => null, 'updated_at' => '2026-10-01 16:00:00']);
-    $attend('2026-10-02', '08:00:00', null);
+    Logbook::factory()->approved()->for($attend('2026-10-01', '08:10:00', '17:05:00', ['clock_out_office_id' => $office->id]))
+        ->create(['work' => 'Menyusun ERD.', 'notes' => null, 'submitted_at' => '2026-10-01 17:05:00']);
+    Logbook::factory()->for($attend('2026-10-02', '08:00:00', null))->create();
     LeaveRequest::factory()->for($intern, 'intern')->approved()->create(['start_date' => '2026-10-05', 'end_date' => '2026-10-05']);
     $attend('2026-10-06', '08:00:00', '17:00:00', ['is_corrected' => true]);
-    $attend('2026-10-08', '07:58:00', '17:00:00');
+    Logbook::factory()->pendingReview()->for($attend('2026-10-08', '08:30:00', '17:00:00'))->create();
     Holiday::factory()->create(['date' => '2026-10-09', 'name' => 'Cuti Bersama']);
     $attend('2026-10-12', '08:00:00', null);
 }
@@ -58,72 +64,138 @@ it('returns the current month with a recap of final statuses', function () {
         ->assertJsonPath('data.recap', [
             'month' => '2026-10',
             'present' => 3,
+            'late' => 1,
+            'missed_clock_in' => 0,
             'leave' => 1,
             'absent' => 1,
             'missed_clock_out' => 1,
-            'late' => 1,
+            'corrected' => 1,
             'working_days' => 6,
         ]);
 });
 
-it('lists every day up to today, newest first, with its status', function () {
+it('lists every day up to today, newest first, with its status and marks', function () {
     seedOctober($this->intern, Office::factory()->create());
 
     $days = collect(history()->json('data.days'))->keyBy('date');
 
-    expect($days->keys()->all())->toBe([
-        '2026-10-12', '2026-10-11', '2026-10-10', '2026-10-09', '2026-10-08', '2026-10-07',
-        '2026-10-06', '2026-10-05', '2026-10-04', '2026-10-03', '2026-10-02', '2026-10-01',
-    ])
-        ->and($days->map->status->all())->toBe([
-            '2026-10-12' => 'ongoing',
-            '2026-10-11' => 'holiday',
-            '2026-10-10' => 'holiday',
-            '2026-10-09' => 'holiday',
-            '2026-10-08' => 'present',
-            '2026-10-07' => 'absent',
-            '2026-10-06' => 'present',
-            '2026-10-05' => 'leave',
-            '2026-10-04' => 'holiday',
-            '2026-10-03' => 'holiday',
-            '2026-10-02' => 'missed_clock_out',
-            '2026-10-01' => 'present',
-        ]);
+    expect($days->map->status->all())->toBe([
+        '2026-10-12' => 'present',
+        '2026-10-11' => 'holiday',
+        '2026-10-10' => 'holiday',
+        '2026-10-09' => 'holiday',
+        '2026-10-08' => 'late',
+        '2026-10-07' => 'absent',
+        '2026-10-06' => 'present',
+        '2026-10-05' => 'leave',
+        '2026-10-04' => 'holiday',
+        '2026-10-03' => 'holiday',
+        '2026-10-02' => 'present',
+        '2026-10-01' => 'present',
+    ]);
 
     expect($days['2026-10-01'])->toBe([
         'date' => '2026-10-01',
         'status' => 'present',
         'clock_in_at' => '08:10',
         'clock_out_at' => '17:05',
-        'late_minutes' => 10,
+        'late_minutes' => null,
+        'missed_clock_out' => false,
         'is_corrected' => false,
-        'daily_report_sent' => true,
+        'logbook_state' => 'approved',
         'holiday_name' => null,
         'leave_type' => null,
-        'has_pending_correction' => false,
-        'can_request_correction' => true,
+        'has_active_correction' => false,
+        'can_request_correction' => false,
     ])
+        ->and($days['2026-10-02']['missed_clock_out'])->toBeTrue()
+        ->and($days['2026-10-02']['logbook_state'])->toBe('draft')
         ->and($days['2026-10-06']['is_corrected'])->toBeTrue()
-        ->and($days['2026-10-08']['late_minutes'])->toBe(0)
+        ->and($days['2026-10-06']['logbook_state'])->toBe('missing')
+        ->and($days['2026-10-08']['late_minutes'])->toBe(30)
         ->and($days['2026-10-09']['holiday_name'])->toBe('Cuti Bersama')
         ->and($days['2026-10-10']['holiday_name'])->toBeNull()
         ->and($days['2026-10-05']['leave_type'])->toBe('sick')
-        ->and($days['2026-10-07']['clock_in_at'])->toBeNull();
+        ->and($days['2026-10-07']['logbook_state'])->toBeNull()
+        ->and($days['2026-10-12']['missed_clock_out'])->toBeFalse();
 });
 
-it('offers correction only on past working days that are not leave', function () {
+it('offers correction on past days that are late, missed clock in, absent, or missed clock out', function () {
     seedOctober($this->intern, Office::factory()->create());
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-09-30', 'clock_in_at' => null]);
 
-    $correctable = collect(history()->json('data.days'))
+    $correctable = fn (string $query) => collect(history($query)->json('data.days'))
         ->filter(fn (array $day) => $day['can_request_correction'])
         ->pluck('date')
         ->all();
 
-    expect($correctable)->toBe(['2026-10-08', '2026-10-07', '2026-10-06', '2026-10-02', '2026-10-01']);
+    expect($correctable(''))->toBe(['2026-10-08', '2026-10-07', '2026-10-02'])
+        ->and($correctable('?month=2026-09&status=missed_clock_in'))->toBe(['2026-09-30']);
+});
+
+it('marks a date that already has an active correction', function () {
+    seedOctober($this->intern, Office::factory()->create());
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07', 'recorded_status' => AttendanceStatus::Absent]);
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->rejectedByMentor()->create(['date' => '2026-10-08', 'recorded_status' => AttendanceStatus::Late]);
+
+    $days = collect(history()->json('data.days'))->keyBy('date');
+
+    expect($days['2026-10-07'])->toMatchArray(['has_active_correction' => true, 'can_request_correction' => false])
+        ->and($days['2026-10-08'])->toMatchArray(['has_active_correction' => false, 'can_request_correction' => true]);
+});
+
+it('filters the days by status or by the missed clock out mark, keeping the full recap', function (string $status, array $dates) {
+    seedOctober($this->intern, Office::factory()->create());
+
+    $response = history("?status={$status}")->assertOk();
+
+    expect(array_column($response->json('data.days'), 'date'))->toBe($dates)
+        ->and($response->json('data.recap.working_days'))->toBe(6);
+})->with([
+    ['present', ['2026-10-12', '2026-10-06', '2026-10-02', '2026-10-01']],
+    ['late', ['2026-10-08']],
+    ['absent', ['2026-10-07']],
+    ['leave', ['2026-10-05']],
+    ['missed_clock_out', ['2026-10-02']],
+    ['missed_clock_in', []],
+]);
+
+it('rejects an unknown status filter', function () {
+    history('?status=ongoing')
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['status' => 'Filter status tidak valid.']);
+});
+
+it('shows a missed clock in day as attended in the recap', function () {
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07', 'clock_in_at' => null, 'clock_out_at' => '17:10:00']);
+
+    $response = history('?status=missed_clock_in')->assertOk();
+
+    expect($response->json('data.days.0'))->toMatchArray([
+        'date' => '2026-10-07',
+        'status' => 'missed_clock_in',
+        'clock_in_at' => null,
+        'clock_out_at' => '17:10',
+        'missed_clock_out' => false,
+    ])
+        ->and($response->json('data.recap.missed_clock_in'))->toBe(1);
+});
+
+it('keeps the status of a past day when the tolerance setting changes later', function () {
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07', 'clock_in_at' => '08:10:00', 'late_tolerance_minutes' => 5]);
+
+    expect(collect(history()->json('data.days'))->firstWhere('date', '2026-10-07')['status'])->toBe('late');
+});
+
+it('lets an attended day win over an approved leave', function () {
+    LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07']);
+
+    expect(collect(history()->json('data.days'))->firstWhere('date', '2026-10-07'))->toMatchArray(['status' => 'present', 'leave_type' => null]);
 });
 
 it('shows a past month in full', function () {
-    $response = history('2026-09')->assertOk();
+    $response = history('?month=2026-09')->assertOk();
 
     expect($response->json('data.days'))->toHaveCount(30)
         ->and($response->json('data.recap.absent'))->toBe(22)
@@ -142,13 +214,13 @@ it('starts the first month at the internship start date', function () {
 });
 
 it('rejects months outside the internship period or in the future', function (string $month) {
-    history($month)
+    history("?month={$month}")
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['month' => 'Bulan di luar periode magang.']);
 })->with(['2026-08', '2026-11']);
 
 it('rejects an invalid month format', function () {
-    history('Oktober')
+    history('?month=Oktober')
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['month' => 'Format bulan tidak valid.']);
 });
@@ -162,21 +234,23 @@ it('only shows the intern’s own attendance', function () {
     expect($day['status'])->toBe('absent');
 });
 
-it('shows the read-only detail of one day with its daily report', function () {
-    $office = Office::factory()->create(['name' => 'Kantor Pusat Terminal 3']);
+it('shows the read-only detail of one day with its logbook and copied schedule', function () {
+    $office = Office::factory()->create(['name' => 'Terminal 3']);
     seedOctober($this->intern, $office);
 
     historyDay('2026-10-01')
         ->assertOk()
         ->assertJsonPath('data.status', 'present')
         ->assertJsonPath('data.clock_in_at', '08:10')
-        ->assertJsonPath('data.late_minutes', 10)
-        ->assertJsonPath('data.clock_in_office', ['id' => $office->id, 'name' => 'Kantor Pusat Terminal 3'])
+        ->assertJsonPath('data.late_minutes', null)
+        ->assertJsonPath('data.scheduled', ['start' => '08:00', 'end' => '17:00'])
+        ->assertJsonPath('data.clock_in_office', ['id' => $office->id, 'name' => 'Terminal 3'])
         ->assertJsonPath('data.clock_out_office.id', $office->id)
-        ->assertJsonPath('data.daily_report', [
+        ->assertJsonPath('data.logbook', [
             'work' => 'Menyusun ERD.',
             'notes' => null,
-            'sent_at' => '2026-10-01T16:00:00+07:00',
+            'status' => 'approved',
+            'submitted_at' => '2026-10-01T17:05:00+07:00',
         ]);
 });
 
@@ -184,8 +258,9 @@ it('shows a day without attendance', function () {
     historyDay('2026-10-07')
         ->assertOk()
         ->assertJsonPath('data.status', 'absent')
+        ->assertJsonPath('data.scheduled', null)
         ->assertJsonPath('data.clock_in_office', null)
-        ->assertJsonPath('data.daily_report', null);
+        ->assertJsonPath('data.logbook', null);
 });
 
 it('rejects a day outside the period, in the future, or not a real date', function (string $date) {

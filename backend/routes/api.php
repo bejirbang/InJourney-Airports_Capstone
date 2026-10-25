@@ -18,6 +18,7 @@ use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
 use App\Http\Controllers\Intern\DashboardController as InternDashboardController;
 use App\Http\Controllers\Intern\LeaveController as InternLeaveController;
+use App\Http\Controllers\Intern\LogbookController as InternLogbookController;
 use App\Http\Controllers\Intern\MenuController as InternMenuController;
 use App\Http\Controllers\Intern\OfficeController as InternOfficeController;
 use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController;
@@ -63,8 +64,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/attendance/clock-out', [InternAttendanceController::class, 'clockOut'])->name('attendance.clock-out');
             Route::get('/attendance', [InternAttendanceController::class, 'history'])->name('attendance.history');
             Route::get('/attendance/days/{date}', [InternAttendanceController::class, 'day'])->name('attendance.day');
-            Route::get('/attendance/daily-report', [InternAttendanceController::class, 'showDailyReport'])->name('attendance.daily-report.show');
-            Route::put('/attendance/daily-report', [InternAttendanceController::class, 'saveDailyReport'])->name('attendance.daily-report.save');
+
+            Route::get('/logbooks', [InternLogbookController::class, 'index'])->name('logbooks.index');
+            Route::get('/logbooks/{date}', [InternLogbookController::class, 'show'])->name('logbooks.show');
+            Route::put('/logbooks/{date}', [InternLogbookController::class, 'update'])->name('logbooks.update');
 
             Route::get('/leaves', [InternLeaveController::class, 'index'])->name('leaves.index');
             Route::get('/leaves/working-days', [InternLeaveController::class, 'workingDays'])->name('leaves.working-days');
@@ -81,7 +84,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/interns/{intern}', [MentorInternController::class, 'show'])->whereNumber('intern')->name('interns.show');
             Route::get('/interns/{intern}/attendance', [MentorInternController::class, 'attendance'])->name('interns.attendance');
             Route::get('/interns/{intern}/attendance/days/{date}', [MentorInternController::class, 'day'])->name('interns.attendance.day');
-            Route::get('/interns/{intern}/daily-reports', [MentorInternController::class, 'dailyReports'])->name('interns.daily-reports');
+            Route::get('/interns/{intern}/logbooks', [MentorInternController::class, 'logbooks'])->name('interns.logbooks');
             Route::get('/interns/{intern}/leaves', [MentorInternController::class, 'leaves'])->name('interns.leaves');
 
             Route::get('/leaves', [MentorLeaveController::class, 'index'])->name('leaves.index');

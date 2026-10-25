@@ -32,14 +32,14 @@ function adminGet(User $admin, string $uri): TestResponse
     return test()->getJson($uri, ['Authorization' => 'Bearer '.$admin->createToken('api')->plainTextToken]);
 }
 
-it('shows the monthly attendance with late marks, daily report text, and pending corrections', function () {
+it('shows the monthly attendance with statuses, logbook text, and active corrections', function () {
     $office = Office::factory()->create(['name' => 'Kantor Pusat Terminal 3']);
     $friday = Attendance::factory()->for($this->intern, 'intern')->create([
-        'date' => '2026-10-09', 'clock_in_at' => '08:15:00', 'clock_in_office_id' => $office->id, 'is_corrected' => true,
+        'date' => '2026-10-09', 'clock_in_at' => '08:45:00', 'clock_in_office_id' => $office->id, 'is_corrected' => true,
     ]);
-    Logbook::factory()->create(['attendance_id' => $friday->id, 'work' => 'Menyusun laporan API.']);
-    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-08']);
-    AttendanceCorrection::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-08']);
+    Logbook::factory()->pendingReview()->create(['attendance_id' => $friday->id, 'work' => 'Menyusun laporan API.']);
+    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-08', 'clock_in_at' => '08:30:00']);
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->pendingAdmin()->create(['date' => '2026-10-08']);
 
     $response = adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance?month=2026-10")
         ->assertOk()
@@ -47,6 +47,7 @@ it('shows the monthly attendance with late marks, daily report text, and pending
         ->assertJsonPath('data.selectable_months', ['first' => '2026-09', 'last' => '2026-10'])
         ->assertJsonPath('data.recap.late', 1)
         ->assertJsonPath('data.recap.missed_clock_out', 1)
+        ->assertJsonPath('data.recap.corrected', 1)
         ->assertJsonPath('data.days.0.date', '2026-10-12');
 
     $days = collect($response->json('data.days'))->keyBy('date');
@@ -54,25 +55,33 @@ it('shows the monthly attendance with late marks, daily report text, and pending
     expect($days['2026-10-09'])->toBe([
         'date' => '2026-10-09',
         'status' => 'present',
-        'clock_in_at' => '08:15',
+        'clock_in_at' => '08:45',
         'clock_out_at' => '17:00',
-        'late_minutes' => 15,
+        'late_minutes' => null,
+        'missed_clock_out' => false,
         'is_corrected' => true,
-        'daily_report_sent' => true,
+        'logbook_state' => 'pending_review',
         'holiday_name' => null,
         'leave_type' => null,
-        'daily_report_work' => 'Menyusun laporan API.',
-        'has_pending_correction' => false,
+        'logbook_work' => 'Menyusun laporan API.',
+        'has_active_correction' => false,
     ])
-        ->and($days['2026-10-08']['status'])->toBe('missed_clock_out')
-        ->and($days['2026-10-08']['has_pending_correction'])->toBeTrue()
-        ->and($days['2026-10-08']['daily_report_work'])->toBeNull();
+        ->and($days['2026-10-08'])->toMatchArray([
+            'status' => 'late',
+            'late_minutes' => 30,
+            'missed_clock_out' => true,
+            'has_active_correction' => true,
+            'logbook_work' => null,
+        ]);
+
+    adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance?month=2026-10&status=late")
+        ->assertJsonPath('data.days.*.date', ['2026-10-08']);
 
     adminGet($this->admin, "/api/admin/users/{$this->intern->id}/attendance/days/2026-10-09")
         ->assertOk()
-        ->assertJsonPath('data.late_minutes', 15)
+        ->assertJsonPath('data.is_corrected', true)
         ->assertJsonPath('data.clock_in_office', ['id' => $office->id, 'name' => 'Kantor Pusat Terminal 3'])
-        ->assertJsonPath('data.daily_report.work', 'Menyusun laporan API.');
+        ->assertJsonPath('data.logbook.work', 'Menyusun laporan API.');
 });
 
 it('rejects a month outside the internship period', function () {

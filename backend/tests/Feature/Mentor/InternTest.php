@@ -177,7 +177,7 @@ describe('detail intern', function () {
             ->assertForbidden()
             ->assertJsonPath('message', 'Anda tidak memiliki akses ke intern ini.');
         asMentor($this->mentor, "/api/mentor/interns/{$admin->id}{$suffix}")->assertForbidden();
-    })->with(['', '/attendance', '/attendance/days/2026-10-09', '/daily-reports', '/leaves']);
+    })->with(['', '/attendance', '/attendance/days/2026-10-09', '/logbooks', '/leaves']);
 
     it('rejects interns and admins from Intern Saya', function (string $role) {
         asMentor(User::factory()->{$role}()->create(), '/api/mentor/interns')
@@ -191,9 +191,9 @@ describe('tab Rekap Absensi', function () {
         $this->andi = internOf($this->mentor, 'Andi Pratama');
     });
 
-    it('shows the monthly recap and daily rows without the late mark', function () {
+    it('shows the monthly recap and daily rows, including the late status', function () {
         attendOn($this->andi, '2026-10-09', '08:02:00', corrected: true);
-        attendOn($this->andi, '2026-10-08', '08:10:00', '17:05:00');
+        attendOn($this->andi, '2026-10-08', '08:40:00', '17:05:00');
         LeaveRequest::factory()->for($this->andi, 'intern')->approved()->create([
             'type' => LeaveType::Sick, 'start_date' => '2026-10-07', 'end_date' => '2026-10-07',
         ]);
@@ -206,9 +206,12 @@ describe('tab Rekap Absensi', function () {
             ->assertJsonPath('data.recap', [
                 'month' => '2026-10',
                 'present' => 2,
+                'late' => 1,
+                'missed_clock_in' => 0,
                 'leave' => 1,
                 'absent' => 3,
                 'missed_clock_out' => 1,
+                'corrected' => 1,
                 'working_days' => 7,
             ]);
 
@@ -221,16 +224,22 @@ describe('tab Rekap Absensi', function () {
                 'status' => 'present',
                 'clock_in_at' => '08:02',
                 'clock_out_at' => '17:00',
+                'late_minutes' => null,
+                'missed_clock_out' => false,
                 'is_corrected' => true,
-                'daily_report_sent' => false,
+                'logbook_state' => 'missing',
                 'holiday_name' => null,
                 'leave_type' => null,
             ])
+            ->and($days['2026-10-08'])->toMatchArray(['status' => 'late', 'late_minutes' => 40])
             ->and($days['2026-10-07']['leave_type'])->toBe('sick')
-            ->and($days['2026-10-06']['status'])->toBe('missed_clock_out')
+            ->and($days['2026-10-06'])->toMatchArray(['status' => 'present', 'missed_clock_out' => true])
             ->and($days['2026-10-04']['status'])->toBe('holiday');
 
-        expect($response->json('data.days.0'))->not->toHaveKeys(['late_minutes', 'has_pending_correction', 'can_request_correction']);
+        expect($response->json('data.days.0'))->not->toHaveKeys(['has_active_correction', 'can_request_correction']);
+
+        asMentor($this->mentor, "/api/mentor/interns/{$this->andi->id}/attendance?month=2026-10&status=late")
+            ->assertJsonPath('data.days.*.date', ['2026-10-08']);
     });
 
     it('defaults to the current month and rejects months outside the internship', function () {
@@ -245,16 +254,16 @@ describe('tab Rekap Absensi', function () {
         asMentor($this->mentor, "/api/mentor/interns/{$this->andi->id}/attendance?month=2026-11")->assertUnprocessable();
     });
 
-    it('opens one day with the full daily report and offices, without the late mark', function () {
+    it('opens one day with the full logbook and the late status', function () {
         $attendance = attendOn($this->andi, '2026-10-09', '08:20:00');
-        Logbook::factory()->for($attendance)->create(['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'updated_at' => '2026-10-09 16:50:00']);
+        Logbook::factory()->pendingReview()->for($attendance)->create(['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'submitted_at' => '2026-10-09 17:00:00']);
 
         asMentor($this->mentor, "/api/mentor/interns/{$this->andi->id}/attendance/days/2026-10-09")
             ->assertOk()
-            ->assertJsonPath('data.status', 'present')
+            ->assertJsonPath('data.status', 'late')
             ->assertJsonPath('data.clock_in_at', '08:20')
-            ->assertJsonPath('data.daily_report', ['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'sent_at' => '2026-10-09T16:50:00+07:00'])
-            ->assertJsonMissingPath('data.late_minutes');
+            ->assertJsonPath('data.late_minutes', 20)
+            ->assertJsonPath('data.logbook', ['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'status' => 'pending_review', 'submitted_at' => '2026-10-09T17:00:00+07:00']);
     });
 
     it('lets a former mentor read the attendance', function () {
@@ -264,16 +273,16 @@ describe('tab Rekap Absensi', function () {
     });
 });
 
-describe('tab Daily Report', function () {
-    it('lists one row per working day with the report, newest first', function () {
+describe('tab Logbook', function () {
+    it('lists one row per working day with the logbook, newest first', function () {
         $andi = internOf($this->mentor, 'Andi Pratama');
         $sent = attendOn($andi, '2026-10-09');
-        Logbook::factory()->for($sent)->create(['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'updated_at' => '2026-10-09 16:30:00']);
-        attendOn($andi, '2026-10-08', out: null);
+        Logbook::factory()->pendingReview()->for($sent)->create(['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'submitted_at' => '2026-10-09 17:00:00']);
+        Logbook::factory()->for(attendOn($andi, '2026-10-08', out: null))->create(['work' => 'Draft.']);
         LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['type' => LeaveType::Urgent, 'start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
         Holiday::factory()->create(['date' => '2026-10-05', 'name' => 'Libur Daerah']);
 
-        $response = asMentor($this->mentor, "/api/mentor/interns/{$andi->id}/daily-reports?month=2026-10")
+        $response = asMentor($this->mentor, "/api/mentor/interns/{$andi->id}/logbooks?month=2026-10")
             ->assertOk()
             ->assertJsonPath('data.month', '2026-10');
 
@@ -284,14 +293,14 @@ describe('tab Daily Report', function () {
                 'date' => '2026-10-09',
                 'status' => 'present',
                 'leave_type' => null,
-                'report' => ['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'sent_at' => '2026-10-09T16:30:00+07:00'],
-                'report_missing' => false,
+                'logbook_state' => 'pending_review',
+                'logbook' => ['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'status' => 'pending_review', 'submitted_at' => '2026-10-09T17:00:00+07:00'],
             ])
-            ->and($days['2026-10-08']['report_missing'])->toBeTrue()
+            ->and($days['2026-10-08']['logbook_state'])->toBe('draft')
             ->and($days['2026-10-07']['leave_type'])->toBe('urgent')
-            ->and($days['2026-10-07']['report_missing'])->toBeFalse()
+            ->and($days['2026-10-07']['logbook_state'])->toBeNull()
             ->and($days['2026-10-06']['status'])->toBe('absent')
-            ->and($days['2026-10-06']['report_missing'])->toBeFalse();
+            ->and($days['2026-10-06']['logbook'])->toBeNull();
     });
 });
 

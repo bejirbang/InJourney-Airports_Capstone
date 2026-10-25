@@ -27,9 +27,10 @@ it('returns the intern menu for a logged-in intern', function () {
     $this->getJson('/api/intern/menu', ['Authorization' => 'Bearer '.$intern->createToken('api')->plainTextToken])
         ->assertOk()
         ->assertExactJson(['data' => [
-            ['key' => 'dashboard', 'path' => '/intern/dashboard'],
-            ['key' => 'attendance', 'path' => '/intern/attendance'],
-            ['key' => 'leaves', 'path' => '/intern/leaves'],
+            ['key' => 'dashboard', 'path' => '/intern/dashboard', 'badge' => null],
+            ['key' => 'attendance', 'path' => '/intern/attendance', 'badge' => null],
+            ['key' => 'logbooks', 'path' => '/intern/logbooks', 'badge' => 0],
+            ['key' => 'leaves', 'path' => '/intern/leaves', 'badge' => null],
         ]]);
 });
 

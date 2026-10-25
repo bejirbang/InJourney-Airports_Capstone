@@ -46,25 +46,21 @@ class InternController extends Controller
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        $month = $request->filled('month') ? $request->string('month')->value() : null;
-
-        return response()->json(['data' => $history->monthForMentor($intern, $month, Date::now())]);
+        return response()->json(['data' => $history->monthForMentor($intern, $request->month(), $request->statusFilter(), Date::now())]);
     }
 
     public function day(User $intern, string $date, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        return response()->json(['data' => $history->dayForMentor($intern, $date, Date::now())]);
+        return response()->json(['data' => $history->day($intern, $date, Date::now())]);
     }
 
-    public function dailyReports(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
+    public function logbooks(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        $month = $request->filled('month') ? $request->string('month')->value() : null;
-
-        return response()->json(['data' => $history->dailyReports($intern, $month, Date::now())]);
+        return response()->json(['data' => $history->logbooks($intern, $request->month(), Date::now())]);
     }
 
     public function leaves(Request $request, User $intern): JsonResponse

@@ -17,14 +17,11 @@ class ProfileController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        $user->update([
-            'name' => $request->string('name')->value(),
-            'phone' => $request->filled('phone') ? $request->string('phone')->value() : null,
-        ]);
+        $user->update(['phone' => $request->filled('phone') ? $request->string('phone')->value() : null]);
 
         return response()->json([
             'message' => self::SAVED,
-            'data' => new UserResource($user->loadMissing('internProfile')),
+            'data' => new UserResource(UserResource::withProfile($user)),
         ]);
     }
 }

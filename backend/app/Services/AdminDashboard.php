@@ -69,12 +69,12 @@ class AdminDashboard
             ->unique();
 
         $late = array_values($attendances
+            ->filter(fn (Attendance $attendance): bool => $attendance->isLate())
             ->map(fn (Attendance $attendance): array => [
                 'intern' => $this->person($attendance->intern),
                 'clock_in_at' => substr((string) $attendance->clock_in_at, 0, 5),
                 'late_minutes' => (int) $attendance->lateMinutes(),
             ])
-            ->filter(fn (array $row): bool => $row['late_minutes'] > 0)
             ->sortBy([['clock_in_at', 'asc'], ['intern.name', 'asc']])
             ->all());
 
@@ -89,7 +89,7 @@ class AdminDashboard
     }
 
     /**
-     * @return array{date: string, present: int, leave: int, absent: int, missed_clock_out: int}
+     * @return array{date: string, present: int, late: int, missed_clock_in: int, leave: int, absent: int, missed_clock_out: int}
      */
     private function yesterday(CarbonInterface $now): array
     {
@@ -118,9 +118,11 @@ class AdminDashboard
         return [
             'date' => $date,
             'present' => $count(AttendanceStatus::Present),
+            'late' => $count(AttendanceStatus::Late),
+            'missed_clock_in' => $count(AttendanceStatus::MissedClockIn),
             'leave' => $count(AttendanceStatus::Leave),
             'absent' => $count(AttendanceStatus::Absent),
-            'missed_clock_out' => $count(AttendanceStatus::MissedClockOut),
+            'missed_clock_out' => $attendances->filter(fn (Attendance $attendance): bool => $attendance->missedClockOut($today))->count(),
         ];
     }
 

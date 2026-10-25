@@ -15,7 +15,7 @@ it('returns the current user', function () {
         ->assertOk()
         ->assertJsonPath('data.id', $user->id)
         ->assertJsonPath('data.role', 'intern')
-        ->assertJsonPath('data.intern_profile.mentor_id', $user->internProfile->mentor_id);
+        ->assertJsonPath('data.intern_profile.mentor.id', $user->internProfile->mentor_id);
 });
 
 it('rejects requests without a token in Indonesian', function () {

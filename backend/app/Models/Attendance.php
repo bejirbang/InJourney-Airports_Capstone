@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AttendanceStatus;
 use Database\Factories\AttendanceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -58,16 +59,42 @@ class Attendance extends Model
     }
 
     /**
-     * Menit lewat dari jam masuk yang disalin saat baris dibuat. 0 berarti tepat waktu,
-     * null berarti tidak ada jam clock in (Lupa Clock In).
+     * Hasil koreksi selalu Hadir. Terlambat dibandingkan dengan jam masuk dan toleransi yang disalin
+     * saat baris dibuat, per menit: jadwal 08:00 dengan toleransi 15 menit, clock in 08:15 masih Hadir.
+     */
+    public function status(): AttendanceStatus
+    {
+        return match (true) {
+            $this->is_corrected => AttendanceStatus::Present,
+            $this->clock_in_at === null => AttendanceStatus::MissedClockIn,
+            $this->isLate() => AttendanceStatus::Late,
+            default => AttendanceStatus::Present,
+        };
+    }
+
+    public function isLate(): bool
+    {
+        return ! $this->is_corrected
+            && $this->clock_in_at !== null
+            && self::minutes($this->clock_in_at) > self::minutes($this->scheduled_start) + $this->late_tolerance_minutes;
+    }
+
+    /**
+     * Lama terlambat dihitung dari jam masuk (bukan dari batas toleransi). Null jika tidak Terlambat.
      */
     public function lateMinutes(): ?int
     {
-        if ($this->clock_in_at === null) {
-            return null;
-        }
+        return $this->isLate()
+            ? self::minutes((string) $this->clock_in_at) - self::minutes($this->scheduled_start)
+            : null;
+    }
 
-        return max(0, self::minutes($this->clock_in_at) - self::minutes($this->scheduled_start));
+    /**
+     * Tanda Lupa Clock Out: sudah clock in, tidak clock out, dan harinya sudah lewat 23:59.
+     */
+    public function missedClockOut(string $today): bool
+    {
+        return $this->clock_in_at !== null && $this->clock_out_at === null && $this->date->toDateString() < $today;
     }
 
     /**

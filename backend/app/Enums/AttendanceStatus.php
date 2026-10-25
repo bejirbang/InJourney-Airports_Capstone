@@ -2,6 +2,9 @@
 
 namespace App\Enums;
 
+/**
+ * Lupa Clock Out dan Dikoreksi bukan status, melainkan tanda tambahan pada hari Hadir atau Terlambat.
+ */
 enum AttendanceStatus: string
 {
     case Present = 'present';
@@ -9,8 +12,14 @@ enum AttendanceStatus: string
     case MissedClockIn = 'missed_clock_in';
     case Leave = 'leave';
     case Absent = 'absent';
-    case MissedClockOut = 'missed_clock_out';
     case Holiday = 'holiday';
     case NotClockedIn = 'not_clocked_in';
-    case Ongoing = 'ongoing';
+
+    /**
+     * Hari dengan baris presensi dihitung hadir di rekap.
+     */
+    public function isAttended(): bool
+    {
+        return in_array($this, [self::Present, self::Late, self::MissedClockIn], true);
+    }
 }

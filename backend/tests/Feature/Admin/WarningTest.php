@@ -44,7 +44,7 @@ it('lists interns with their warning count for the warning page', function () {
 it('shows the notes newest first with this month late count', function () {
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-05', 'clock_in_at' => '08:20:00']);
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => '07:55:00']);
-    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-12', 'clock_in_at' => '08:05:00']);
+    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-12', 'clock_in_at' => '08:25:00']);
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-09-30', 'clock_in_at' => '09:00:00']);
 
     $other = User::factory()->admin()->create(['name' => 'Admin Rudi']);
