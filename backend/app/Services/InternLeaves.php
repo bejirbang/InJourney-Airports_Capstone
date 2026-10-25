@@ -8,11 +8,8 @@ use App\Exceptions\ActionRejected;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Support\IndonesianDate;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 class InternLeaves
 {
@@ -24,14 +21,14 @@ class InternLeaves
 
     public const ALREADY_CANCELLED = 'Pengajuan izin ini sudah dibatalkan.';
 
-    public function __construct(private AttendanceCalendar $calendar, private Notifier $notifier) {}
+    public function __construct(private WorkSchedules $schedules, private Notifier $notifier) {}
 
     /**
-     * @param  array{type: string, start_date: string, end_date: string, reason: string}  $input
+     * @param  array{type: string, start_date: string, end_date: string, reason: string, evidence_url: string|null}  $input
      *
      * @throws ValidationException
      */
-    public function submit(User $intern, array $input, ?UploadedFile $evidence): LeaveRequest
+    public function submit(User $intern, array $input): LeaveRequest
     {
         $profile = $intern->internProfile;
         [$start, $end] = [$input['start_date'], $input['end_date']];
@@ -40,44 +37,33 @@ class InternLeaves
             throw ValidationException::withMessages(['start_date' => self::OUTSIDE_PERIOD]);
         }
 
-        if ($this->calendar->workingDays($start, $end) === 0) {
+        if ($this->schedules->workingDays($intern, $start, $end) === 0) {
             throw ValidationException::withMessages(['start_date' => self::NO_WORKING_DAY]);
         }
 
-        $path = $evidence?->store("leaves/{$intern->id}");
-        $path = is_string($path) ? $path : null;
+        $leave = DB::transaction(function () use ($intern, $input, $start, $end): LeaveRequest {
+            // Baris akun dikunci agar dua pengajuan bersamaan tidak lolos cek tumpang tindih.
+            User::query()->whereKey($intern->id)->lockForUpdate()->first();
 
-        try {
-            $leave = DB::transaction(function () use ($intern, $input, $start, $end, $path): LeaveRequest {
-                // Baris akun dikunci agar dua pengajuan bersamaan tidak lolos cek tumpang tindih.
-                User::query()->whereKey($intern->id)->lockForUpdate()->first();
+            $overlaps = $intern->leaveRequests()
+                ->whereIn('status', [RequestStatus::Pending, RequestStatus::Approved])
+                ->whereDate('start_date', '<=', $end)
+                ->whereDate('end_date', '>=', $start)
+                ->exists();
 
-                $overlaps = $intern->leaveRequests()
-                    ->whereIn('status', [RequestStatus::Pending, RequestStatus::Approved])
-                    ->whereDate('start_date', '<=', $end)
-                    ->whereDate('end_date', '>=', $start)
-                    ->exists();
-
-                if ($overlaps) {
-                    throw ValidationException::withMessages(['start_date' => self::OVERLAP]);
-                }
-
-                return $intern->leaveRequests()->create([
-                    'type' => LeaveType::from($input['type']),
-                    'start_date' => $start,
-                    'end_date' => $end,
-                    'reason' => $input['reason'],
-                    'evidence_path' => $path,
-                    'status' => RequestStatus::Pending,
-                ]);
-            });
-        } catch (Throwable $e) {
-            if ($path !== null) {
-                Storage::delete($path);
+            if ($overlaps) {
+                throw ValidationException::withMessages(['start_date' => self::OVERLAP]);
             }
 
-            throw $e;
-        }
+            return $intern->leaveRequests()->create([
+                'type' => LeaveType::from($input['type']),
+                'start_date' => $start,
+                'end_date' => $end,
+                'reason' => $input['reason'],
+                'evidence_url' => $input['evidence_url'],
+                'status' => RequestStatus::Pending,
+            ]);
+        });
 
         $this->notifyMentor(
             $intern,

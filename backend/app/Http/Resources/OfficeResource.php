@@ -18,6 +18,7 @@ class OfficeResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'airport_id' => $this->airport_id,
             'name' => $this->name,
             'latitude' => (float) $this->latitude,
             'longitude' => (float) $this->longitude,

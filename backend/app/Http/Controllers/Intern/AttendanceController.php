@@ -9,7 +9,6 @@ use App\Http\Requests\Shared\AttendanceHistoryRequest;
 use App\Http\Resources\AttendanceResource;
 use App\Http\Resources\DailyReportResource;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use App\Services\AttendanceClock;
 use App\Services\AttendanceHistory;
 use App\Services\DailyReports;
@@ -33,8 +32,8 @@ class AttendanceController extends Controller
             Date::now(),
         )->load('clockInOffice');
 
-        $message = 'Clock in berhasil pukul '.substr($attendance->clock_in_at, 0, 5).'.';
-        $lateMinutes = $attendance->lateMinutes(WorkHourSetting::effectiveOn($attendance->date->toDateString()));
+        $message = 'Clock in berhasil pukul '.substr((string) $attendance->clock_in_at, 0, 5).'.';
+        $lateMinutes = $attendance->lateMinutes();
 
         if ($lateMinutes > 0) {
             $message .= ' Anda terlambat '.Duration::minutes($lateMinutes).'.';
@@ -87,7 +86,7 @@ class AttendanceController extends Controller
         /** @var User $intern */
         $intern = $request->user();
 
-        $report = $reports->todayAttendance($intern, Date::now())?->dailyReport;
+        $report = $reports->todayAttendance($intern, Date::now())?->logbook;
 
         return response()->json(['data' => $report === null ? null : new DailyReportResource($report)]);
     }

@@ -1,14 +1,14 @@
 <?php
 
+use App\Enums\AttendanceStatus;
+use App\Enums\CorrectionStatus;
 use App\Enums\LeaveType;
-use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
-use App\Models\DailyReport;
 use App\Models\LeaveRequest;
+use App\Models\Logbook;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -23,7 +23,6 @@ beforeEach(function () {
         'end_date' => '2026-12-31',
     ])->create(['name' => 'Andi Pratama']);
 
-    WorkHourSetting::factory()->create();
 });
 
 function adminGet(User $admin, string $uri): TestResponse
@@ -38,7 +37,7 @@ it('shows the monthly attendance with late marks, daily report text, and pending
     $friday = Attendance::factory()->for($this->intern, 'intern')->create([
         'date' => '2026-10-09', 'clock_in_at' => '08:15:00', 'clock_in_office_id' => $office->id, 'is_corrected' => true,
     ]);
-    DailyReport::factory()->create(['attendance_id' => $friday->id, 'work' => 'Menyusun laporan API.']);
+    Logbook::factory()->create(['attendance_id' => $friday->id, 'work' => 'Menyusun laporan API.']);
     Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-08']);
     AttendanceCorrection::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-08']);
 
@@ -85,7 +84,7 @@ it('rejects a month outside the internship period', function () {
 it('lists the leave history with who decided it and the note', function () {
     $approved = LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create([
         'start_date' => '2026-10-01', 'end_date' => '2026-10-02', 'decided_by' => $this->mentor->id,
-        'decision_note' => 'Semoga lekas sembuh.', 'created_at' => '2026-09-30 08:00:00', 'evidence_path' => 'leaves/surat.pdf',
+        'decision_note' => 'Semoga lekas sembuh.', 'created_at' => '2026-09-30 08:00:00', 'evidence_url' => 'https://drive.google.com/file/d/surat/view',
     ]);
     $pending = LeaveRequest::factory()->for($this->intern, 'intern')->create([
         'type' => LeaveType::Urgent, 'start_date' => '2026-10-15', 'end_date' => '2026-10-15', 'created_at' => '2026-10-12 09:00:00',
@@ -103,7 +102,7 @@ it('lists the leave history with who decided it and the note', function () {
             'end_date' => '2026-10-02',
             'working_days' => 2,
             'status' => 'approved',
-            'has_evidence' => true,
+            'evidence_url' => 'https://drive.google.com/file/d/surat/view',
             'submitted_at' => '2026-09-30T08:00:00+07:00',
             'decided_by' => ['name' => 'Sari Wijaya', 'role' => 'mentor'],
             'decision_note' => 'Semoga lekas sembuh.',
@@ -111,10 +110,10 @@ it('lists the leave history with who decided it and the note', function () {
         ]);
 });
 
-it('lists the correction history with the admin note', function () {
+it('lists the correction history with the mentor and admin notes', function () {
     $rejected = AttendanceCorrection::factory()->for($this->intern, 'intern')
-        ->decided(RequestStatus::Rejected, $this->admin, 'Tidak ada bukti.')
-        ->create(['date' => '2026-10-02', 'created_at' => '2026-10-03 08:05:00']);
+        ->decidedByAdmin(CorrectionStatus::RejectedByAdmin, $this->admin, 'Tanggal ini sudah dikoreksi.')
+        ->create(['date' => '2026-10-02', 'recorded_status' => AttendanceStatus::Late, 'created_at' => '2026-10-03 08:05:00']);
 
     adminGet($this->admin, "/api/admin/users/{$this->intern->id}/corrections")
         ->assertOk()
@@ -122,14 +121,16 @@ it('lists the correction history with the admin note', function () {
             'id' => $rejected->id,
             'date' => '2026-10-02',
             'submitted_at' => '2026-10-03T08:05:00+07:00',
-            'status' => 'rejected',
-            'recorded' => ['clock_in' => '08:00', 'clock_out' => null],
-            'requested' => ['clock_in' => '08:00', 'clock_out' => '17:00'],
+            'status' => 'rejected_by_admin',
+            'recorded_status' => 'late',
+            'recorded_missed_clock_out' => true,
             'reason' => 'Lupa clock out.',
-            'has_evidence' => false,
-            'decision_note' => 'Tidak ada bukti.',
-            'decided_by' => 'Dedi Admin',
-            'decided_at' => '2026-10-12T14:39:00+07:00',
+            'mentor' => 'Sari Wijaya',
+            'mentor_note' => 'Benar, intern hadir.',
+            'mentor_decided_at' => '2026-10-12T14:39:00+07:00',
+            'admin' => 'Dedi Admin',
+            'admin_note' => 'Tanggal ini sudah dikoreksi.',
+            'admin_decided_at' => '2026-10-12T14:39:00+07:00',
         ]]]);
 });
 

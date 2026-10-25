@@ -6,11 +6,9 @@ use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
 beforeEach(function () {
-    Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
     $this->mentor = User::factory()->mentor()->create(['name' => 'Bu Sari']);
@@ -22,10 +20,9 @@ beforeEach(function () {
         'start_date' => '2026-10-13',
         'end_date' => '2026-10-14',
         'reason' => 'Demam, disarankan istirahat dokter.',
-        'evidence_path' => 'leaves/1/surat.pdf',
+        'evidence_url' => 'https://drive.google.com/file/d/surat-dokter/view',
         'created_at' => '2026-10-12 00:39:00',
     ]);
-    Storage::put('leaves/1/surat.pdf', str_repeat('x', 2048));
 });
 
 function leaveIntern(User $mentor, string $name): User
@@ -63,7 +60,7 @@ describe('daftar izin', function () {
                 'start_date' => '2026-10-13',
                 'end_date' => '2026-10-13',
                 'working_days' => 1,
-                'has_evidence' => false,
+                'evidence_url' => null,
                 'status' => 'pending',
                 'submitted_at' => '2026-10-11T12:39:00+07:00',
                 'submitted_late' => false,
@@ -114,17 +111,8 @@ describe('detail dan lampiran', function () {
             ->assertOk()
             ->assertJsonPath('data.reason', 'Demam, disarankan istirahat dokter.')
             ->assertJsonPath('data.decision_note', null)
-            ->assertJsonPath('data.evidence', ['name' => 'lampiran-izin-2026-10-13.pdf', 'size' => 2048])
+            ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view')
             ->assertJsonPath('data.can_decide', true);
-    });
-
-    it('downloads or previews the evidence', function () {
-        mentorLeaves($this->mentor, 'GET', "/api/mentor/leaves/{$this->leave->id}/evidence")
-            ->assertOk()
-            ->assertDownload('lampiran-izin-2026-10-13.pdf');
-
-        $inline = mentorLeaves($this->mentor, 'GET', "/api/mentor/leaves/{$this->leave->id}/evidence?inline=1")->assertOk();
-        expect($inline->headers->get('Content-Disposition'))->toStartWith('inline');
     });
 
     it('marks a leave without evidence', function () {
@@ -132,18 +120,16 @@ describe('detail dan lampiran', function () {
 
         mentorLeaves($this->mentor, 'GET', "/api/mentor/leaves/{$leave->id}")
             ->assertOk()
-            ->assertJsonPath('data.has_evidence', false)
-            ->assertJsonPath('data.evidence', null);
-        mentorLeaves($this->mentor, 'GET', "/api/mentor/leaves/{$leave->id}/evidence")->assertNotFound();
+            ->assertJsonPath('data.evidence_url', null);
     });
 
     it('rejects leaves of interns this mentor does not mentor', function (string $suffix) {
         $other = LeaveRequest::factory()->for(User::factory()->intern()->create(), 'intern')->create();
 
-        mentorLeaves($this->mentor, $suffix === '' || $suffix === '/evidence' ? 'GET' : 'POST', "/api/mentor/leaves/{$other->id}{$suffix}", ['note' => 'Oke'])
+        mentorLeaves($this->mentor, $suffix === '' ? 'GET' : 'POST', "/api/mentor/leaves/{$other->id}{$suffix}", ['note' => 'Oke'])
             ->assertForbidden()
             ->assertJsonPath('message', 'Anda tidak memiliki akses ke izin ini.');
-    })->with(['', '/evidence', '/approve', '/reject']);
+    })->with(['', '/approve', '/reject']);
 
     it('rejects interns and admins', function (string $role) {
         mentorLeaves(User::factory()->{$role}()->create(), 'GET', '/api/mentor/leaves')->assertForbidden();

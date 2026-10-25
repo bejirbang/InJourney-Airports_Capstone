@@ -1,17 +1,15 @@
 <?php
 
 use App\Models\Attendance;
-use App\Models\DailyReport;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\Logbook;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
-    WorkHourSetting::factory()->create(['effective_from' => '2026-01-01']);
 
     $this->intern = User::factory()->intern([
         'start_date' => '2026-09-01',
@@ -40,8 +38,8 @@ function seedOctober(User $intern, Office $office): void
         ->for($intern, 'intern')
         ->create(['date' => $date, 'clock_in_at' => $in, 'clock_out_at' => $out, 'clock_in_office_id' => $office->id, ...$extra]);
 
-    DailyReport::factory()->for($attend('2026-10-01', '08:10:00', '17:05:00', ['clock_out_office_id' => $office->id]))
-        ->create(['work' => 'Menyusun ERD.', 'notes' => null, 'sent_at' => '2026-10-01 16:00:00']);
+    Logbook::factory()->for($attend('2026-10-01', '08:10:00', '17:05:00', ['clock_out_office_id' => $office->id]))
+        ->create(['work' => 'Menyusun ERD.', 'notes' => null, 'updated_at' => '2026-10-01 16:00:00']);
     $attend('2026-10-02', '08:00:00', null);
     LeaveRequest::factory()->for($intern, 'intern')->approved()->create(['start_date' => '2026-10-05', 'end_date' => '2026-10-05']);
     $attend('2026-10-06', '08:00:00', '17:00:00', ['is_corrected' => true]);

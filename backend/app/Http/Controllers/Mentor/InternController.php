@@ -67,16 +67,6 @@ class InternController extends Controller
         return response()->json(['data' => $history->dailyReports($intern, $month, Date::now())]);
     }
 
-    public function tasks(Request $request, User $intern): JsonResponse
-    {
-        Gate::authorize('viewAsMentor', $intern);
-
-        /** @var User $mentor */
-        $mentor = $request->user();
-
-        return response()->json(['data' => $this->interns->tasks($mentor, $intern, $this->relation($request, $intern), Date::now())]);
-    }
-
     public function leaves(Request $request, User $intern): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);

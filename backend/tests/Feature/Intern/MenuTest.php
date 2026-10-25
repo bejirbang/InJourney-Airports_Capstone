@@ -29,7 +29,6 @@ it('returns the intern menu for a logged-in intern', function () {
         ->assertExactJson(['data' => [
             ['key' => 'dashboard', 'path' => '/intern/dashboard'],
             ['key' => 'attendance', 'path' => '/intern/attendance'],
-            ['key' => 'tasks', 'path' => '/intern/tasks'],
             ['key' => 'leaves', 'path' => '/intern/leaves'],
         ]]);
 });

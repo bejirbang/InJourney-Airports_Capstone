@@ -4,7 +4,7 @@ namespace App\Http\Resources;
 
 use App\Enums\RequestStatus;
 use App\Models\LeaveRequest;
-use App\Services\AttendanceCalendar;
+use App\Services\WorkSchedules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,9 +25,9 @@ class InternLeaveResource extends JsonResource
             'type' => $this->type->value,
             'start_date' => $start,
             'end_date' => $this->end_date->toDateString(),
-            'working_days' => app(AttendanceCalendar::class)->workingDays($start, $this->end_date->toDateString()),
+            'working_days' => app(WorkSchedules::class)->workingDays($this->intern, $start, $this->end_date->toDateString()),
             'reason' => $this->reason,
-            'has_evidence' => $this->evidence_path !== null,
+            'evidence_url' => $this->evidence_url,
             'status' => $this->status->value,
             'submitted_at' => $this->created_at?->toIso8601String(),
             'submitted_late' => $this->created_at !== null && $this->created_at->toDateString() > $start,

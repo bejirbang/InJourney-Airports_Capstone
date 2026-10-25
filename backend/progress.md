@@ -900,17 +900,123 @@ Temuan untuk tim frontend: prototipe membuka chat dengan `search.to` berupa nama
   - Dependensi: `composer audit` bersih. Advisory Laravel 2026 sudah tertutup versi terpasang (TokenGuard CVE-2026-114509 diperbaiki di 13.29, terpasang 13.38; CRLF email CVE-2026-48019; Reverb CVE-2026-23524 diperbaiki di 1.7, terpasang 1.12).
 - [x] **Pembersihan komentar** (23 Okt 2026): komentar yang mengulang kode, rujukan dokumen, dan catatan keputusan dihapus dari `app/`, `routes/`, `database/`, `bootstrap/`, dan `tests/` (catatan keputusan tetap di file ini dan `docs/`). Yang tersisa hanya tipe PHPDoc dan penjelasan logika yang tidak terlihat dari kode (penguncian baris, update bersyarat, batasan database, keamanan). Diverifikasi: token kode di 247 file identik sebelum dan sesudah.
 
+## Rombak sesuai dokumen 24 Okt 2026
+
+Dokumen desain diperbarui dari wawancara mitra 22 Okt 2026 (design-intern Draft 3, design-mentor Draft 2, design-admin Draft 3). Skema dan aturan baru ada di `backend_architecture_ERD.md` Versi 2.1. Sebagian besar kode di bagian "Selesai" di atas mengikuti aturan lama dan akan diganti oleh daftar ini.
+
+### Keputusan review (25 Okt 2026)
+
+- **Lokasi dua tingkat.** Bandara (`airports`) = lokasi magang dan pemilik jadwal. Titik presensi (`offices`, misalnya T1-T3) = pemilik radius. Intern hanya boleh clock in/out di titik aktif milik bandaranya, boleh berbeda titik antara clock in dan clock out. Jadwal mingguan wajib diisi saat bandara dibuat. Lokasi intern tidak punya riwayat. Mentor tidak terikat bandara.
+- **Unit berupa daftar pilihan** (`units`), dikelola admin di Pengaturan, hanya dinonaktifkan dan tidak dihapus.
+- **Bandara, titik presensi, dan unit tidak dihapus**, hanya dinonaktifkan. Keputusan 23 Okt "Kantor boleh dihapus" dibatalkan. Bandara yang masih punya intern aktif tidak bisa dinonaktifkan.
+- **Kuota izin** direset sejak tanggal admin menekan Perpanjang (`leave_quota_since`), supaya tidak ada jeda tanpa kuota.
+- **Toleransi terlambat** disalin ke `attendances.late_tolerance_minutes` saat baris dibuat, jadi mengubah pengaturan tidak mengubah status lama.
+- **Koreksi** menyimpan `recorded_status` dan `recorded_missed_clock_out`. Hasil koreksi selalu Hadir, termasuk hari Terlambat yang dikoreksi karena Lupa Clock Out (disengaja).
+- **Logbook wajib** untuk setiap hari yang punya baris presensi. Penilaian terbuka hanya jika semuanya `approved`. Lupa Clock Out yang belum dikoreksi menahan penilaian sampai dikoreksi, diisi, dan disetujui. Definisi yang sama dipakai KPI dan Rekap Logbook.
+- **Izin dan presensi:** jika intern sempat clock in pada hari yang kemudian tercakup izin disetujui, hari itu mengikuti presensinya.
+- **Catatan admin** pada koreksi tetap wajib saat Setujui maupun Tolak. Tombol Setujui di Dashboard membuka dialog catatan (catatan untuk FE).
+- **Presentasi** yang sudah disetujui tetap disetujui walau magang diperpanjang. Tidak ada masa tenggang setelah magang berakhir, karena presentasi dilakukan sebelum magang berakhir.
+- **Penilaian** terkunci permanen setelah submit, tanpa fitur membuka kembali. Intern dapat melihat nilainya.
+- **Mentor** boleh menyetujui banyak logbook sekaligus.
+- **Belum ada production.** Migration ditulis ulang langsung, lalu `php artisan migrate:fresh --seed`. Data lama (Task, koreksi lama, file upload) tidak dipindahkan.
+
+### Tahap 1 - Fondasi skema
+
+- [x] Tulis ulang migration sesuai ERD 2.1 lewat `database/generate_migrations.php` (dijalankan pemilik repo agar timestamp tercatat): 23 tabel aplikasi + kolom akun `users`. Penghapusan akun mengikuti tabel "Penghapusan akun" ERD; FK ke `units`, `airports`, `offices` memakai `restrictOnDelete`. Nama unit, bandara, dan titik (per bandara) unik tanpa beda huruf besar. (25 Okt 2026)
+- [x] Hapus migration dan tabel `tasks`, `task_comments`, `task_reads`, `work_hour_settings`, `daily_reports`, serta `offices.deleted_at`. Migration tambahan lama digabung ke migration create-nya.
+- [x] Buang fitur Task beserta test, scheduler `app:remind-overdue-tasks`, menu `tasks` (intern dan mentor), tab Task di detail intern mentor, kotak Task di dashboard intern/mentor, KPI Task di performa, dan Rekap Task di laporan.
+- [x] Buang upload file: `ProfilePhotos`, route foto, endpoint `evidence` izin, `config/uploads.php`. Respons user/chat/intern tidak lagi berisi `title` dan `photo_url`; gantinya `unit`. Izin memakai `evidence_url` (Rule link), admin hanya menyetujui jika link ada.
+- [x] Model, factory, enum baru (`CorrectionStatus`, `LogbookStatus`, `LogbookReviewAction`, `PresentationStatus`, `AssessmentStatus`; `AttendanceStatus` ditambah `late`, `missed_clock_in`). `AirportFactory` selalu membuat jadwal mingguan Senin-Jumat 08:00-17:00 sejak 2020-01-01. Seeder development: 4 unit, Soetta (T1-T3) dan Halim, akun contoh, 5 indikator contoh, `system_settings`. `ProductionSeeder`: `system_settings` (admin pertama tetap lewat `app:create-admin`, opsi `--title` dihapus; indikator ditambahkan setelah dari mitra).
+- [x] `WorkSchedules` (libur → hari non-kerja → jadwal khusus → jadwal mingguan, `DaySchedule`), menggantikan `AdminWorkHours`, `WorkHourSetting`, dan endpoint `/admin/settings/work-hours`. Tanggal sebelum jadwal mingguan pertama dianggap bukan hari kerja. Jumlah hari kerja izin kini per bandara intern.
+- [x] `App\Rules\GoogleDriveLink`.
+- [x] `SystemSettings` (nilai awal dipakai bila key belum ada, `seedDefaults()` tidak menimpa nilai yang sudah diubah).
+
+Penyesuaian sementara agar kode lama tetap jalan di skema baru (dirombak di tahap berikutnya):
+
+- Fitur koreksi lama (intern dan admin) **dihapus** karena tabelnya diganti total; dibangun ulang di Tahap 3. Yang tersisa: tab riwayat koreksi di Kelola Akun (format baru), lencana menu dan kotak Dashboard admin (menghitung `pending_admin`).
+- Daily Report disimpan di `logbooks` berstatus `draft`; endpoint dan nama field (`daily_report`, `sent_at` = waktu terakhir disimpan) belum berubah sampai Tahap 2.
+- Clock in menyalin `scheduled_start`, `scheduled_end`, dan `late_tolerance_minutes`; clock out memakai jam pulang salinan itu. Aturan status (Terlambat dengan toleransi, Lupa Clock In, batas clock in sebelum jam pulang, titik milik bandara) masih aturan lama sampai Tahap 2. `late_minutes` dihitung dari `scheduled_start` tanpa toleransi.
+- Kelola Akun sudah memakai `unit_id` (wajib intern/mentor, kosong untuk admin), `airport_id`, `university`, `major`; pilihan nonaktif ditolak untuk akun baru tetapi boleh dipertahankan akun lama. `leave_quota_since` ikut tanggal mulai selama belum pernah diperpanjang. Ganti mentor memindahkan koreksi `pending_mentor` (bagian Tahap 7). Lokasi Kantor mewajibkan `airport_id` saat tambah, tidak bisa pindah bandara, dan tidak bisa dihapus (405).
+- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` dan `LeaveRequest::OVERDUE_PENDING_HOURS` masih konstanta (Tahap 4 dan 7), profil masih bisa mengubah nama (Tahap 2).
+
+### Tahap 2 - Presensi dan logbook intern
+
+- [ ] Tulis ulang `AttendanceCalendar`: status Hadir, Terlambat, Lupa Clock In, Izin, Tidak Hadir, Libur + tanda Lupa Clock Out dan Dikoreksi, memakai jadwal bandara dan salinan jadwal/toleransi.
+- [ ] Clock in: hanya titik milik bandara intern, hanya sebelum jam pulang, menyalin jadwal dan toleransi, pesan Terlambat dengan lama menit.
+- [ ] Clock out: tidak sebelum jam pulang, logbook wajib terisi, ubah logbook menjadi `pending_review`. Lupa Clock In: buat baris presensi dan logbook dalam satu permintaan.
+- [ ] Logbook intern: isi/ubah draft, daftar (termasuk "Belum diisi" dan "Perlu ditindak"), perbaiki dan kirim ulang saat Revisi, isi hari hasil koreksi, riwayat review.
+- [ ] Riwayat presensi dan rekap bulanan dengan filter status (dipakai juga oleh kotak Dashboard).
+- [ ] `GET /api/intern/offices` hanya titik milik bandara intern.
+- [ ] Profil: intern, mentor, admin hanya mengubah nomor telepon. Respons profil intern memuat unit, bandara, universitas, jurusan, mentor, periode.
+
+### Tahap 3 - Koreksi presensi dua tahap
+
+- [ ] Intern: ajukan (tanggal + alasan, tanpa bukti), batalkan saat `pending_mentor`/`pending_admin`. Satu pengajuan aktif per tanggal.
+- [ ] Mentor (baru): daftar, ACC (catatan opsional) atau Tolak (catatan wajib).
+- [ ] Admin: hanya `pending_admin`, catatan wajib, eksekusi dalam satu transaksi (isi jam kosong dari jadwal, `is_corrected`, `correction_id`, audit log). Tab Menunggu Mentor hanya baca.
+- [ ] Notifikasi: mentor saat diajukan, admin saat di-ACC (bukan saat diajukan), intern di setiap keputusan.
+
+### Tahap 4 - Izin
+
+- [ ] `evidence_url` dengan Rule link, tanpa file.
+- [ ] Kuota 3 kali per masa magang dengan `lockForUpdate()` pada `intern_profiles`. Sisa kuota di respons intern, mentor, admin.
+- [ ] Admin hanya memutuskan izin pending lebih dari `leave_escalation_hours`, Setujui hanya jika ada link. Mentor tetap bisa memutuskan setelah batas selama admin belum.
+- [ ] Filter "Kuota habis" di admin.
+
+### Tahap 5 - Review logbook oleh mentor
+
+- [ ] Antrean (Menunggu Review, Revisi, Semua), detail dengan riwayat review, Setujui, Minta Revisi (komentar wajib), Setujui banyak sekaligus, navigasi sebelumnya/berikutnya.
+- [ ] Notifikasi mentor hanya saat intern mengirim ulang setelah revisi. Intern hanya diberi tahu saat diminta revisi.
+
+### Tahap 6 - Presentasi akhir dan penilaian
+
+- [ ] Intern: kirim/ganti link mulai H-7 sampai disetujui.
+- [ ] Admin: daftar per tab (Menunggu, Revisi, Disetujui, Belum kirim), Setujui atau Revisi (catatan wajib).
+- [ ] Mentor: daftar penilaian dengan status (Siap dinilai, Belum bisa + alasan, Draft, Selesai), formulir draft/submit, nilai akhir otomatis (rata-rata berbobot atau rata-rata biasa). Syarat dicek di server.
+- [ ] Admin: rekap penilaian (hanya baca). Intern: lihat nilai setelah submit.
+- [ ] Admin: kelola unit (tambah, ubah nama, nonaktifkan) di Pengaturan.
+
+### Tahap 7 - Warning, notifikasi, scheduler
+
+- [ ] Warning: intern dan mentor membaca (hanya baca), notifikasi ke intern dan mentor saat dibuat.
+- [ ] Scheduler: hapus pengingat Task, tambah pengingat presentasi H-7 untuk intern (`presentation_reminded_at`), pengingat akhir magang dan izin pending memakai `system_settings`.
+- [x] Ganti mentor: pindahkan koreksi `pending_mentor` (perbarui `mentor_id`). Logbook dan izin pending ikut otomatis. (Dikerjakan di Tahap 1, menggantikan pemindahan Task.)
+- [ ] Perpanjang: `leave_quota_since` = hari ini, kosongkan `presentation_reminded_at`.
+- [ ] Sesuaikan semua teks notifikasi dengan tabel notifikasi tiap dokumen.
+
+### Tahap 8 - Dashboard, performa, laporan, admin lain
+
+- [ ] Dashboard intern, mentor, admin sesuai dokumen baru (kartu bisa diklik, antrean tindakan, filter bandara global untuk admin, asal kampus).
+- [ ] Mentor melihat Terlambat (hapus penyaringan lama). Performa: rekap baru dan KPI Kehadiran, Tepat waktu, Logbook disetujui, Revisi logbook.
+- [ ] Admin Presensi (`/admin/attendance`): data presensi dan rekap bulanan semua intern. Endpoint ini belum pernah ada.
+- [ ] Admin Lokasi & Jadwal: CRUD bandara (dengan jadwal mingguan), titik presensi, jadwal mingguan (atur sekaligus/per hari, `effective_from` tidak di masa lalu, riwayat), jadwal khusus (tanpa tumpang tindih).
+- [ ] Admin Pengaturan Umum (`system_settings`), kalender libur berlaku untuk semua bandara.
+- [ ] Kelola akun: unit (pilihan), bandara, universitas, jurusan.
+- [ ] Laporan Excel: 4 sheet (Presensi, Izin, Logbook, Penilaian), filter periode (maks 12 bulan), bandara, mentor, satu/banyak intern, hanya kuota habis.
+- [ ] Kategori Log Aktivitas baru.
+
+### Tahap 9 - Dokumen
+
+- [ ] Tulis ulang `backend/CLAUDE.md` (tabel, enum, aturan presensi/logbook/koreksi/izin, tanpa Task dan upload, aturan migration selama belum ada production).
+- [ ] Perbarui catatan integrasi frontend di file ini untuk endpoint yang berubah.
+
+### Untuk pemilik dokumen desain dan tim FE
+
+- [ ] `docs/design-*.md` masih menulis "clock in di kantor aktif mana pun" dan "kantor" sebagai lokasi magang. Perlu disesuaikan dengan struktur bandara dan titik presensi, serta unit sebagai daftar pilihan (menu Pengaturan).
+- [ ] design-mentor 17.2 no. 2 dan design-admin 20.2 no. 4-5 sudah diputuskan: penilaian tidak bisa dibuka kembali, unit berupa daftar pilihan.
+- [ ] Prototipe frontend masih berbasis Task, Daily Report, dan upload file. Perlu disesuaikan setelah endpoint baru siap.
+
 ## Berikutnya
 
 - [ ] **PHP2Shell (CVE-2026-109618 dan CVE-2026-109619, RCE tanpa login di mesin PHP).** Perbarui PHP ke 8.4.27, 8.5.12, atau 8.3.36 ke atas di semua mesin (lokal Laragon saat ini 8.4.12, masih rentan) dan jadikan syarat host production. Sampai diperbarui: `session.upload_progress.enabled=0` dan `post_max_size` kecil (aplikasi hanya butuh 2 MB per file) di `php.ini`, lalu restart worker PHP.
 
-- [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path`, `tasks.overdue_reminded_at`, `leave_requests.overdue_notified_at`, `intern_profiles.ending_notified_for`, `offices.deleted_at` (beserta indeks nama baru), `notifications.announcement_id`, dan `notifications.chat_sender_id`.
-- [ ] Pasang cron `schedule:run` di server production (pengingat Task terlambat setiap hari, pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin setiap hari).
+- [ ] ~~Jalankan `php artisan migrate` untuk kolom tambahan lama.~~ Diganti `migrate:fresh --seed` setelah rombak skema (lihat Tahap 1).
+- [ ] Pasang cron `schedule:run` di server production (pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin dan presentasi H-7 ke intern setiap hari).
 - [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
 - [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
-- [ ] Admin: jumlah hari Terlambat di daftar menu Absensi (design-admin 2.2). Kartu Terlambat di dashboard, jumlah Terlambat di Warning (20 Okt 2026), dan kolom Hari Terlambat di Rekap Absensi Excel (23 Okt 2026) sudah selesai.
+- [ ] ~~Admin: jumlah hari Terlambat di daftar menu Absensi.~~ Masuk Tahap 8 (Admin Presensi).
 - [ ] Pastikan ekstensi PHP `zip` aktif di server production (dibutuhkan export Excel).
-- [ ] Hapus `database/generate_migrations.php` (migration sudah terbentuk).
+- [ ] Hapus `database/generate_migrations.php` setelah migration baru 25 Okt 2026 sudah di-commit (skrip ini hanya untuk membuat file migration).
 - [ ] Lepas Inertia dari starter (`HandleInertiaRequests`, `resources/js`, `config/inertia.php`, `routes/web.php`). `tests/Feature/ExampleTest.php` masih gagal karena membuka halaman Inertia yang butuh build Vite; hapus bersama Inertia.
 - [ ] CORS: izinkan origin frontend (`http://localhost:<port>` saat development, domain Vercel saat production).
 - [ ] Sambungkan frontend: simpan token, kirim header `Authorization: Bearer <token>`, arahkan ke Ganti Password jika `must_change_password`, kembali ke login saat respons 401 atau 403 akun nonaktif.
@@ -918,6 +1024,8 @@ Temuan untuk tim frontend: prototipe membuka chat dengan `search.to` berupa nama
 ## Keputusan pemilik repo
 
 Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). Kode **tidak diubah**; tinjau lagi setelah frontend tersambung (lihat bagian berikut).
+
+> Sejak 25 Okt 2026 keputusan tentang Task, Rekap Task, KPI Lupa Clock Out, dan "Kantor boleh dihapus" **tidak berlaku lagi** (lihat "Rombak sesuai dokumen 24 Okt 2026"). Keputusan notifikasi, pengumuman, dan chat tetap berlaku.
 
 - **Ubah Task yang lewat tenggat: tetap seperti sekarang.** Tenggat yang tidak diubah boleh tetap lewat, jadi Task terlambat masih bisa diperbaiki judul dan deskripsinya. Tenggat yang diubah harus setelah waktu sekarang. (Prototipe `validateTask` selalu mewajibkan tenggat setelah sekarang.)
 - **Lupa Clock Out tidak dihitung Hadir di KPI Kehadiran.** Sama dengan prototipe (`attendanceRate`). Perbaikannya lewat koreksi absensi: setelah admin menyetujui, hari itu menjadi Hadir dan KPI ikut berubah karena dihitung saat dibaca. Di rekap, Lupa Clock Out tetap kolom sendiri, tidak masuk Tidak Hadir.
@@ -932,15 +1040,12 @@ Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). 
 
 Perubahan yang muncul dari keputusan di atas atau dari integrasi dicatat di sini dulu, lalu dikerjakan pada pengembangan berikutnya setelah tim frontend menyambungkan API. Jangan langsung mengubah kode.
 
-- [ ] Samakan aturan tenggat saat Ubah Task di frontend (`validateTask` di `frontend/src/lib/mock-rules.ts` masih menolak tenggat lampau yang tidak diubah), atau sebaliknya jika tim memilih aturan prototipe.
-- [ ] Pastikan teks bantuan KPI di halaman Performa menjelaskan bahwa Lupa Clock Out tidak dihitung hadir sampai dikoreksi.
-- [ ] Cek ulang bentuk respons yang berubah saat penyeragaman (`submission.file` menggantikan `has_file`, `unread_comments` di kotak Dashboard mentor) terhadap kode frontend.
+- [x] ~~Tiga butir lama tentang Task, KPI Lupa Clock Out, dan `submission.file`.~~ Gugur karena Task dihapus dan KPI diganti (25 Okt 2026).
 
 ## Perlu diputuskan
 
 - [ ] Intern yang diperpanjang setelah magangnya lewat (misalnya selesai 9 Okt, diperpanjang 12 Okt sampai 30 Nov): hari kerja 10-11 Okt kini masuk periode magang dan terbaca Tidak Hadir, karena periode disimpan sebagai satu rentang `start_date` sampai `end_date`. Dokumen tidak membahas jeda periode. Pilihan: biarkan (admin memakai koreksi), atau simpan tanggal aktif kembali agar hari jeda tidak dihitung.
 
-- [ ] Pengingat Task terlambat (design-mentor.md 7.6) saat ini **tidak** dikirim untuk Task milik intern nonaktif, karena intern itu tidak bisa mengumpulkan lagi. Dokumen tidak membahasnya.
 - [ ] Masa berlaku token. Saat ini `expiration` di `config/sanctum.php` bernilai `null`, jadi token berlaku sampai logout, direset admin, atau akun dinonaktifkan.
 
 ## Masih terbuka

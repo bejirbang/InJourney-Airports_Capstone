@@ -7,7 +7,6 @@ use App\Exceptions\ActionRejected;
 use App\Models\Attendance;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use App\Support\Duration;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -29,7 +28,11 @@ class AttendanceClock
 
     public const DAILY_REPORT_MISSING = 'Daily Report belum dikirim. Isi dulu sebelum clock out.';
 
-    public function __construct(private AttendanceCalendar $calendar) {}
+    public function __construct(
+        private AttendanceCalendar $calendar,
+        private WorkSchedules $schedules,
+        private SystemSettings $settings,
+    ) {}
 
     /**
      * @throws ActionRejected
@@ -45,6 +48,7 @@ class AttendanceClock
         };
 
         $office = $this->officeFor($latitude, $longitude, clockIn: true);
+        $schedule = $this->schedules->forIntern($intern, $now->toDateString());
 
         try {
             return $intern->attendances()->create([
@@ -53,6 +57,10 @@ class AttendanceClock
                 'clock_in_office_id' => $office->id,
                 'clock_in_latitude' => $latitude,
                 'clock_in_longitude' => $longitude,
+                // Jadwal dan toleransi disalin agar perubahan pengaturan nanti tidak mengubah status hari ini.
+                'scheduled_start' => $schedule->start,
+                'scheduled_end' => $schedule->end,
+                'late_tolerance_minutes' => $this->settings->lateToleranceMinutes(),
                 'is_corrected' => false,
             ]);
         } catch (UniqueConstraintViolationException) {
@@ -81,11 +89,11 @@ class AttendanceClock
                 throw new ActionRejected(self::ALREADY_CLOCKED_OUT, 'already_clocked_out');
             }
 
-            if (! $attendance->dailyReport()->exists()) {
+            if (! $attendance->logbook()->exists()) {
                 throw new ActionRejected(self::DAILY_REPORT_MISSING, 'daily_report_missing');
             }
 
-            $this->ensureWorkHoursOver($now);
+            $this->ensureWorkHoursOver($attendance->scheduled_end, $now);
 
             $office = $this->officeFor($latitude, $longitude, clockIn: false);
 
@@ -106,15 +114,9 @@ class AttendanceClock
      *
      * @throws ActionRejected
      */
-    private function ensureWorkHoursOver(CarbonInterface $now): void
+    private function ensureWorkHoursOver(string $scheduledEnd, CarbonInterface $now): void
     {
-        $hours = WorkHourSetting::effectiveOn($now->toDateString());
-
-        if ($hours === null) {
-            return;
-        }
-
-        $workEnd = $now->copy()->setTimeFromTimeString($hours->end_time);
+        $workEnd = $now->copy()->setTimeFromTimeString($scheduledEnd);
 
         if ($now->lt($workEnd)) {
             $minutesLeft = (int) ceil($now->diffInSeconds($workEnd) / 60);

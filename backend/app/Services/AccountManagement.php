@@ -2,13 +2,13 @@
 
 namespace App\Services;
 
+use App\Enums\CorrectionStatus;
 use App\Enums\Role;
-use App\Enums\TaskStatus;
 use App\Exceptions\ActionRejected;
+use App\Models\AttendanceCorrection;
 use App\Models\AuditLog;
 use App\Models\InternProfile;
 use App\Models\MentorHistory;
-use App\Models\Task;
 use App\Models\User;
 use App\Support\IndonesianDate;
 use Carbon\CarbonInterface;
@@ -49,7 +49,7 @@ class AccountManagement
     }
 
     /**
-     * @param  array{name: string, email: string, role: string, title?: string|null, mentor_id?: int|string, start_date?: string, end_date?: string}  $data
+     * @param  array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string}  $data
      * @return array{user: User, temporary_password: string}
      */
     public function create(User $admin, array $data): array
@@ -63,7 +63,7 @@ class AccountManagement
                 'email' => $data['email'],
                 'password' => $password,
                 'role' => $role,
-                'title' => ($data['title'] ?? null) ?: $role->label(),
+                'unit_id' => $role === Role::Admin ? null : ($data['unit_id'] ?? null),
                 'is_active' => true,
                 'must_change_password' => true,
             ]);
@@ -72,8 +72,12 @@ class AccountManagement
                 InternProfile::query()->create([
                     'user_id' => $user->id,
                     'mentor_id' => $data['mentor_id'] ?? null,
+                    'airport_id' => $data['airport_id'] ?? null,
+                    'university' => $data['university'] ?? null,
+                    'major' => $data['major'] ?? null,
                     'start_date' => $data['start_date'] ?? null,
                     'end_date' => $data['end_date'] ?? null,
+                    'leave_quota_since' => $data['start_date'] ?? null,
                 ]);
 
                 MentorHistory::query()->create([
@@ -92,7 +96,7 @@ class AccountManagement
     }
 
     /**
-     * @param  array{name: string, email: string, title?: string|null, start_date?: string, end_date?: string}  $data
+     * @param  array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string}  $data
      */
     public function update(User $admin, User $user, array $data): User
     {
@@ -100,14 +104,26 @@ class AccountManagement
             $user->update([
                 'name' => $data['name'],
                 'email' => $data['email'],
-                'title' => ($data['title'] ?? null) ?: $user->title,
+                'unit_id' => $user->hasRole(Role::Admin) ? null : ($data['unit_id'] ?? $user->unit_id),
             ]);
 
-            if ($user->hasRole(Role::Intern) && isset($data['start_date'], $data['end_date'])) {
-                $user->internProfile?->update([
+            $profile = $user->hasRole(Role::Intern) ? $user->internProfile : null;
+
+            if ($profile !== null && isset($data['start_date'], $data['end_date'])) {
+                $profile->fill([
+                    'airport_id' => $data['airport_id'] ?? $profile->airport_id,
+                    'university' => $data['university'] ?? $profile->university,
+                    'major' => $data['major'] ?? $profile->major,
                     'start_date' => $data['start_date'],
                     'end_date' => $data['end_date'],
                 ]);
+
+                // Kuota yang belum pernah direset oleh Perpanjang ikut tanggal mulai baru.
+                if ($profile->isDirty('start_date') && $profile->leave_quota_since->toDateString() === $profile->getOriginal('start_date')?->toDateString()) {
+                    $profile->leave_quota_since = $profile->start_date;
+                }
+
+                $profile->save();
             }
 
             AuditLog::record($admin, AuditLog::ACTION_ACCOUNT, $user->name, 'Ubah data akun.');
@@ -117,7 +133,7 @@ class AccountManagement
     }
 
     /**
-     * @return array{active_tasks: int}
+     * @return array{pending_corrections: int}
      *
      * @throws ActionRejected
      */
@@ -162,9 +178,10 @@ class AccountManagement
 
             $profile->update(['mentor_id' => $mentor->id]);
 
-            $moved = Task::query()
+            // Logbook dan izin pending ikut otomatis karena mentornya dibaca dari profil.
+            $moved = AttendanceCorrection::query()
                 ->where('intern_id', $intern->id)
-                ->where('status', '!=', TaskStatus::Done)
+                ->where('status', CorrectionStatus::PendingMentor)
                 ->update(['mentor_id' => $mentor->id]);
 
             $from = $oldMentor === null ? '' : " dari {$oldMentor->name}";
@@ -180,7 +197,7 @@ class AccountManagement
             $this->notifier->send([$oldMentor->id], "Intern {$intern->name} tidak lagi menjadi bimbingan Anda.", '/intern-saya');
         }
 
-        return ['active_tasks' => $moved];
+        return ['pending_corrections' => $moved];
     }
 
     /**

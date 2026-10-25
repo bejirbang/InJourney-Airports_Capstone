@@ -21,7 +21,7 @@ class AdminLeaveResource extends MentorLeaveResource
         return [
             ...parent::toArray($request),
             'mentor' => $mentor === null ? null : ['id' => $mentor->id, 'name' => $mentor->name],
-            'can_approve' => $this->isOverduePending(Date::now()) && $this->evidence_path !== null,
+            'can_approve' => $this->isOverduePending(Date::now()) && $this->evidence_url !== null,
         ];
     }
 }

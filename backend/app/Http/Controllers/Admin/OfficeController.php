@@ -36,7 +36,7 @@ class OfficeController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string} $input */
+        /** @var array{airport_id?: int|string, name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string} $input */
         $input = $request->validated();
         $office = $this->offices->create($admin, $input);
 
@@ -52,7 +52,7 @@ class OfficeController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string} $input */
+        /** @var array{airport_id?: int|string, name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string} $input */
         $input = $request->validated();
         $office = $this->offices->update($admin, $office, $input);
 
@@ -75,15 +75,6 @@ class OfficeController extends Controller
         $office = $this->offices->activate($admin, $office);
 
         return response()->json(['message' => 'Perubahan tersimpan.', 'data' => new AdminOfficeResource($office), 'meta' => $this->meta()]);
-    }
-
-    public function destroy(Request $request, Office $office): JsonResponse
-    {
-        /** @var User $admin */
-        $admin = $request->user();
-        $this->offices->delete($admin, $office);
-
-        return response()->json(['message' => 'Kantor dihapus.', 'meta' => $this->meta()]);
     }
 
     /**

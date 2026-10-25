@@ -11,10 +11,7 @@ use App\Models\User;
 use App\Services\AdminLeaves;
 use App\Services\LeaveDecisions;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeaveController extends Controller
 {
@@ -40,16 +37,6 @@ class LeaveController extends Controller
     public function show(LeaveRequest $leave): AdminLeaveResource
     {
         return $this->detailed($leave);
-    }
-
-    public function evidence(Request $request, LeaveRequest $leave): StreamedResponse
-    {
-        $path = $leave->evidence_path;
-        abort_if($path === null || ! Storage::exists($path), 404, 'Lampiran tidak ditemukan.');
-
-        return $request->boolean('inline')
-            ? Storage::response($path, $leave->evidenceFileName())
-            : Storage::download($path, $leave->evidenceFileName());
     }
 
     public function approve(LeaveDecisionRequest $request, LeaveRequest $leave, LeaveDecisions $decisions): JsonResponse

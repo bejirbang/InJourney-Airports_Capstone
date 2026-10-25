@@ -5,6 +5,8 @@ namespace App\Enums;
 enum AttendanceStatus: string
 {
     case Present = 'present';
+    case Late = 'late';
+    case MissedClockIn = 'missed_clock_in';
     case Leave = 'leave';
     case Absent = 'absent';
     case MissedClockOut = 'missed_clock_out';

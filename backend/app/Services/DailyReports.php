@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\LogbookStatus;
 use App\Exceptions\ActionRejected;
 use App\Models\Attendance;
-use App\Models\DailyReport;
+use App\Models\Logbook;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -20,13 +21,13 @@ class DailyReports
 
     public function todayAttendance(User $intern, CarbonInterface $now): ?Attendance
     {
-        return $intern->attendances()->with('dailyReport')->whereDate('date', $now->toDateString())->first();
+        return $intern->attendances()->with('logbook')->whereDate('date', $now->toDateString())->first();
     }
 
     /**
      * Baris absensi dikunci agar tidak bertabrakan dengan clock out yang berjalan bersamaan.
      *
-     * @return array{0: DailyReport, 1: bool}
+     * @return array{0: Logbook, 1: bool}
      *
      * @throws ActionRejected
      */
@@ -46,10 +47,10 @@ class DailyReports
                 throw new ActionRejected(self::LOCKED, 'clocked_out');
             }
 
-            $report = $attendance->dailyReport()->updateOrCreate([], [
+            $report = $attendance->logbook()->updateOrCreate([], [
                 'work' => $work,
                 'notes' => $notes,
-                'sent_at' => $now,
+                'status' => LogbookStatus::Draft,
             ]);
 
             return [$report->setRelation('attendance', $attendance), $report->wasRecentlyCreated];

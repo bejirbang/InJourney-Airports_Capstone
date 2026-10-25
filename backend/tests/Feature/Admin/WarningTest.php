@@ -6,7 +6,6 @@ use App\Models\Holiday;
 use App\Models\Notification;
 use App\Models\User;
 use App\Models\Warning;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -43,7 +42,6 @@ it('lists interns with their warning count for the warning page', function () {
 });
 
 it('shows the notes newest first with this month late count', function () {
-    WorkHourSetting::factory()->create();
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-05', 'clock_in_at' => '08:20:00']);
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => '07:55:00']);
     Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-12', 'clock_in_at' => '08:05:00']);
@@ -64,7 +62,6 @@ it('shows the notes newest first with this month late count', function () {
 });
 
 it('does not count a day that later became a holiday as late', function () {
-    WorkHourSetting::factory()->create();
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-05', 'clock_in_at' => '08:20:00']);
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-07', 'clock_in_at' => '08:30:00']);
     Holiday::factory()->create(['date' => '2026-10-07', 'name' => 'Libur Daerah']);

@@ -1,10 +1,8 @@
 <?php
 
-use App\Enums\TaskStatus;
 use App\Models\Attendance;
-use App\Models\DailyReport;
 use App\Models\LeaveRequest;
-use App\Models\Task;
+use App\Models\Logbook;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
@@ -30,7 +28,7 @@ function presentOn(User $intern, string $date, bool $report = true, ?string $out
     $attendance = Attendance::factory()->for($intern, 'intern')->create(['date' => $date, 'clock_in_at' => '08:30:00', 'clock_out_at' => $out]);
 
     if ($report) {
-        DailyReport::factory()->for($attendance)->create();
+        Logbook::factory()->for($attendance)->create();
     }
 }
 
@@ -48,13 +46,6 @@ it('computes the monthly recap and KPI per intern with the prototype formulas', 
     LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
     presentOn($andi, '2026-10-08', out: null);
 
-    $task = fn (array $a) => Task::factory()->create(['intern_id' => $andi->id, 'mentor_id' => $this->mentor->id, ...$a]);
-    $task(['status' => TaskStatus::Done, 'due_at' => '2026-10-05 17:00:00', 'submitted_at' => '2026-10-05 16:00:00']);
-    $task(['status' => TaskStatus::Done, 'due_at' => '2026-10-06 17:00:00', 'submitted_at' => '2026-10-07 09:00:00', 'revision_count' => 1]);
-    $task(['status' => TaskStatus::InProgress, 'due_at' => '2026-10-20 17:00:00', 'revision_count' => 2]);
-    $task(['status' => TaskStatus::Todo, 'due_at' => '2026-10-10 17:00:00']);
-    $task(['status' => TaskStatus::Done, 'due_at' => '2026-09-30 17:00:00', 'submitted_at' => '2026-09-29 10:00:00', 'revision_count' => 5]);
-
     performance($this->mentor, '?month=2026-10')
         ->assertOk()
         ->assertJsonPath('data.month', '2026-10')
@@ -68,15 +59,10 @@ it('computes the monthly recap and KPI per intern with the prototype formulas', 
                 'enough_data' => true,
                 // 4 / (7 - 1)
                 'attendance_rate' => 67,
-                'on_time_rate' => 25,
-                'tasks_on_time' => 1,
-                'tasks_due' => 4,
                 'daily_report_rate' => 75,
-                'revisions' => 3,
-                'late_tasks_now' => 1,
             ],
         ])
-        ->assertJsonPath('data.summary', ['attendance_rate' => 67, 'on_time_rate' => 25, 'daily_report_rate' => 75]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => 67, 'daily_report_rate' => 75]);
 });
 
 it('marks interns with less than five working days as not enough data and leaves them out of the summary', function () {
@@ -89,13 +75,11 @@ it('marks interns with less than five working days as not enough data and leaves
 
     $response = performance($this->mentor)
         ->assertOk()
-        ->assertJsonPath('data.summary', ['attendance_rate' => 100, 'on_time_rate' => null, 'daily_report_rate' => 100]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => 100, 'daily_report_rate' => 100]);
 
     $rows = collect($response->json('data.interns'))->keyBy('intern.name');
     expect($rows['Rina Wulandari']['kpi']['enough_data'])->toBeFalse()
-        ->and($rows['Rina Wulandari']['recap']['working_days'])->toBe(2)
-        ->and($rows['Andi Pratama']['kpi']['on_time_rate'])->toBeNull()
-        ->and($rows['Andi Pratama']['kpi']['tasks_due'])->toBe(0);
+        ->and($rows['Rina Wulandari']['recap']['working_days'])->toBe(2);
 });
 
 it('leaves out interns without data in the month and labels inactive interns', function () {
@@ -130,7 +114,7 @@ it('returns an empty page for a mentor without interns', function () {
         ->assertJsonPath('data.interns_total', 0)
         ->assertJsonPath('data.selectable_months', null)
         ->assertJsonPath('data.interns', [])
-        ->assertJsonPath('data.summary', ['attendance_rate' => null, 'on_time_rate' => null, 'daily_report_rate' => null]);
+        ->assertJsonPath('data.summary', ['attendance_rate' => null, 'daily_report_rate' => null]);
 });
 
 it('never sends the late clock-in mark to mentors', function () {

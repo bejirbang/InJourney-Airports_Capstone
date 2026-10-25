@@ -21,6 +21,9 @@ class AttendanceFactory extends Factory
             'date' => now()->toDateString(),
             'clock_in_at' => '08:00:00',
             'clock_out_at' => '17:00:00',
+            'scheduled_start' => '08:00:00',
+            'scheduled_end' => '17:00:00',
+            'late_tolerance_minutes' => 15,
             'is_corrected' => false,
         ];
     }

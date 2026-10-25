@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
@@ -51,7 +50,7 @@ class AttendanceHistory
         $today = $now->toDateString();
 
         $pendingDates = $intern->attendanceCorrections()
-            ->where('status', RequestStatus::Pending)
+            ->active()
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<=', $to)
             ->get()
@@ -94,7 +93,7 @@ class AttendanceHistory
         }
 
         $attendance = $day['attendance']?->loadMissing(['clockInOffice', 'clockOutOffice']);
-        $report = $attendance?->dailyReport;
+        $report = $attendance?->logbook;
 
         return [
             ...$this->dayFields($date, $day),
@@ -103,7 +102,7 @@ class AttendanceHistory
             'daily_report' => $report === null ? null : [
                 'work' => $report->work,
                 'notes' => $report->notes,
-                'sent_at' => $report->sent_at->toIso8601String(),
+                'sent_at' => $report->updated_at?->toIso8601String(),
             ],
         ];
     }
@@ -145,7 +144,7 @@ class AttendanceHistory
         [$from, $to] = AttendanceCalendar::monthRange($month);
 
         $pendingDates = $intern->attendanceCorrections()
-            ->where('status', RequestStatus::Pending)
+            ->active()
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<=', $to)
             ->get()
@@ -157,7 +156,7 @@ class AttendanceHistory
         foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
             $rows[] = [
                 ...$this->dayFields($date, $day),
-                'daily_report_work' => $day['attendance']?->dailyReport?->work,
+                'daily_report_work' => $day['attendance']?->logbook?->work,
                 'has_pending_correction' => in_array($date, $pendingDates, true),
             ];
         }
@@ -186,7 +185,7 @@ class AttendanceHistory
                 continue;
             }
 
-            $report = $day['attendance']?->dailyReport;
+            $report = $day['attendance']?->logbook;
 
             $rows[] = [
                 'date' => $date,
@@ -195,7 +194,7 @@ class AttendanceHistory
                 'report' => $report === null ? null : [
                     'work' => $report->work,
                     'notes' => $report->notes,
-                    'sent_at' => $report->sent_at->toIso8601String(),
+                    'sent_at' => $report->updated_at?->toIso8601String(),
                 ],
                 'report_missing' => $report === null && $day['attendance'] !== null,
             ];
@@ -259,11 +258,11 @@ class AttendanceHistory
         return [
             'date' => $date,
             'status' => $day['status']->value,
-            'clock_in_at' => $attendance === null ? null : substr($attendance->clock_in_at, 0, 5),
+            'clock_in_at' => $attendance?->clock_in_at === null ? null : substr($attendance->clock_in_at, 0, 5),
             'clock_out_at' => $attendance?->clock_out_at === null ? null : substr($attendance->clock_out_at, 0, 5),
             'late_minutes' => $day['late_minutes'],
             'is_corrected' => $attendance !== null && $attendance->is_corrected,
-            'daily_report_sent' => $attendance?->dailyReport !== null,
+            'daily_report_sent' => $attendance?->logbook !== null,
             'holiday_name' => $day['status'] === AttendanceStatus::Holiday ? $day['holiday_name'] : null,
             'leave_type' => $day['status'] === AttendanceStatus::Leave ? $day['leave']?->type->value : null,
         ];

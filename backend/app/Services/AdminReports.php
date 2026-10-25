@@ -3,10 +3,8 @@
 namespace App\Services;
 
 use App\Enums\Role;
-use App\Enums\TaskStatus;
 use App\Exceptions\ActionRejected;
 use App\Models\AuditLog;
-use App\Models\Task;
 use App\Models\User;
 use App\Support\IndonesianDate;
 use Carbon\CarbonInterface;
@@ -24,7 +22,6 @@ class AdminReports
 {
     public const TYPES = [
         'attendance' => 'Rekap Absensi',
-        'tasks' => 'Rekap Task',
     ];
 
     public const NO_DATA = 'Tidak ada data pada periode ini.';
@@ -54,9 +51,7 @@ class AdminReports
      */
     public function export(User $admin, array $filters, CarbonInterface $now): array
     {
-        [$head, $rows, $widths] = $filters['type'] === 'attendance'
-            ? $this->attendance($filters, $now)
-            : $this->tasks($filters, $now);
+        [$head, $rows, $widths] = $this->attendance($filters, $now);
 
         if ($rows === []) {
             throw new ActionRejected(self::NO_DATA, 'no_data');
@@ -76,7 +71,7 @@ class AdminReports
             ['Dibuat: '.IndonesianDate::withYear($now).' '.$now->format('H:i')." oleh {$admin->name}"],
         ];
 
-        if ($filters['type'] === 'attendance' && $filters['to'] >= $now->toDateString()) {
+        if ($filters['to'] >= $now->toDateString()) {
             $info[] = ['Hari ini belum dihitung karena status final ditetapkan setelah 23:59.'];
         }
 
@@ -93,9 +88,7 @@ class AdminReports
             "Export Excel {$period}".($filterText === [] ? '' : ', '.implode(', ', $filterText)).'.',
         );
 
-        $slug = $filters['type'] === 'attendance' ? 'rekap-absensi' : 'rekap-task';
-
-        return ['path' => $path, 'filename' => "{$slug}_{$filters['from']}_{$filters['to']}.xlsx"];
+        return ['path' => $path, 'filename' => "rekap-absensi_{$filters['from']}_{$filters['to']}.xlsx"];
     }
 
     /**
@@ -145,57 +138,6 @@ class AdminReports
     }
 
     /**
-     * @param  array{type: string, from: string, to: string, intern_id: int|null, mentor_id: int|null}  $filters
-     * @return array{0: list<string>, 1: list<list<int|string>>, 2: list<float>}
-     */
-    private function tasks(array $filters, CarbonInterface $now): array
-    {
-        $tasks = Task::query()
-            ->select('tasks.*')
-            ->join('users as interns', 'interns.id', '=', 'tasks.intern_id')
-            ->whereNull('interns.deleted_at')
-            ->whereDate('tasks.due_at', '>=', $filters['from'])
-            ->whereDate('tasks.due_at', '<=', $filters['to'])
-            ->when($filters['intern_id'], fn (Builder $q, int $id) => $q->where('tasks.intern_id', $id))
-            ->when($filters['mentor_id'], fn (Builder $q, int $id) => $q->where('tasks.mentor_id', $id))
-            ->with(['intern:id,name', 'mentor:id,name'])
-            ->orderBy('interns.name')
-            ->orderBy('tasks.due_at')
-            ->orderBy('tasks.id')
-            ->get();
-
-        $rows = array_values($tasks->map(fn (Task $task): array => [
-            $task->code,
-            $task->intern->name,
-            $task->mentor->name ?? '-',
-            $task->title,
-            $task->due_at->format('Y-m-d H:i'),
-            $task->status->label(),
-            $task->submitted_at?->format('Y-m-d H:i') ?? '-',
-            $this->taskLate($task, $now) ? 'Terlambat' : '-',
-        ])->all());
-
-        return [
-            ['Kode', 'Intern', 'Mentor', 'Judul Task', 'Tenggat', 'Status', 'Terakhir Dikumpulkan', 'Terlambat'],
-            $rows,
-            [10, 26, 24, 40, 17, 13, 21, 12],
-        ];
-    }
-
-    /**
-     * Tanda Terlambat untuk laporan: Task yang sudah dikumpulkan (In Review, Done) terlambat bila hasil terakhirnya
-     * masuk setelah tenggat; Task yang belum dikumpulkan terlambat bila tenggatnya sudah lewat. Berbeda dengan
-     * Task::isLate() di aplikasi, yang tidak menandai Task Done.
-     */
-    private function taskLate(Task $task, CarbonInterface $now): bool
-    {
-        return match ($task->status) {
-            TaskStatus::Done, TaskStatus::InReview => ($task->submitted_at ?? $task->done_at ?? $now)->gt($task->due_at),
-            default => $now->gt($task->due_at),
-        };
-    }
-
-    /**
      * @param  list<list<string>>  $info
      * @param  list<string>  $head
      * @param  list<list<int|string>>  $rows
@@ -236,7 +178,7 @@ class AdminReports
 
     /**
      * Teks selalu ditulis sebagai teks: Row::fromValues() mengubah teks berawalan "=" menjadi rumus Excel,
-     * sehingga nama atau judul Task buatan pengguna bisa dijalankan di komputer admin (formula injection).
+     * sehingga nama buatan pengguna bisa dijalankan di komputer admin (formula injection).
      *
      * @param  list<int|string>  $values
      */

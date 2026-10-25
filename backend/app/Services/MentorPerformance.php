@@ -3,8 +3,6 @@
 namespace App\Services;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\TaskStatus;
-use App\Models\Task;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,7 +29,7 @@ class MentorPerformance
         $rows = $mentees
             ->when($internId !== null, fn ($c) => $c->where('id', $internId))
             ->map(fn (User $intern): array => $this->internRow($intern, $month, $from, $to, $now))
-            ->filter(fn (array $row): bool => $row['recap']['working_days'] > 0 || $row['kpi']['tasks_due'] > 0)
+            ->filter(fn (array $row): bool => $row['recap']['working_days'] > 0)
             ->values();
 
         $enough = $rows->where('kpi.enough_data', true);
@@ -49,7 +47,6 @@ class MentorPerformance
             'interns_total' => $mentees->count(),
             'summary' => [
                 'attendance_rate' => $average('attendance_rate'),
-                'on_time_rate' => $average('on_time_rate'),
                 'daily_report_rate' => $average('daily_report_rate'),
             ],
             'interns' => $rows->all(),
@@ -69,15 +66,9 @@ class MentorPerformance
             $days,
             fn (array $day, string $date): bool => $date < $today
                 && $day['status'] === AttendanceStatus::Present
-                && $day['attendance']?->dailyReport !== null,
+                && $day['attendance']?->logbook !== null,
             ARRAY_FILTER_USE_BOTH,
         ));
-
-        $tasks = $intern->assignedTasks()->get();
-        $due = $tasks->filter(fn (Task $task): bool => $task->due_at->format('Y-m') === $month);
-        $onTime = $due->filter(fn (Task $task): bool => $task->status === TaskStatus::Done
-            && $task->submitted_at !== null
-            && $task->submitted_at->lte($task->due_at))->count();
 
         $present = $recap['present'];
 
@@ -94,12 +85,7 @@ class MentorPerformance
             'kpi' => [
                 'enough_data' => $recap['working_days'] >= self::MIN_KPI_DAYS,
                 'attendance_rate' => self::percent($present, $recap['working_days'] - $recap['leave']),
-                'on_time_rate' => self::percent($onTime, $due->count()),
-                'tasks_on_time' => $onTime,
-                'tasks_due' => $due->count(),
                 'daily_report_rate' => self::percent($reports, $present),
-                'revisions' => (int) $due->sum('revision_count'),
-                'late_tasks_now' => $tasks->filter(fn (Task $task): bool => $task->isLate($now))->count(),
             ],
         ];
     }

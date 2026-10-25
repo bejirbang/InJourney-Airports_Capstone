@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 class CreateAdmin extends Command
 {
-    protected $signature = 'app:create-admin {email : Email internal admin} {name : Nama lengkap} {--title=Admin : Posisi}';
+    protected $signature = 'app:create-admin {email : Email internal admin} {name : Nama lengkap}';
 
     protected $description = 'Buat akun admin dengan password sementara';
 
@@ -39,7 +39,6 @@ class CreateAdmin extends Command
             'email' => $email,
             'password' => $temporaryPassword,
             'role' => Role::Admin,
-            'title' => $this->text($this->option('title')),
             'is_active' => true,
             'must_change_password' => true,
         ]);

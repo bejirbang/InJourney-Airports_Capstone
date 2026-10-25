@@ -2,13 +2,13 @@
 
 namespace App\Http\Resources;
 
-use App\Models\DailyReport;
+use App\Models\Logbook;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Date;
 
 /**
- * @mixin DailyReport
+ * @mixin Logbook
  */
 class DailyReportResource extends JsonResource
 {
@@ -24,7 +24,8 @@ class DailyReportResource extends JsonResource
             'date' => $attendance->date->toDateString(),
             'work' => $this->work,
             'notes' => $this->notes,
-            'sent_at' => $this->sent_at->toIso8601String(),
+            'status' => $this->status->value,
+            'sent_at' => $this->updated_at?->toIso8601String(),
             'editable' => $attendance->clock_out_at === null
                 && $attendance->date->toDateString() === Date::now()->toDateString(),
         ];

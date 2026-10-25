@@ -10,7 +10,6 @@ class MenuController extends Controller
     public const MENU = [
         ['key' => 'dashboard', 'path' => '/intern/dashboard'],
         ['key' => 'attendance', 'path' => '/intern/attendance'],
-        ['key' => 'tasks', 'path' => '/intern/tasks'],
         ['key' => 'leaves', 'path' => '/intern/leaves'],
     ];
 

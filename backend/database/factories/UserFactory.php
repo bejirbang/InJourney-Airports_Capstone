@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\Role;
 use App\Models\InternProfile;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +29,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'role' => Role::Mentor,
-            'title' => 'Mentor',
+            'unit_id' => Unit::factory(),
             'phone' => null,
             'is_active' => true,
             'must_change_password' => false,
@@ -39,7 +40,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => Role::Admin,
-            'title' => 'Admin',
+            'unit_id' => null,
         ]);
     }
 
@@ -47,7 +48,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => Role::Mentor,
-            'title' => 'Mentor',
+            'unit_id' => Unit::factory(),
         ]);
     }
 
@@ -58,7 +59,6 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'role' => Role::Intern,
-            'title' => 'Intern',
         ])->afterCreating(function (User $user) use ($profile): void {
             InternProfile::factory()->for($user)->create($profile);
         });

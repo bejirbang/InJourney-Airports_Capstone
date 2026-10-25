@@ -1,14 +1,13 @@
 <?php
 
+use App\Enums\CorrectionStatus;
 use App\Enums\LeaveType;
-use App\Enums\RequestStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -60,7 +59,6 @@ it('tells the frontend whether an active office exists', function () {
 });
 
 it('counts today for active interns in their internship period only', function () {
-    WorkHourSetting::factory()->create();
 
     $rina = managedIntern($this->mentor, 'Rina Wulandari');
     $budi = managedIntern($this->mentor, 'Budi Kurniawan');
@@ -105,9 +103,9 @@ it('counts an intern who clocked in on an approved leave day as clocked in', fun
         ->assertJsonPath('data.today.not_clocked_in', 0);
 });
 
-it('marks nobody late while work hours are not set', function () {
+it('measures lateness against the start time copied into the attendance', function () {
     $rina = managedIntern($this->mentor, 'Rina Wulandari');
-    Attendance::factory()->for($rina, 'intern')->create(['clock_in_at' => '10:00:00']);
+    Attendance::factory()->for($rina, 'intern')->create(['clock_in_at' => '10:00:00', 'scheduled_start' => '10:00:00']);
 
     adminDashboard($this->admin)
         ->assertJsonPath('data.today.clocked_in', 1)
@@ -185,13 +183,14 @@ it('lists leaves pending for more than 24 hours, oldest first, at most five', fu
         ]);
 });
 
-it('lists pending correction requests, oldest first', function () {
+it('lists corrections approved by the mentor and waiting for the admin, oldest first', function () {
     $rina = managedIntern($this->mentor, 'Rina Wulandari');
     $budi = managedIntern($this->mentor, 'Budi Kurniawan');
 
-    $newer = AttendanceCorrection::factory()->for($budi, 'intern')->create(['date' => '2026-10-08', 'created_at' => '2026-10-10 09:12:00']);
-    $older = AttendanceCorrection::factory()->for($rina, 'intern')->create(['date' => '2026-10-09', 'created_at' => '2026-10-09 18:00:00']);
-    AttendanceCorrection::factory()->for($rina, 'intern')->decided(RequestStatus::Rejected, $this->admin)->create(['date' => '2026-10-02']);
+    $newer = AttendanceCorrection::factory()->for($budi, 'intern')->pendingAdmin()->create(['date' => '2026-10-08', 'created_at' => '2026-10-10 09:12:00']);
+    $older = AttendanceCorrection::factory()->for($rina, 'intern')->pendingAdmin()->create(['date' => '2026-10-09', 'created_at' => '2026-10-09 18:00:00']);
+    AttendanceCorrection::factory()->for($rina, 'intern')->create(['date' => '2026-10-05']);
+    AttendanceCorrection::factory()->for($rina, 'intern')->decidedByAdmin(CorrectionStatus::RejectedByAdmin, $this->admin)->create(['date' => '2026-10-02']);
 
     adminDashboard($this->admin)
         ->assertOk()
@@ -237,7 +236,7 @@ it('lists active interns whose internship ends within seven days, nearest first'
 it('leaves out requests of deleted interns', function () {
     $gone = managedIntern($this->mentor, 'Sudah Dihapus');
     LeaveRequest::factory()->for($gone, 'intern')->create(['created_at' => '2026-10-10 09:00:00']);
-    AttendanceCorrection::factory()->for($gone, 'intern')->create();
+    AttendanceCorrection::factory()->for($gone, 'intern')->pendingAdmin()->create();
     $gone->delete();
 
     adminDashboard($this->admin)

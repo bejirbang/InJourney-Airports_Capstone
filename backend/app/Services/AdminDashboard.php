@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\RequestStatus;
+use App\Enums\CorrectionStatus;
 use App\Enums\Role;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
@@ -12,7 +12,6 @@ use App\Models\InternProfile;
 use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -69,13 +68,11 @@ class AdminDashboard
             ->pluck('intern_id')
             ->unique();
 
-        $workHours = WorkHourSetting::effectiveOn($date);
-
         $late = array_values($attendances
             ->map(fn (Attendance $attendance): array => [
                 'intern' => $this->person($attendance->intern),
-                'clock_in_at' => substr($attendance->clock_in_at, 0, 5),
-                'late_minutes' => (int) $attendance->lateMinutes($workHours),
+                'clock_in_at' => substr((string) $attendance->clock_in_at, 0, 5),
+                'late_minutes' => (int) $attendance->lateMinutes(),
             ])
             ->filter(fn (array $row): bool => $row['late_minutes'] > 0)
             ->sortBy([['clock_in_at', 'asc'], ['intern.name', 'asc']])
@@ -152,7 +149,7 @@ class AdminDashboard
      */
     private function pendingCorrections(): array
     {
-        $query = AttendanceCorrection::query()->where('status', RequestStatus::Pending)->whereHas('intern');
+        $query = AttendanceCorrection::query()->where('status', CorrectionStatus::PendingAdmin)->whereHas('intern');
 
         $ordered = $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id');
 

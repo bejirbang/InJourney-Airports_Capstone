@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Attendance;
-use App\Models\DailyReport;
+use App\Models\Logbook;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
@@ -43,7 +43,7 @@ it('sends the daily report for today after clock in', function () {
         ->assertJsonPath('data.sent_at', '2026-10-12T14:39:00+07:00')
         ->assertJsonPath('data.editable', true);
 
-    expect(DailyReport::sole()->attendance_id)->toBe($this->attendance->id);
+    expect(Logbook::sole()->attendance_id)->toBe($this->attendance->id);
 });
 
 it('treats notes as optional', function () {
@@ -72,7 +72,7 @@ it('updates the same report until clock out', function () {
         ->assertJsonPath('data.notes', null)
         ->assertJsonPath('data.sent_at', '2026-10-12T16:10:00+07:00');
 
-    expect(DailyReport::count())->toBe(1);
+    expect(Logbook::count())->toBe(1);
 });
 
 it('rejects an empty or whitespace-only work field', function (array $payload) {
@@ -80,7 +80,7 @@ it('rejects an empty or whitespace-only work field', function (array $payload) {
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['work' => 'Isi apa yang Anda kerjakan hari ini.']);
 
-    expect(DailyReport::count())->toBe(0);
+    expect(Logbook::count())->toBe(0);
 })->with([
     'tanpa isian' => [[]],
     'kosong' => [['work' => '']],
@@ -103,7 +103,7 @@ it('rejects the report before clock in', function () {
 });
 
 it('locks the report after clock out', function () {
-    DailyReport::factory()->for($this->attendance)->create(['work' => 'Laporan awal.']);
+    Logbook::factory()->for($this->attendance)->create(['work' => 'Laporan awal.']);
     $this->attendance->update(['clock_out_at' => '17:03:00']);
 
     saveReport(['work' => 'Diubah setelah clock out.'])
@@ -121,7 +121,7 @@ it('locks a forgotten clock out day after 23:59', function () {
 
     saveReport(['work' => 'Laporan untuk kemarin.'])->assertJsonPath('reason', 'not_clocked_in');
 
-    expect(DailyReport::count())->toBe(0);
+    expect(Logbook::count())->toBe(0);
 });
 
 it('shows today’s report, or null when it has not been sent', function () {
@@ -141,7 +141,7 @@ it('never touches another intern’s attendance', function () {
 
     saveReport(['work' => 'Laporan saya.'])->assertCreated();
 
-    expect($otherAttendance->dailyReport()->exists())->toBeFalse();
+    expect($otherAttendance->logbook()->exists())->toBeFalse();
 });
 
 it('rejects mentors and admins', function (string $role) {

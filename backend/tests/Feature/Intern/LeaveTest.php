@@ -6,12 +6,9 @@ use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
-    Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 09:00:00'));
 
     $this->mentor = User::factory()->mentor()->create(['name' => 'Sari Wijaya']);
@@ -53,7 +50,7 @@ it('submits a pending leave with its working days', function () {
         ->assertJsonPath('data.end_date', '2026-10-14')
         ->assertJsonPath('data.working_days', 2)
         ->assertJsonPath('data.status', 'pending')
-        ->assertJsonPath('data.has_evidence', false)
+        ->assertJsonPath('data.evidence_url', null)
         ->assertJsonPath('data.submitted_late', false)
         ->assertJsonPath('data.decided_by', null)
         ->assertJsonPath('data.can_cancel', true);
@@ -117,8 +114,9 @@ it('validates the form with the documented messages', function (array $overrides
     'setelah magang' => [['start_date' => '2026-12-31', 'end_date' => '2027-01-04'], 'start_date', 'Tanggal di luar periode magang.'],
     'hanya akhir pekan' => [['start_date' => '2026-10-17', 'end_date' => '2026-10-18'], 'start_date', 'Tanggal yang dipilih tidak mengandung hari kerja.'],
     'alasan kosong' => [['reason' => '  '], 'reason', 'Alasan wajib diisi.'],
-    'lampiran lebih dari 2 MB' => [fn () => ['evidence' => UploadedFile::fake()->create('surat.pdf', 2049, 'application/pdf')], 'evidence', 'Ukuran file maksimal 2 MB.'],
-    'lampiran gambar' => [fn () => ['evidence' => UploadedFile::fake()->image('surat.jpg')], 'evidence', 'Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint.'],
+    'link bukan google drive' => [['evidence_url' => 'https://dropbox.com/s/surat.pdf'], 'evidence_url', 'Link harus berupa link Google Drive atau Google Docs, contoh: https://drive.google.com/...'],
+    'link host menyamar' => [['evidence_url' => 'https://drive.google.com.situs-jahat.com/x'], 'evidence_url', 'Link harus berupa link Google Drive atau Google Docs, contoh: https://drive.google.com/...'],
+    'link http' => [['evidence_url' => 'http://drive.google.com/file/d/x'], 'evidence_url', 'Link harus berupa link Google Drive atau Google Docs, contoh: https://drive.google.com/...'],
 ]);
 
 it('rejects dates overlapping a pending or approved leave', function (RequestStatus $status) {
@@ -136,27 +134,19 @@ it('allows dates of a rejected or cancelled leave and of another intern’s leav
     applyLeave()->assertCreated();
 })->with([RequestStatus::Rejected, RequestStatus::Cancelled]);
 
-it('stores optional evidence privately and lets the intern download it', function () {
-    $id = applyLeave(['evidence' => UploadedFile::fake()->create('surat-dokter.pdf', 400, 'application/pdf')])
+it('stores an optional Google Drive evidence link', function () {
+    $id = applyLeave(['evidence_url' => 'https://drive.google.com/file/d/surat-dokter/view'])
         ->assertCreated()
-        ->assertJsonPath('data.has_evidence', true)
+        ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view')
         ->json('data.id');
 
-    $path = LeaveRequest::findOrFail($id)->evidence_path;
-    Storage::assertExists($path);
-    expect($path)->toStartWith("leaves/{$this->intern->id}/");
-
-    asLeaveIntern('GET', "/api/intern/leaves/{$id}/evidence")
-        ->assertOk()
-        ->assertDownload('lampiran-izin-2026-10-13.pdf');
+    expect(LeaveRequest::findOrFail($id)->evidence_url)->toBe('https://drive.google.com/file/d/surat-dokter/view');
 });
 
-it('does not keep the uploaded file when the leave is rejected', function () {
-    leaveFor($this->intern, ['start_date' => '2026-10-13', 'end_date' => '2026-10-13']);
+it('no longer has an evidence download endpoint', function () {
+    $leave = leaveFor($this->intern, ['evidence_url' => 'https://docs.google.com/document/d/x']);
 
-    applyLeave(['evidence' => UploadedFile::fake()->create('surat.pdf', 100, 'application/pdf')])->assertUnprocessable();
-
-    expect(Storage::allFiles())->toBe([]);
+    asLeaveIntern('GET', "/api/intern/leaves/{$leave->id}/evidence")->assertNotFound();
 });
 
 it('lists the intern’s leaves by date, newest first, with the decider and note', function () {
@@ -212,13 +202,12 @@ it('cannot cancel a leave that was decided or already cancelled', function () {
 });
 
 it('hides other interns’ leaves', function () {
-    $other = leaveFor(User::factory()->intern()->create(), ['evidence_path' => 'leaves/99/x.pdf']);
+    $other = leaveFor(User::factory()->intern()->create(), ['evidence_url' => 'https://drive.google.com/file/d/x']);
 
     asLeaveIntern('GET', "/api/intern/leaves/{$other->id}")
         ->assertForbidden()
         ->assertJsonPath('message', 'Anda tidak memiliki akses ke izin ini.');
     asLeaveIntern('POST', "/api/intern/leaves/{$other->id}/cancel")->assertForbidden();
-    asLeaveIntern('GET', "/api/intern/leaves/{$other->id}/evidence")->assertForbidden();
 
     expect($other->refresh()->status)->toBe(RequestStatus::Pending);
 });

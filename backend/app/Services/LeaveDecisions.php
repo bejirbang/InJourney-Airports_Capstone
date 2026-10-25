@@ -104,7 +104,7 @@ class LeaveDecisions
             throw new ActionRejected(self::NOT_OVERDUE, 'not_overdue');
         }
 
-        if ($leave->evidence_path === null) {
+        if ($leave->evidence_url === null) {
             throw new ActionRejected(self::NO_EVIDENCE, 'no_evidence');
         }
 

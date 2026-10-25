@@ -1,12 +1,7 @@
 <?php
 
+use App\Models\Unit;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-
-beforeEach(function () {
-    Storage::fake();
-});
 
 function profileAuth(User $user): array
 {
@@ -35,20 +30,21 @@ it('clears the phone number when it is sent empty', function () {
 });
 
 it('ignores fields that only an admin may change', function () {
-    $user = User::factory()->mentor()->create(['email' => 'mentor@injourney.test', 'title' => 'Mentor']);
+    $unit = Unit::factory()->create();
+    $user = User::factory()->mentor()->create(['email' => 'mentor@injourney.test', 'unit_id' => $unit->id]);
 
     $this->putJson('/api/auth/profile', [
         'name' => 'Sari Wijaya',
         'email' => 'lain@injourney.test',
         'role' => 'admin',
-        'title' => 'Kepala',
+        'unit_id' => Unit::factory()->create()->id,
         'is_active' => false,
     ], profileAuth($user))->assertOk();
 
     expect($user->fresh())
         ->email->toBe('mentor@injourney.test')
         ->role->value->toBe('mentor')
-        ->title->toBe('Mentor')
+        ->unit_id->toBe($unit->id)
         ->is_active->toBeTrue();
 });
 
@@ -65,80 +61,20 @@ it('validates the profile form', function (array $input, string $field, string $
     'telepon terlalu pendek' => [['name' => 'Sari', 'phone' => '0812'], 'phone', 'Format nomor telepon tidak valid.'],
 ]);
 
-it('uploads a profile photo and returns a signed photo url', function () {
+it('returns the unit and no photo url in the profile', function () {
     $user = User::factory()->mentor()->create();
 
-    $response = $this->post('/api/auth/profile/photo', [
-        'photo' => UploadedFile::fake()->image('foto.jpg', 200, 200),
-    ], profileAuth($user) + ['Accept' => 'application/json'])
+    $this->getJson('/api/auth/me', profileAuth($user))
         ->assertOk()
-        ->assertJsonPath('message', 'Perubahan tersimpan.');
-
-    $path = $user->fresh()->photo_path;
-    expect($path)->toStartWith("profile-photos/{$user->id}/");
-    Storage::assertExists($path);
-
-    $url = $response->json('data.photo_url');
-    expect($url)->toContain("/api/users/{$user->id}/photo")->toContain('signature=');
-
-    $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+        ->assertJsonPath('data.unit', ['id' => $user->unit_id, 'name' => $user->unit?->name])
+        ->assertJsonMissingPath('data.photo_url')
+        ->assertJsonMissingPath('data.title');
 });
 
-it('replaces the old photo and deletes its file', function () {
-    $user = User::factory()->mentor()->create();
-    $headers = profileAuth($user) + ['Accept' => 'application/json'];
-
-    $this->post('/api/auth/profile/photo', ['photo' => UploadedFile::fake()->image('lama.png')], $headers)->assertOk();
-    $old = $user->fresh()->photo_path;
-
-    $this->post('/api/auth/profile/photo', ['photo' => UploadedFile::fake()->image('baru.webp')], $headers)->assertOk();
-
-    Storage::assertMissing($old);
-    Storage::assertExists($user->fresh()->photo_path);
-});
-
-it('removes the photo', function () {
-    $user = User::factory()->mentor()->create();
-    $headers = profileAuth($user) + ['Accept' => 'application/json'];
-
-    $this->post('/api/auth/profile/photo', ['photo' => UploadedFile::fake()->image('foto.jpg')], $headers)->assertOk();
-    $path = $user->fresh()->photo_path;
-
-    $this->deleteJson('/api/auth/profile/photo', [], $headers)
-        ->assertOk()
-        ->assertJsonPath('data.photo_url', null);
-
-    Storage::assertMissing($path);
-    expect($user->fresh()->photo_path)->toBeNull();
-});
-
-it('validates the photo', function (Closure $file, string $message) {
+it('no longer accepts profile photo uploads', function () {
     $user = User::factory()->mentor()->create();
 
-    $this->post('/api/auth/profile/photo', ['photo' => $file()], profileAuth($user) + ['Accept' => 'application/json'])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors(['photo' => $message]);
-
-    expect($user->fresh()->photo_path)->toBeNull();
-})->with([
-    'bukan gambar' => [fn () => UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf'), 'Foto harus berupa gambar JPG, PNG, atau WebP.'],
-    'svg' => [fn () => UploadedFile::fake()->create('logo.svg', 10, 'image/svg+xml'), 'Foto harus berupa gambar JPG, PNG, atau WebP.'],
-    'lebih dari 2 MB' => [fn () => UploadedFile::fake()->image('foto.jpg')->size(2049), 'Ukuran foto maksimal 2 MB.'],
-    'tidak ada file' => [fn () => null, 'Pilih foto lebih dulu.'],
-]);
-
-it('returns a null photo url when there is no photo', function () {
-    $user = User::factory()->mentor()->create();
-
-    $this->getJson('/api/auth/me', profileAuth($user))->assertOk()->assertJsonPath('data.photo_url', null);
-});
-
-it('rejects a photo url without a valid signature', function () {
-    $user = User::factory()->mentor()->create(['photo_path' => 'profile-photos/1/foto.jpg']);
-    Storage::put('profile-photos/1/foto.jpg', 'x');
-
-    $this->get("/api/users/{$user->id}/photo")->assertForbidden();
-    $this->get($user->photoUrl().'x')->assertForbidden();
+    $this->postJson('/api/auth/profile/photo', [], profileAuth($user))->assertNotFound();
 });
 
 it('blocks profile changes until the temporary password is changed', function () {

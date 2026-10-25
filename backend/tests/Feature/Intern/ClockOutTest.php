@@ -1,10 +1,10 @@
 <?php
 
+use App\Models\AirportWeeklySchedule;
 use App\Models\Attendance;
-use App\Models\DailyReport;
+use App\Models\Logbook;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 
 beforeEach(function () {
@@ -16,14 +16,13 @@ beforeEach(function () {
     ])->create();
     $this->token = $this->intern->createToken('api')->plainTextToken;
     $this->office = Office::factory()->create(['name' => 'Kantor Pusat Terminal 3']);
-    WorkHourSetting::factory()->create(['effective_from' => '2026-01-01']);
 
     $this->attendance = Attendance::factory()->clockedIn()->for($this->intern, 'intern')->create([
         'date' => '2026-10-12',
         'clock_in_at' => '08:02:00',
         'clock_in_office_id' => $this->office->id,
     ]);
-    DailyReport::factory()->for($this->attendance)->create();
+    Logbook::factory()->for($this->attendance)->create();
 });
 
 /**
@@ -63,7 +62,7 @@ it('shows the day as clocked out and locks the daily report', function () {
 });
 
 it('requires the daily report before clock out', function () {
-    $this->attendance->dailyReport()->delete();
+    $this->attendance->logbook()->delete();
 
     clockOut()
         ->assertUnprocessable()
@@ -108,26 +107,29 @@ it('allows clock out exactly at the end of work hours', function () {
 
 it('checks the daily report before asking about the work hours', function () {
     $this->travelTo(Carbon::parse('2026-10-12 15:30:00'));
-    $this->attendance->dailyReport()->delete();
+    $this->attendance->logbook()->delete();
 
     clockOut()->assertJsonPath('reason', 'daily_report_missing');
 });
 
-it('uses the work hours effective on that day', function () {
-    WorkHourSetting::factory()->create(['end_time' => '16:00:00', 'effective_from' => '2026-10-12']);
-    WorkHourSetting::factory()->create(['end_time' => '15:00:00', 'effective_from' => '2026-10-13']);
+it('uses the end time copied when the intern clocked in', function () {
+    $this->attendance->update(['scheduled_end' => '16:00:00']);
     $this->travelTo(Carbon::parse('2026-10-12 16:00:00'));
 
     clockOut()->assertOk();
 });
 
-it('has no end-of-work limit when admin has not set work hours', function () {
-    WorkHourSetting::query()->delete();
-    $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
+it('ignores a schedule change made after clock in', function () {
+    AirportWeeklySchedule::factory()->create([
+        'airport_id' => $this->intern->internProfile->airport_id,
+        'day_of_week' => 1,
+        'start_time' => '08:00:00',
+        'end_time' => '15:00:00',
+        'effective_from' => '2026-10-12',
+    ]);
+    $this->travelTo(Carbon::parse('2026-10-12 16:00:00'));
 
-    clockOut()->assertOk();
-
-    $this->getJson('/api/intern/dashboard')->assertJsonPath('data.today.work_hours', null);
+    clockOut()->assertUnprocessable()->assertJsonPath('reason', 'before_work_end');
 });
 
 it('shows the work hours on the today card', function () {

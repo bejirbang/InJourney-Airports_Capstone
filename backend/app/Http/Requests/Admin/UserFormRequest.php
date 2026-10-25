@@ -4,8 +4,10 @@ namespace App\Http\Requests\Admin;
 
 use App\Enums\Role;
 use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class UserFormRequest extends FormRequest
 {
@@ -17,7 +19,15 @@ class UserFormRequest extends FormRequest
 
     public const EMAIL_TAKEN = 'Email sudah terdaftar.';
 
+    public const UNIT_REQUIRED = 'Pilih unit.';
+
     public const MENTOR_REQUIRED = 'Pilih mentor untuk intern ini.';
+
+    public const AIRPORT_REQUIRED = 'Pilih lokasi magang.';
+
+    public const UNIVERSITY_REQUIRED = 'Asal universitas wajib diisi.';
+
+    public const MAJOR_REQUIRED = 'Jurusan wajib diisi.';
 
     public const PERIOD_INVALID = 'Tanggal selesai harus sesudah tanggal mulai.';
 
@@ -32,6 +42,12 @@ class UserFormRequest extends FormRequest
         if (is_string($this->input('email'))) {
             $this->merge(['email' => mb_strtolower(trim($this->input('email')))]);
         }
+
+        foreach (['university', 'major'] as $field) {
+            if (is_string($this->input($field))) {
+                $this->merge([$field => trim($this->input($field))]);
+            }
+        }
     }
 
     /**
@@ -40,20 +56,22 @@ class UserFormRequest extends FormRequest
     public function rules(): array
     {
         $editing = $this->editing();
-        $isIntern = $editing === null
-            ? $this->input('role') === Role::Intern->value
-            : $editing->hasRole(Role::Intern);
+        $role = $editing->role ?? Role::tryFrom((string) $this->input('role'));
+        $isIntern = $role === Role::Intern;
 
         $unique = Rule::unique('users', 'email')->withoutTrashed();
 
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'max:255', 'email', $editing === null ? $unique : $unique->ignore($editing->id)],
-            'title' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
 
         if ($editing === null) {
             $rules['role'] = ['required', Rule::enum(Role::class)];
+        }
+
+        if ($role === Role::Intern || $role === Role::Mentor) {
+            $rules['unit_id'] = ['required', 'integer', $this->activeOrCurrent('units', $editing?->unit_id)];
         }
 
         if ($editing === null && $isIntern) {
@@ -64,6 +82,9 @@ class UserFormRequest extends FormRequest
         }
 
         if ($isIntern) {
+            $rules['airport_id'] = ['required', 'integer', $this->activeOrCurrent('airports', $editing?->internProfile?->airport_id)];
+            $rules['university'] = ['required', 'string', 'max:255'];
+            $rules['major'] = ['required', 'string', 'max:255'];
             $rules['start_date'] = ['required', 'date_format:Y-m-d'];
             // Tanggal selesai tidak boleh sebelum tanggal mulai; magang satu hari diperbolehkan.
             $rules['end_date'] = ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'];
@@ -86,14 +107,28 @@ class UserFormRequest extends FormRequest
             'email.max' => self::EMAIL_FORMAT,
             'email.email' => self::EMAIL_FORMAT,
             'email.unique' => self::EMAIL_TAKEN,
-            'title.string' => 'Jabatan tidak valid.',
-            'title.max' => 'Jabatan maksimal 255 karakter.',
             'role.required' => 'Pilih role akun.',
             'role.enum' => 'Pilih role akun.',
+            'unit_id.*' => self::UNIT_REQUIRED,
             'mentor_id.*' => self::MENTOR_REQUIRED,
+            'airport_id.*' => self::AIRPORT_REQUIRED,
+            'university.max' => 'Asal universitas maksimal 255 karakter.',
+            'university.*' => self::UNIVERSITY_REQUIRED,
+            'major.max' => 'Jurusan maksimal 255 karakter.',
+            'major.*' => self::MAJOR_REQUIRED,
             'start_date.*' => self::PERIOD_INVALID,
             'end_date.*' => self::PERIOD_INVALID,
         ];
+    }
+
+    /**
+     * Pilihan nonaktif tidak bisa dipilih untuk akun baru, tetapi akun lama boleh tetap memakainya.
+     */
+    private function activeOrCurrent(string $table, ?int $currentId): Exists
+    {
+        return Rule::exists($table, 'id')->where(fn (Builder $q) => $q
+            ->where('is_active', true)
+            ->when($currentId !== null, fn (Builder $q) => $q->orWhere('id', $currentId)));
     }
 
     private function editing(): ?User

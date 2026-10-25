@@ -1,11 +1,12 @@
 <?php
 
+use App\Models\AirportWeeklySchedule;
 use App\Models\Attendance;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
+use App\Services\SystemSettings;
 use Illuminate\Support\Carbon;
 
 const OFFICE_LAT = -6.1256;
@@ -34,7 +35,7 @@ function clockIn(User $user, float $lat = OFFICE_LAT + 0.0005, float $lng = OFFI
 it('records clock in inside the clock in radius of an active office', function () {
     clockIn($this->intern)
         ->assertCreated()
-        ->assertJsonPath('message', 'Clock in berhasil pukul 08:02.')
+        ->assertJsonPath('message', 'Clock in berhasil pukul 08:02. Anda terlambat 2 menit.')
         ->assertJsonPath('data.date', '2026-10-12')
         ->assertJsonPath('data.clock_in_at', '08:02')
         ->assertJsonPath('data.clock_out_at', null)
@@ -155,12 +156,11 @@ it('does not limit the clock in time', function () {
 
     clockIn($this->intern)
         ->assertCreated()
-        ->assertJsonPath('message', 'Clock in berhasil pukul 21:45.')
-        ->assertJsonPath('data.late_minutes', null);
+        ->assertJsonPath('message', 'Clock in berhasil pukul 21:45. Anda terlambat 13 jam 45 menit.')
+        ->assertJsonPath('data.late_minutes', 825);
 });
 
 it('marks clock in after the start of work hours as late', function (string $time, string $message, int $late) {
-    WorkHourSetting::factory()->create(['start_time' => '08:00:00', 'effective_from' => '2026-01-01']);
     $this->travelTo(Carbon::parse("2026-10-12 {$time}"));
 
     clockIn($this->intern)
@@ -176,12 +176,39 @@ it('marks clock in after the start of work hours as late', function (string $tim
     'lewat 1 jam 1 menit' => ['09:01:00', 'Clock in berhasil pukul 09:01. Anda terlambat 1 jam 1 menit.', 61],
 ]);
 
-it('uses the start time effective on that day for lateness', function () {
-    WorkHourSetting::factory()->create(['start_time' => '08:00:00', 'effective_from' => '2026-01-01']);
-    WorkHourSetting::factory()->create(['start_time' => '09:00:00', 'effective_from' => '2026-10-12']);
+it('uses the airport schedule effective on that day for lateness', function () {
+    AirportWeeklySchedule::factory()->create([
+        'airport_id' => $this->intern->internProfile->airport_id,
+        'day_of_week' => 1,
+        'start_time' => '09:00:00',
+        'end_time' => '17:00:00',
+        'effective_from' => '2026-10-12',
+    ]);
     $this->travelTo(Carbon::parse('2026-10-12 08:30:00'));
 
     clockIn($this->intern)->assertJsonPath('data.late_minutes', 0);
+});
+
+it('copies the schedule and the late tolerance into the attendance row', function () {
+    app(SystemSettings::class)->set(SystemSettings::LATE_TOLERANCE_MINUTES, '10');
+
+    clockIn($this->intern)->assertCreated();
+
+    expect(Attendance::sole()->only(['scheduled_start', 'scheduled_end', 'late_tolerance_minutes']))->toBe([
+        'scheduled_start' => '08:00:00',
+        'scheduled_end' => '17:00:00',
+        'late_tolerance_minutes' => 10,
+    ]);
+});
+
+it('treats a non-working day of the airport schedule as a holiday', function () {
+    AirportWeeklySchedule::factory()->off()->create([
+        'airport_id' => $this->intern->internProfile->airport_id,
+        'day_of_week' => 1,
+        'effective_from' => '2026-10-12',
+    ]);
+
+    clockIn($this->intern)->assertUnprocessable()->assertJsonPath('reason', 'holiday');
 });
 
 it('rejects a missing or invalid position', function (array $payload) {

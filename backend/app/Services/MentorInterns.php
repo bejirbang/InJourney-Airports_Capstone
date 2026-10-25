@@ -6,7 +6,6 @@ use App\Enums\Role;
 use App\Models\InternProfile;
 use App\Models\LeaveRequest;
 use App\Models\MentorHistory;
-use App\Models\Task;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +24,7 @@ class MentorInterns
         private AccountAccess $access,
         private AttendanceCalendar $calendar,
         private AttendanceHistory $history,
+        private WorkSchedules $schedules,
     ) {}
 
     public function relation(User $mentor, User $intern): ?string
@@ -51,8 +51,8 @@ class MentorInterns
      */
     public function list(User $mentor, string $filter, ?string $search, CarbonInterface $now): array
     {
-        $current = $this->currentQuery($mentor)->with('internProfile')->orderBy('name')->get();
-        $former = $this->formerQuery($mentor)->with('internProfile')->orderBy('name')->get();
+        $current = $this->currentQuery($mentor)->with(['internProfile.airport', 'unit'])->orderBy('name')->get();
+        $former = $this->formerQuery($mentor)->with(['internProfile.airport', 'unit'])->orderBy('name')->get();
 
         $interns = match ($filter) {
             'former' => $former,
@@ -68,7 +68,7 @@ class MentorInterns
         $relation = $filter === 'former' ? self::FORMER : self::CURRENT;
 
         return [
-            'interns' => $interns->map(fn (User $intern): array => $this->row($intern, $relation, $now))->values()->all(),
+            'interns' => array_values($interns->map(fn (User $intern): array => $this->row($intern, $relation, $now))->all()),
             'current_total' => $current->count(),
             'former_total' => $former->count(),
         ];
@@ -79,7 +79,7 @@ class MentorInterns
      */
     public function detail(User $intern, string $relation, CarbonInterface $now): array
     {
-        $intern->loadMissing('internProfile.mentor');
+        $intern->loadMissing(['internProfile.mentor', 'internProfile.airport', 'unit']);
         $profile = $intern->internProfile;
         $currentMentor = $profile?->mentor;
 
@@ -95,32 +95,9 @@ class MentorInterns
     /**
      * @return list<array<string, mixed>>
      */
-    public function tasks(User $mentor, User $intern, string $relation, CarbonInterface $now): array
-    {
-        return $intern->assignedTasks()
-            ->when($relation === self::FORMER, fn (Builder $q) => $q->where('mentor_id', $mentor->id))
-            ->orderByDesc('due_at')
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn (Task $task): array => [
-                'id' => $task->id,
-                'code' => $task->code,
-                'title' => $task->title,
-                'status' => $task->status->value,
-                'due_at' => $task->due_at->toIso8601String(),
-                'is_late' => $task->isLate($now),
-                'can_open' => $relation === self::CURRENT,
-            ])
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
     public function leaves(User $intern, string $relation): array
     {
-        return $intern->leaveRequests()
+        return array_values($intern->leaveRequests()
             ->with('decider:id,name,role')
             ->latest()
             ->latest('id')
@@ -130,9 +107,9 @@ class MentorInterns
                 'type' => $leave->type->value,
                 'start_date' => $leave->start_date->toDateString(),
                 'end_date' => $leave->end_date->toDateString(),
-                'working_days' => $this->calendar->workingDays($leave->start_date->toDateString(), $leave->end_date->toDateString()),
+                'working_days' => $this->schedules->workingDays($intern, $leave->start_date->toDateString(), $leave->end_date->toDateString()),
                 'status' => $leave->status->value,
-                'has_evidence' => $leave->evidence_path !== null,
+                'evidence_url' => $leave->evidence_url,
                 'submitted_at' => $leave->created_at?->toIso8601String(),
                 'decided_by' => $leave->decider === null ? null : [
                     'name' => $leave->decider->name,
@@ -140,8 +117,7 @@ class MentorInterns
                 ],
                 'can_open' => $relation === self::CURRENT,
             ])
-            ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -191,8 +167,10 @@ class MentorInterns
         return [
             'id' => $intern->id,
             'name' => $intern->name,
-            'title' => $intern->title,
-            'photo_url' => $intern->photoUrl(),
+            'unit' => $intern->unit?->name,
+            'airport' => $profile?->airport->name,
+            'university' => $profile?->university,
+            'major' => $profile?->major,
             'start_date' => $profile?->start_date->toDateString(),
             'end_date' => $profile?->end_date->toDateString(),
             'is_active' => $active,

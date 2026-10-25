@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Enums\RequestStatus;
+use App\Enums\CorrectionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
@@ -27,7 +27,7 @@ class MenuController extends Controller
     public function __invoke(): JsonResponse
     {
         $badges = [
-            'corrections' => AttendanceCorrection::query()->where('status', RequestStatus::Pending)->whereHas('intern')->count(),
+            'corrections' => AttendanceCorrection::query()->where('status', CorrectionStatus::PendingAdmin)->whereHas('intern')->count(),
             'leaves' => LeaveRequest::query()->overduePending(now())->whereHas('intern')->count(),
         ];
 

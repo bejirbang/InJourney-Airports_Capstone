@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Airport;
 use App\Models\Office;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,7 +17,8 @@ class OfficeFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => 'Kantor '.fake()->unique()->company(),
+            'airport_id' => Airport::factory(),
+            'name' => 'Terminal '.fake()->unique()->company(),
             'latitude' => -6.1256,
             'longitude' => 106.6559,
             'clock_in_radius_meters' => 100,

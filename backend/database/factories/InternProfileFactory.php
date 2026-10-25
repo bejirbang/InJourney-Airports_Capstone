@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Airport;
 use App\Models\InternProfile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -17,10 +18,14 @@ class InternProfileFactory extends Factory
     public function definition(): array
     {
         return [
-            'user_id' => User::factory()->state(['role' => 'intern', 'title' => 'Intern']),
+            'user_id' => User::factory()->state(['role' => 'intern']),
             'mentor_id' => User::factory()->mentor(),
+            'airport_id' => Airport::factory(),
+            'university' => 'Universitas Indonesia',
+            'major' => 'Teknik Informatika',
             'start_date' => now()->subMonth()->toDateString(),
             'end_date' => now()->addMonths(2)->toDateString(),
+            'leave_quota_since' => fn (array $attributes) => $attributes['start_date'],
         ];
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Airport;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Office;
@@ -24,6 +25,7 @@ function officeRequest(User $user, string $method, string $uri, array $data = []
 function officeForm(array $overrides = []): array
 {
     return [
+        'airport_id' => test()->office->airport_id,
         'name' => 'Kantor Cabang Terminal 1',
         'latitude' => -6.1275,
         'longitude' => 106.6537,
@@ -34,18 +36,20 @@ function officeForm(array $overrides = []): array
 }
 
 it('lists every office by name with its status and the active count', function () {
-    $inactive = Office::factory()->inactive()->create(['name' => 'Kantor Cabang Terminal 1']);
+    $inactive = Office::factory()->inactive()->for($this->office->airport)->create(['name' => 'Kantor Cabang Terminal 1']);
 
     officeRequest($this->admin, 'GET', '/api/admin/offices')
         ->assertOk()
         ->assertJsonPath('data.*.name', ['Kantor Cabang Terminal 1', 'Kantor Pusat Terminal 3'])
         ->assertJsonPath('data.0', [
             'id' => $inactive->id,
+            'airport_id' => $this->office->airport_id,
             'name' => 'Kantor Cabang Terminal 1',
             'latitude' => -6.1256,
             'longitude' => 106.6559,
             'clock_in_radius_meters' => 100,
             'clock_out_radius_meters' => 300,
+            'airport' => ['id' => $this->office->airport_id, 'name' => $this->office->airport->name],
             'is_active' => false,
         ])
         ->assertJsonPath('meta.active_count', 1);
@@ -57,6 +61,7 @@ it('adds an active office and logs it', function () {
         ->assertJsonPath('message', 'Perubahan tersimpan.')
         ->assertJsonPath('data.name', 'Kantor Cabang Terminal 1')
         ->assertJsonPath('data.latitude', -6.1275)
+        ->assertJsonPath('data.airport_id', $this->office->airport_id)
         ->assertJsonPath('data.is_active', true)
         ->assertJsonPath('meta.active_count', 2);
 
@@ -78,7 +83,9 @@ it('validates the office form', function (array $overrides, string $field, strin
     'tanpa pin' => [['latitude' => null], 'latitude', 'Pilih titik kantor di peta.'],
     'titik tidak valid' => [['longitude' => 200], 'longitude', 'Pilih titik kantor di peta.'],
     'tanpa nama' => [['name' => ' '], 'name', 'Nama kantor wajib diisi.'],
-    'nama dipakai' => [['name' => 'kantor pusat terminal 3'], 'name', 'Nama kantor sudah dipakai kantor lain.'],
+    'nama dipakai' => [['name' => 'kantor pusat terminal 3'], 'name', 'Nama kantor sudah dipakai kantor lain di bandara ini.'],
+    'tanpa bandara' => [['airport_id' => null], 'airport_id', 'Pilih bandara pemilik titik presensi.'],
+    'bandara tidak ada' => [['airport_id' => 999], 'airport_id', 'Pilih bandara pemilik titik presensi.'],
     'radius nol' => [['clock_in_radius_meters' => 0], 'clock_in_radius_meters', 'Isi radius dalam meter, lebih dari 0.'],
     'radius pecahan' => [['clock_out_radius_meters' => 12.5], 'clock_out_radius_meters', 'Isi radius dalam meter, lebih dari 0.'],
     'radius kosong' => [['clock_out_radius_meters' => ''], 'clock_out_radius_meters', 'Isi radius dalam meter, lebih dari 0.'],
@@ -90,10 +97,33 @@ it('lets the admin choose any radius above zero, with no fixed range', function 
 });
 
 it('rejects a name used by an inactive office too', function () {
-    Office::factory()->inactive()->create(['name' => 'Kantor Lama']);
+    Office::factory()->inactive()->for($this->office->airport)->create(['name' => 'Kantor Lama']);
 
     officeRequest($this->admin, 'POST', '/api/admin/offices', officeForm(['name' => 'Kantor Lama']))
-        ->assertJsonValidationErrors(['name' => 'Nama kantor sudah dipakai kantor lain.']);
+        ->assertJsonValidationErrors(['name' => 'Nama kantor sudah dipakai kantor lain di bandara ini.']);
+});
+
+it('allows the same name at another airport', function () {
+    $halim = Airport::factory()->create();
+
+    officeRequest($this->admin, 'POST', '/api/admin/offices', officeForm(['airport_id' => $halim->id, 'name' => 'Kantor Pusat Terminal 3']))
+        ->assertCreated()
+        ->assertJsonPath('data.airport', ['id' => $halim->id, 'name' => $halim->name]);
+});
+
+it('rejects an inactive airport for a new office', function () {
+    $closed = Airport::factory()->inactive()->create();
+
+    officeRequest($this->admin, 'POST', '/api/admin/offices', officeForm(['airport_id' => $closed->id]))
+        ->assertJsonValidationErrors(['airport_id' => 'Pilih bandara pemilik titik presensi.']);
+});
+
+it('keeps the airport of an office when it is edited', function () {
+    $other = Airport::factory()->create();
+
+    officeRequest($this->admin, 'PUT', "/api/admin/offices/{$this->office->id}", officeForm(['airport_id' => $other->id]))->assertOk();
+
+    expect($this->office->refresh()->airport_id)->not->toBe($other->id);
 });
 
 describe('ubah kantor', function () {
@@ -130,7 +160,7 @@ describe('ubah kantor', function () {
     });
 
     it('applies a new radius to the next clock in without touching old attendance', function () {
-        $intern = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create();
+        $intern = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31', 'airport_id' => $this->office->airport_id])->create();
         $old = Attendance::factory()->for($intern, 'intern')->create(['date' => '2026-10-09', 'clock_in_office_id' => $this->office->id]);
 
         officeRequest($this->admin, 'PUT', "/api/admin/offices/{$this->office->id}", officeForm([
@@ -148,7 +178,7 @@ describe('ubah kantor', function () {
 
 describe('nonaktifkan dan aktifkan', function () {
     it('deactivates an office so interns can no longer use it, and logs it', function () {
-        $intern = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create();
+        $intern = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31', 'airport_id' => $this->office->airport_id])->create();
 
         officeRequest($this->admin, 'POST', "/api/admin/offices/{$this->office->id}/deactivate")
             ->assertOk()
@@ -187,47 +217,10 @@ describe('nonaktifkan dan aktifkan', function () {
     ]);
 });
 
-describe('hapus kantor', function () {
-    it('deletes an inactive office, keeps it in attendance history, and logs it', function () {
-        $intern = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create();
-        Attendance::factory()->for($intern, 'intern')->create([
-            'date' => '2026-10-09', 'clock_in_office_id' => $this->office->id, 'clock_out_office_id' => $this->office->id,
-        ]);
-        $this->office->update(['is_active' => false]);
+it('has no way to delete an office', function () {
+    officeRequest($this->admin, 'DELETE', "/api/admin/offices/{$this->office->id}")->assertMethodNotAllowed();
 
-        officeRequest($this->admin, 'DELETE', "/api/admin/offices/{$this->office->id}")
-            ->assertOk()
-            ->assertJsonPath('message', 'Kantor dihapus.')
-            ->assertJsonPath('meta.active_count', 0);
-
-        expect(AuditLog::sole()->only(['object', 'detail']))->toBe(['object' => 'Kantor Pusat Terminal 3', 'detail' => 'Hapus kantor.']);
-
-        officeRequest($this->admin, 'GET', '/api/admin/offices')->assertJsonCount(0, 'data');
-        officeRequest($this->admin, 'GET', "/api/admin/offices/{$this->office->id}")->assertNotFound();
-        officeRequest($this->admin, 'GET', "/api/admin/users/{$intern->id}/attendance/days/2026-10-09")
-            ->assertJsonPath('data.clock_in_office', ['id' => $this->office->id, 'name' => 'Kantor Pusat Terminal 3'])
-            ->assertJsonPath('data.clock_out_office.name', 'Kantor Pusat Terminal 3');
-    });
-
-    it('frees the name and location of a deleted office for a new one', function () {
-        $this->office->update(['is_active' => false]);
-        officeRequest($this->admin, 'DELETE', "/api/admin/offices/{$this->office->id}")->assertOk();
-
-        officeRequest($this->admin, 'POST', '/api/admin/offices', officeForm([
-            'name' => 'kantor pusat terminal 3', 'latitude' => -6.1256, 'longitude' => 106.6559,
-        ]))
-            ->assertCreated()
-            ->assertJsonPath('meta.active_count', 1);
-    });
-
-    it('asks to deactivate an active office before deleting it', function () {
-        officeRequest($this->admin, 'DELETE', "/api/admin/offices/{$this->office->id}")
-            ->assertUnprocessable()
-            ->assertJsonPath('reason', 'still_active')
-            ->assertJsonPath('message', 'Nonaktifkan kantor lebih dulu sebelum menghapusnya.');
-
-        expect(Office::query()->count())->toBe(1);
-    });
+    expect(Office::query()->count())->toBe(1);
 });
 
 it('rejects interns and mentors from the office menu', function (string $role) {
@@ -236,5 +229,4 @@ it('rejects interns and mentors from the office menu', function (string $role) {
     officeRequest($actor, 'GET', '/api/admin/offices')->assertForbidden();
     officeRequest($actor, 'POST', '/api/admin/offices', officeForm())->assertForbidden();
     officeRequest($actor, 'POST', "/api/admin/offices/{$this->office->id}/deactivate")->assertForbidden();
-    officeRequest($actor, 'DELETE', "/api/admin/offices/{$this->office->id}")->assertForbidden();
 })->with(['intern', 'mentor']);

@@ -7,22 +7,19 @@ use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
-    Storage::fake();
 
     $this->admin = User::factory()->admin()->create(['name' => 'Admin Sinta']);
     $this->mentor = User::factory()->mentor()->create(['name' => 'Sari Wijaya']);
     $this->andi = User::factory()->intern(['mentor_id' => $this->mentor->id, 'start_date' => '2026-09-01', 'end_date' => '2026-12-31'])
         ->create(['name' => 'Andi Pratama']);
 
-    Storage::put('leaves/surat.pdf', 'surat');
     $this->overdue = LeaveRequest::factory()->for($this->andi, 'intern')->create([
         'type' => LeaveType::Sick, 'start_date' => '2026-10-13', 'end_date' => '2026-10-14',
-        'reason' => 'Demam.', 'evidence_path' => 'leaves/surat.pdf', 'created_at' => '2026-10-11 08:39:00',
+        'reason' => 'Demam.', 'evidence_url' => 'https://drive.google.com/file/d/surat-dokter/view', 'created_at' => '2026-10-11 08:39:00',
     ]);
 });
 
@@ -52,7 +49,7 @@ describe('daftar dan detail', function () {
             ->assertJsonPath('data.0.intern.short_name', 'Andi P.')
             ->assertJsonPath('data.0.mentor', ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'])
             ->assertJsonPath('data.0.working_days', 2)
-            ->assertJsonPath('data.0.has_evidence', true)
+            ->assertJsonPath('data.0.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view')
             ->assertJsonPath('data.0.pending_hours', 30)
             ->assertJsonPath('data.0.is_overdue', true)
             ->assertJsonPath('data.0.can_decide', true)
@@ -68,19 +65,15 @@ describe('daftar dan detail', function () {
         adminLeaves($this->admin, 'GET', "/api/admin/leaves?tab=all&intern_id={$this->andi->id}")->assertJsonPath('data.*.id', [$this->overdue->id]);
     });
 
-    it('shows the detail with reason and attachment, and streams the attachment', function () {
+    it('shows the detail with reason and evidence link', function () {
         adminLeaves($this->admin, 'GET', "/api/admin/leaves/{$this->overdue->id}")
             ->assertOk()
             ->assertJsonPath('data.reason', 'Demam.')
-            ->assertJsonPath('data.evidence', ['name' => 'lampiran-izin-2026-10-13.pdf', 'size' => 5]);
-
-        adminLeaves($this->admin, 'GET', "/api/admin/leaves/{$this->overdue->id}/evidence")
-            ->assertOk()
-            ->assertDownload('lampiran-izin-2026-10-13.pdf');
+            ->assertJsonPath('data.evidence_url', 'https://drive.google.com/file/d/surat-dokter/view');
     });
 
     it('disables approve for a leave without attachment', function () {
-        $this->overdue->update(['evidence_path' => null]);
+        $this->overdue->update(['evidence_url' => null]);
 
         adminLeaves($this->admin, 'GET', "/api/admin/leaves/{$this->overdue->id}")
             ->assertJsonPath('data.can_decide', true)
@@ -114,7 +107,7 @@ describe('setujui dan tolak', function () {
     });
 
     it('rejects an overdue leave even without attachment', function () {
-        $this->overdue->update(['evidence_path' => null]);
+        $this->overdue->update(['evidence_url' => null]);
 
         adminLeaves($this->admin, 'POST', "/api/admin/leaves/{$this->overdue->id}/reject", ['note' => 'Tidak ada surat dokter.'])
             ->assertOk()
@@ -144,7 +137,7 @@ describe('setujui dan tolak', function () {
             'Izin ini masih menunggu mentor. Admin dapat menyetujuinya setelah Pending lebih dari 24 jam.',
         ],
         'tanpa bukti' => [
-            fn (LeaveRequest $l) => $l->update(['evidence_path' => null]),
+            fn (LeaveRequest $l) => $l->update(['evidence_url' => null]),
             fn (LeaveRequest $l) => approveLeave($l),
             'no_evidence',
             'Tidak ada surat resmi atau bukti.',

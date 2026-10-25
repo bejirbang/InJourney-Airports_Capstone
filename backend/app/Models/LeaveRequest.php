@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property string $reason
- * @property string|null $evidence_path
+ * @property string|null $evidence_url
  * @property RequestStatus $status
  * @property int|null $decided_by
  * @property string|null $decision_note
@@ -32,7 +32,7 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $decider
  */
 #[Fillable([
-    'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_path',
+    'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_url',
     'status', 'decided_by', 'decision_note', 'decided_at', 'overdue_notified_at',
 ])]
 class LeaveRequest extends Model
@@ -118,11 +118,6 @@ class LeaveRequest extends Model
         }
 
         return max(0, (int) floor($this->created_at->diffInMinutes($now)));
-    }
-
-    public function evidenceFileName(): string
-    {
-        return "lampiran-izin-{$this->start_date->toDateString()}.".pathinfo((string) $this->evidence_path, PATHINFO_EXTENSION);
     }
 
     public function covers(string $date): bool

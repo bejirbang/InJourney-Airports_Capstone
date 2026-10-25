@@ -8,8 +8,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('app:remind-overdue-tasks')->dailyAt('07:00')->withoutOverlapping();
-
 Schedule::command('app:remind-overdue-leaves')->hourly()->withoutOverlapping();
 
 Schedule::command('app:remind-ending-internships')->dailyAt('07:00')->withoutOverlapping();

@@ -15,7 +15,6 @@ class MenuController extends Controller
     public const MENU = [
         ['key' => 'dashboard', 'path' => '/mentor/dashboard'],
         ['key' => 'interns', 'path' => '/mentor/interns'],
-        ['key' => 'tasks', 'path' => '/mentor/tasks'],
         ['key' => 'leaves', 'path' => '/mentor/leaves'],
         ['key' => 'leave_calendar', 'path' => '/mentor/leave-calendar'],
         ['key' => 'performance', 'path' => '/mentor/performance'],

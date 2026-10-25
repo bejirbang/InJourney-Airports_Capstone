@@ -5,22 +5,23 @@ namespace App\Services;
 use App\Enums\AttendanceStatus;
 use App\Enums\TodayState;
 use App\Models\Attendance;
-use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 class AttendanceCalendar
 {
+    public function __construct(private WorkSchedules $schedules) {}
+
     /**
-     * Hari yang sudah clock in tetap dihitung hadir walau ada izin disetujui.
+     * Hari yang sudah clock in tetap dihitung hadir walau ada izin disetujui. $off berarti hari libur
+     * atau bukan hari kerja menurut jadwal bandara.
      */
-    public static function status(string $date, ?Attendance $attendance, bool $holiday, bool $onLeave, string $today): AttendanceStatus
+    public static function status(string $date, ?Attendance $attendance, bool $off, bool $onLeave, string $today): AttendanceStatus
     {
-        if ($holiday || Carbon::parse($date)->isWeekend()) {
+        if ($off) {
             return AttendanceStatus::Holiday;
         }
 
@@ -40,8 +41,8 @@ class AttendanceCalendar
     }
 
     /**
-     * `late_minutes` null jika belum clock in, jam kerja belum diatur, atau hari itu Libur (misalnya libur
-     * yang ditambahkan admin setelah intern clock in): tanpa jam masuk, tidak ada Terlambat.
+     * `late_minutes` null jika belum clock in atau hari itu Libur (misalnya libur yang ditambahkan admin
+     * setelah intern clock in).
      *
      * @return array<string, array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}>
      */
@@ -62,15 +63,14 @@ class AttendanceCalendar
         }
 
         $attendances = $intern->attendances()
-            ->with('dailyReport')
+            ->with('logbook')
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<=', $to)
             ->get()
             ->keyBy(fn (Attendance $a): string => $a->date->toDateString());
 
-        $holidays = $this->holidayNames($from, $to);
+        $schedules = $this->schedules->betweenForIntern($intern, $from, $to);
         $leaves = $intern->leaveRequests()->approvedBetween($from, $to)->get();
-        $workHours = WorkHourSetting::upTo($to);
 
         $days = [];
 
@@ -79,36 +79,19 @@ class AttendanceCalendar
             $attendance = $attendances->get($day);
             $leave = $leaves->first(fn (LeaveRequest $leave): bool => $leave->covers($day));
 
-            $status = self::status($day, $attendance, isset($holidays[$day]), $leave !== null, $todayDate);
+            $schedule = $schedules[$day];
+            $status = self::status($day, $attendance, ! $schedule->isWorkday, $leave !== null, $todayDate);
 
             $days[$day] = [
                 'status' => $status,
                 'attendance' => $attendance,
-                'late_minutes' => $status === AttendanceStatus::Holiday ? null : $attendance?->lateMinutes(WorkHourSetting::pickFor($workHours, $day)),
-                'holiday_name' => $holidays[$day] ?? null,
+                'late_minutes' => $status === AttendanceStatus::Holiday ? null : $attendance?->lateMinutes(),
+                'holiday_name' => $schedule->holidayName,
                 'leave' => $leave,
             ];
         }
 
         return $days;
-    }
-
-    public function workingDays(string $from, string $to): int
-    {
-        if ($from > $to) {
-            return 0;
-        }
-
-        $holidays = $this->holidayNames($from, $to);
-        $count = 0;
-
-        for ($date = Carbon::parse($from); $date->toDateString() <= $to; $date->addDay()) {
-            if (! $date->isWeekend() && ! isset($holidays[$date->toDateString()])) {
-                $count++;
-            }
-        }
-
-        return $count;
     }
 
     /**
@@ -171,17 +154,14 @@ class AttendanceCalendar
             && $profile->start_date->toDateString() <= $date
             && $date <= $profile->end_date->toDateString();
 
-        $holidayName = $this->holidayNames($date, $date)[$date] ?? null;
-        $workday = $holidayName === null && ! $today->isWeekend();
+        $schedule = $this->schedules->forIntern($intern, $date);
 
-        $attendance = $intern->attendances()->with('dailyReport')->whereDate('date', $date)->first();
+        $attendance = $intern->attendances()->with('logbook')->whereDate('date', $date)->first();
         $leave = $intern->leaveRequests()->approvedBetween($date, $date)->first();
-
-        $workHours = WorkHourSetting::effectiveOn($date);
 
         $state = match (true) {
             ! $inPeriod => TodayState::OutsidePeriod,
-            ! $workday => TodayState::Holiday,
+            ! $schedule->isWorkday => TodayState::Holiday,
             $attendance !== null => $attendance->clock_out_at !== null ? TodayState::ClockedOut : TodayState::ClockedIn,
             $leave !== null => TodayState::OnLeave,
             default => TodayState::NotClockedIn,
@@ -191,26 +171,13 @@ class AttendanceCalendar
             'state' => $state,
             'clock_in_at' => self::time($attendance?->clock_in_at),
             'clock_out_at' => self::time($attendance?->clock_out_at),
-            'late_minutes' => $attendance?->lateMinutes($workHours),
-            'daily_report_sent' => $attendance?->dailyReport !== null,
-            'holiday_name' => $state === TodayState::Holiday ? $holidayName : null,
+            'late_minutes' => $attendance?->lateMinutes(),
+            'daily_report_sent' => $attendance?->logbook !== null,
+            'holiday_name' => $state === TodayState::Holiday ? $schedule->holidayName : null,
             'leave_type' => $state === TodayState::OnLeave ? $leave->type->value : null,
             'has_active_office' => Office::query()->active()->exists(),
-            'work_hours' => $workHours?->toHours(),
+            'work_hours' => $schedule->hours(),
         ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function holidayNames(string $from, string $to): array
-    {
-        return Holiday::query()
-            ->whereDate('date', '>=', $from)
-            ->whereDate('date', '<=', $to)
-            ->get()
-            ->mapWithKeys(fn (Holiday $holiday): array => [$holiday->date->toDateString() => $holiday->name])
-            ->all();
     }
 
     private static function time(?string $time): ?string

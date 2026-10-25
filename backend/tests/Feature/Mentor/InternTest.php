@@ -2,15 +2,13 @@
 
 use App\Enums\LeaveType;
 use App\Enums\RequestStatus;
-use App\Enums\TaskStatus;
 use App\Models\Attendance;
-use App\Models\DailyReport;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\Logbook;
 use App\Models\MentorHistory;
-use App\Models\Task;
+use App\Models\Unit;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -32,7 +30,7 @@ function internOf(User $mentor, string $name, array $profile = [], array $attrib
         'start_date' => '2026-09-01',
         'end_date' => '2026-12-31',
         ...$profile,
-    ])->create(['name' => $name, 'title' => 'Backend Intern', ...$attributes]);
+    ])->create(['name' => $name, 'unit_id' => Unit::query()->firstOrCreate(['name' => 'Divisi IT'])->id, ...$attributes]);
 }
 
 function formerInternOf(User $former, string $name): User
@@ -67,8 +65,10 @@ describe('daftar Intern Saya', function () {
             ->assertJsonPath('data.0', [
                 'id' => $andi->id,
                 'name' => 'Andi Pratama',
-                'title' => 'Backend Intern',
-                'photo_url' => null,
+                'unit' => 'Divisi IT',
+                'airport' => $andi->internProfile->airport->name,
+                'university' => 'Universitas Indonesia',
+                'major' => 'Teknik Informatika',
                 'start_date' => '2026-09-01',
                 'end_date' => '2026-12-31',
                 'is_active' => true,
@@ -177,7 +177,7 @@ describe('detail intern', function () {
             ->assertForbidden()
             ->assertJsonPath('message', 'Anda tidak memiliki akses ke intern ini.');
         asMentor($this->mentor, "/api/mentor/interns/{$admin->id}{$suffix}")->assertForbidden();
-    })->with(['', '/attendance', '/attendance/days/2026-10-09', '/daily-reports', '/tasks', '/leaves']);
+    })->with(['', '/attendance', '/attendance/days/2026-10-09', '/daily-reports', '/leaves']);
 
     it('rejects interns and admins from Intern Saya', function (string $role) {
         asMentor(User::factory()->{$role}()->create(), '/api/mentor/interns')
@@ -188,7 +188,6 @@ describe('detail intern', function () {
 
 describe('tab Rekap Absensi', function () {
     beforeEach(function () {
-        WorkHourSetting::factory()->create(['start_time' => '08:00:00', 'end_time' => '17:00:00', 'effective_from' => '2026-01-01']);
         $this->andi = internOf($this->mentor, 'Andi Pratama');
     });
 
@@ -248,7 +247,7 @@ describe('tab Rekap Absensi', function () {
 
     it('opens one day with the full daily report and offices, without the late mark', function () {
         $attendance = attendOn($this->andi, '2026-10-09', '08:20:00');
-        DailyReport::factory()->for($attendance)->create(['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'sent_at' => '2026-10-09 16:50:00']);
+        Logbook::factory()->for($attendance)->create(['work' => 'Menyelesaikan ERD tahap 1.', 'notes' => null, 'updated_at' => '2026-10-09 16:50:00']);
 
         asMentor($this->mentor, "/api/mentor/interns/{$this->andi->id}/attendance/days/2026-10-09")
             ->assertOk()
@@ -269,7 +268,7 @@ describe('tab Daily Report', function () {
     it('lists one row per working day with the report, newest first', function () {
         $andi = internOf($this->mentor, 'Andi Pratama');
         $sent = attendOn($andi, '2026-10-09');
-        DailyReport::factory()->for($sent)->create(['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'sent_at' => '2026-10-09 16:30:00']);
+        Logbook::factory()->for($sent)->create(['work' => 'Rapat dengan tim.', 'notes' => 'Lanjut besok.', 'updated_at' => '2026-10-09 16:30:00']);
         attendOn($andi, '2026-10-08', out: null);
         LeaveRequest::factory()->for($andi, 'intern')->approved()->create(['type' => LeaveType::Urgent, 'start_date' => '2026-10-07', 'end_date' => '2026-10-07']);
         Holiday::factory()->create(['date' => '2026-10-05', 'name' => 'Libur Daerah']);
@@ -296,37 +295,11 @@ describe('tab Daily Report', function () {
     });
 });
 
-describe('tab Task dan Izin', function () {
-    it('lists all tasks of a current intern with the late mark', function () {
+describe('tab Izin', function () {
+    it('no longer has a task tab', function () {
         $andi = internOf($this->mentor, 'Andi Pratama');
-        $late = Task::factory()->create(['intern_id' => $andi->id, 'mentor_id' => $this->mentor->id, 'title' => 'Uji login', 'due_at' => '2026-10-10 17:00:00']);
-        $byOldMentor = Task::factory()->status(TaskStatus::Done)->create(['intern_id' => $andi->id, 'due_at' => '2026-09-15 17:00:00']);
 
-        asMentor($this->mentor, "/api/mentor/interns/{$andi->id}/tasks")
-            ->assertOk()
-            ->assertJsonCount(2, 'data')
-            ->assertJsonPath('data.0', [
-                'id' => $late->id,
-                'code' => $late->code,
-                'title' => 'Uji login',
-                'status' => 'todo',
-                'due_at' => '2026-10-10T17:00:00+07:00',
-                'is_late' => true,
-                'can_open' => true,
-            ])
-            ->assertJsonPath('data.1.id', $byOldMentor->id);
-    });
-
-    it('shows a former mentor only the tasks they created, without opening them', function () {
-        $rina = formerInternOf($this->mentor, 'Rina Wulandari');
-        $mine = Task::factory()->status(TaskStatus::Done)->create(['intern_id' => $rina->id, 'mentor_id' => $this->mentor->id]);
-        Task::factory()->create(['intern_id' => $rina->id, 'mentor_id' => $rina->internProfile->mentor_id]);
-
-        asMentor($this->mentor, "/api/mentor/interns/{$rina->id}/tasks")
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $mine->id)
-            ->assertJsonPath('data.0.can_open', false);
+        asMentor($this->mentor, "/api/mentor/interns/{$andi->id}/tasks")->assertNotFound();
     });
 
     it('lists the leave history, newest submission first, with who decided', function () {
@@ -337,14 +310,14 @@ describe('tab Task dan Izin', function () {
             'status' => RequestStatus::Approved, 'decided_by' => $admin->id, 'created_at' => '2026-09-30 08:00:00',
         ]);
         $new = LeaveRequest::factory()->for($andi, 'intern')->create([
-            'start_date' => '2026-10-13', 'end_date' => '2026-10-13', 'evidence_path' => 'leaves/1/surat.pdf', 'created_at' => '2026-10-12 08:00:00',
+            'start_date' => '2026-10-13', 'end_date' => '2026-10-13', 'evidence_url' => 'https://drive.google.com/file/d/surat/view', 'created_at' => '2026-10-12 08:00:00',
         ]);
 
         asMentor($this->mentor, "/api/mentor/interns/{$andi->id}/leaves")
             ->assertOk()
             ->assertJsonPath('data.0.id', $new->id)
             ->assertJsonPath('data.0.status', 'pending')
-            ->assertJsonPath('data.0.has_evidence', true)
+            ->assertJsonPath('data.0.evidence_url', 'https://drive.google.com/file/d/surat/view')
             ->assertJsonPath('data.0.decided_by', null)
             ->assertJsonPath('data.0.can_open', true)
             ->assertJsonPath('data.1', [
@@ -354,7 +327,7 @@ describe('tab Task dan Izin', function () {
                 'end_date' => '2026-10-02',
                 'working_days' => 2,
                 'status' => 'approved',
-                'has_evidence' => false,
+                'evidence_url' => null,
                 'submitted_at' => '2026-09-30T08:00:00+07:00',
                 'decided_by' => ['name' => 'Admin Sinta', 'role' => 'admin'],
                 'can_open' => true,
