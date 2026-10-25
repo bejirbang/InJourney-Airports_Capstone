@@ -28,6 +28,7 @@ use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController
 use App\Http\Controllers\Mentor\InternController as MentorInternController;
 use App\Http\Controllers\Mentor\LeaveCalendarController as MentorLeaveCalendarController;
 use App\Http\Controllers\Mentor\LeaveController as MentorLeaveController;
+use App\Http\Controllers\Mentor\LogbookController as MentorLogbookController;
 use App\Http\Controllers\Mentor\MenuController as MentorMenuController;
 use App\Http\Controllers\Mentor\PerformanceController as MentorPerformanceController;
 use App\Http\Controllers\Shared\AnnouncementController;
@@ -95,6 +96,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/interns/{intern}/logbooks', [MentorInternController::class, 'logbooks'])->name('interns.logbooks');
             Route::get('/interns/{intern}/leaves', [MentorInternController::class, 'leaves'])->name('interns.leaves');
             Route::get('/interns/{intern}/corrections', [MentorInternController::class, 'corrections'])->name('interns.corrections');
+
+            Route::get('/logbooks', [MentorLogbookController::class, 'index'])->name('logbooks.index');
+            Route::post('/logbooks/approve', [MentorLogbookController::class, 'approveMany'])->name('logbooks.approve-many');
+            Route::get('/logbooks/{logbook}', [MentorLogbookController::class, 'show'])->whereNumber('logbook')->name('logbooks.show');
+            Route::post('/logbooks/{logbook}/approve', [MentorLogbookController::class, 'approve'])->whereNumber('logbook')->name('logbooks.approve');
+            Route::post('/logbooks/{logbook}/revise', [MentorLogbookController::class, 'revise'])->whereNumber('logbook')->name('logbooks.revise');
 
             Route::get('/corrections', [MentorCorrectionController::class, 'index'])->name('corrections.index');
             Route::get('/corrections/{correction}', [MentorCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');

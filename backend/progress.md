@@ -973,8 +973,8 @@ Ikut berubah di Tahap 2:
 
 ### Tahap 5 - Review logbook oleh mentor
 
-- [ ] Antrean (Menunggu Review, Revisi, Semua), detail dengan riwayat review, Setujui, Minta Revisi (komentar wajib), Setujui banyak sekaligus, navigasi sebelumnya/berikutnya.
-- [ ] Notifikasi mentor hanya saat intern mengirim ulang setelah revisi. Intern hanya diberi tahu saat diminta revisi.
+- [x] `MentorLogbooks` (25 Okt 2026), `/api/mentor/logbooks`: daftar `tab` `pending_review` (bawaan) / `revision` / `all` (tanpa draft) dan `intern_id`; dua tab pertama dari tanggal paling lama, Semua dari yang terbaru; `meta` jumlah per tab. Hanya logbook intern yang mentornya saat ini adalah mentor tersebut (ikut pindah saat ganti mentor; `LogbookPolicy::review`). Detail `/{logbook}?tab=` dengan catatan, presensi hari itu, riwayat review, `is_corrected` (label "Diisi setelah koreksi presensi"), `previous_id`/`next_id` dalam urutan tab yang sama. `POST /{logbook}/approve` (komentar opsional, terkunci) dan `POST /{logbook}/revise` (komentar wajib, "Tulis komentar revisi."); masing-masing menambah satu `logbook_reviews`. `POST /logbooks/approve` dengan `ids` untuk Setujui banyak sekaligus; yang sudah tidak menunggu review atau bukan bimbingan dilewati dan dilaporkan di `skipped`. Logbook Revisi milik intern yang sudah nonaktif boleh langsung disetujui (`warning` "Intern sudah nonaktif dan tidak dapat memperbaiki logbook."). Menu mentor ditambah `logbooks` dengan angka Menunggu Review.
+- [x] Notifikasi lewat `Notifier` (disimpan lalu di-broadcast `NotificationSent` ke `private-users.{id}` via Reverb, seperti notifikasi lain): intern hanya saat diminta revisi ("Logbook 8 Okt perlu direvisi.", `link_params` `date`); mentor hanya saat intern mengirim ulang setelah revisi (Tahap 2). Setujui dan logbook baru dari clock out tidak mengirim notifikasi.
 
 ### Tahap 6 - Presentasi akhir dan penilaian
 

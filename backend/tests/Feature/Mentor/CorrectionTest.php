@@ -69,7 +69,7 @@ describe('daftar', function () {
 
     it('shows the count on the menu and the history on the intern detail tab', function () {
         mentorCorrections($this->mentor, 'GET', '/api/mentor/menu')
-            ->assertJsonPath('data.2', ['key' => 'corrections', 'path' => '/mentor/corrections', 'badge' => 1]);
+            ->assertJsonPath('data.3', ['key' => 'corrections', 'path' => '/mentor/corrections', 'badge' => 1]);
 
         mentorCorrections($this->mentor, 'GET', "/api/mentor/interns/{$this->nabila->id}/corrections")
             ->assertOk()
