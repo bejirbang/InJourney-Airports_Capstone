@@ -4,6 +4,8 @@ Catatan pekerjaan backend dan hal yang belum boleh terlupa.
 
 ## Selesai
 
+> Bagian ini adalah catatan lama sebelum rombak 24-25 Okt 2026 (masih berisi Task, Daily Report, upload file). Untuk endpoint yang berubah, ikuti "Catatan integrasi frontend setelah rombak" di bagian "Rombak sesuai dokumen 24 Okt 2026".
+
 - [x] Koneksi database diubah ke PostgreSQL (`DB_CONNECTION=pgsql`). Produksi memakai Supabase. (13 Okt 2026)
 - [x] Skrip pembuat 18 migration tabel aplikasi: `database/generate_migrations.php`. Migration sudah dibuat dan dijalankan. (13 Okt 2026)
   - `users`: kolom akun, soft delete, email unik hanya untuk akun yang belum dihapus.
@@ -937,7 +939,7 @@ Penyesuaian sementara agar kode lama tetap jalan di skema baru (dirombak di taha
 - Daily Report disimpan di `logbooks` berstatus `draft`; endpoint dan nama field (`daily_report`, `sent_at` = waktu terakhir disimpan) belum berubah sampai Tahap 2.
 - Clock in menyalin `scheduled_start`, `scheduled_end`, dan `late_tolerance_minutes`; clock out memakai jam pulang salinan itu. Aturan status (Terlambat dengan toleransi, Lupa Clock In, batas clock in sebelum jam pulang, titik milik bandara) masih aturan lama sampai Tahap 2. `late_minutes` dihitung dari `scheduled_start` tanpa toleransi.
 - Kelola Akun sudah memakai `unit_id` (wajib intern/mentor, kosong untuk admin), `airport_id`, `university`, `major`; pilihan nonaktif ditolak untuk akun baru tetapi boleh dipertahankan akun lama. `leave_quota_since` ikut tanggal mulai selama belum pernah diperpanjang. Ganti mentor memindahkan koreksi `pending_mentor` (bagian Tahap 7). Lokasi Kantor mewajibkan `airport_id` saat tambah, tidak bisa pindah bandara, dan tidak bisa dihapus (405).
-- Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan (Tahap 8), `InternProfile::ENDING_SOON_DAYS` masih konstanta (Tahap 7; batas izin pending sudah memakai `system_settings` sejak Tahap 4).
+- ~~Masih aturan lama: dashboard admin/mentor dan Kalender Izin menganggap Sabtu-Minggu libur untuk semua bandara, `HolidayRequest` menolak tanggal akhir pekan, `InternProfile::ENDING_SOON_DAYS` masih konstanta.~~ Selesai di Tahap 7 dan 8.
 
 ### Tahap 2 - Presensi dan logbook intern
 
@@ -998,23 +1000,123 @@ Perlu keputusan (belum diubah):
 - [x] Ganti mentor: pindahkan koreksi `pending_mentor` (perbarui `mentor_id`). Logbook dan izin pending ikut otomatis. (Dikerjakan di Tahap 1, menggantikan pemindahan Task.)
 - [x] Perpanjang: `leave_quota_since` = hari ini, kosongkan `presentation_reminded_at`. (Dikerjakan di Tahap 4 bersama kuota izin.)
 - [x] Teks notifikasi dicocokkan dengan tabel di ketiga dokumen. Satu yang berubah: pembatalan izin ke mentor menjadi "Andi P. membatalkan izin 13-14 Okt." (sebelumnya "membatalkan pengajuan izin"). Nama di notifikasi tetap memakai nama pendek ("Rizki P."), seperti sebelumnya. Notifikasi ke mentor lama saat ganti mentor ("... tidak lagi menjadi bimbingan Anda.") tidak ada di tabel dokumen tetapi dipertahankan.
-- Belum: "Warning baru dari admin" di Perlu ditindak Dashboard intern butuh penanda dibaca per warning. Dikerjakan bersama Dashboard di Tahap 8 (usulan: warning yang dibuat setelah notifikasinya terakhir dibaca, atau 7 hari terakhir).
+- [x] "Warning baru dari admin" di Perlu ditindak Dashboard intern: dikerjakan di Tahap 8 (warning 7 hari terakhir).
 
 ### Tahap 8 - Dashboard, performa, laporan, admin lain
 
-- [ ] Dashboard intern, mentor, admin sesuai dokumen baru (kartu bisa diklik, antrean tindakan, filter bandara global untuk admin, asal kampus).
-- [ ] Mentor melihat Terlambat (sudah sejak Tahap 2). Performa: rekap baru dan KPI Kehadiran, Tepat waktu, Logbook disetujui, Revisi logbook.
-- [ ] Admin Presensi (`/admin/attendance`): data presensi dan rekap bulanan semua intern. Endpoint ini belum pernah ada.
-- [ ] Admin Lokasi & Jadwal: CRUD bandara (dengan jadwal mingguan), titik presensi, jadwal mingguan (atur sekaligus/per hari, `effective_from` tidak di masa lalu, riwayat), jadwal khusus (tanpa tumpang tindih).
-- [ ] Admin Pengaturan Umum (`system_settings`), kalender libur berlaku untuk semua bandara.
-- [ ] Kelola akun: unit (pilihan), bandara, universitas, jurusan.
-- [ ] Laporan Excel: 4 sheet (Presensi, Izin, Logbook, Penilaian), filter periode (maks 12 bulan), bandara, mentor, satu/banyak intern, hanya kuota habis.
-- [ ] Kategori Log Aktivitas baru.
+Semua bagian 25 Okt 2026. Status presensi banyak intern pada satu tanggal kini dihitung sekali lewat `AttendanceCalendar::statusesOn()` dengan jadwal bandara tiap intern; aturan "Sabtu-Minggu libur untuk semua" sudah tidak ada di kode.
+
+- [x] **Dashboard admin** (`?airport_id=`, kosong = semua bandara): `today` (`interns`, `clocked_in`, `late`, `on_leave`, `not_clocked_in`, `rows` berisi nama, status, jam masuk, lama terlambat, jenis izin; intern yang hari itu libur di bandaranya tidak dihitung), `yesterday` (hari kerja terakhir sebelum hari ini, status final, dengan `rows`; termasuk intern yang hari terakhir magangnya kemarin), kotak `pending_corrections` (dengan `recorded_status` dan `recorded_missed_clock_out`, urut waktu ACC mentor), `overdue_leaves`, `pending_presentations`, `ending_internships`, `quota_exhausted`, `new_assessments` (disubmit 7 hari terakhir), dan `campuses` (intern aktif per universitas). `holiday` terisi jika bandara terpilih (atau semua bandara aktif) libur. `has_active_office` ikut filter.
+- [x] **Dashboard mentor**: `today` dengan bentuk yang sama, kotak `pending_logbooks` (id untuk tombol Setujui), `pending_corrections` (menunggu mentor), `pending_leaves` (`is_overdue`), `ready_to_assess`. `holiday` hanya jika semua intern bimbingan libur.
+- [x] **Dashboard intern**: `action_needed` ditambah `warnings` (7 hari terakhir), `corrections` dan `leaves` yang baru diputuskan final (7 hari terakhir).
+- [x] **Kalender Izin**: libur mengikuti jadwal bandara tiap intern dan kalender libur; izin tidak tampil pada hari libur intern itu. Tanpa filter intern, satu hari ditandai libur hanya jika libur untuk semua bandara intern bimbingan.
+- [x] **Performa** (design-mentor 10.2): rekap Hadir, Terlambat, Lupa Clock In, Lupa Clock Out, Izin, Tidak Hadir, Hari kerja; KPI `attendance_rate`, `on_time_rate` (Hadir / (Hadir + Terlambat)), `logbook_approved_rate` (logbook disetujui / hari wajib berlogbook), `logbook_revisions`; `dates` per angka untuk daftar hari saat diklik. `summary` rata-rata tiga persentase dari intern yang datanya cukup. `daily_report_rate` dihapus.
+- [x] **Admin Presensi**: `GET /api/admin/attendance?month&airport_id&q` (rekap bulanan per intern + `attendance_rate`), `GET /api/admin/attendance/daily?date&airport_id&q` (status semua intern pada satu tanggal, `counts` per status; tanggal masa depan ditolak). Tab Logbook detail intern admin: `GET /api/admin/users/{user}/logbooks?month` (hanya baca).
+- [x] **Lokasi & Jadwal** (`AdminAirports`): `/api/admin/airports` (daftar dengan `active_offices`, `active_interns`, jadwal mingguan yang berlaku; tambah bersama jadwal mingguan 7 hari dalam satu transaksi; detail dengan titik presensi, jadwal berlaku, jadwal mendatang, jadwal khusus; ubah nama; `deactivate` ditolak jika masih ada intern aktif atau yang belum mulai; `activate`). `PUT /{airport}/weekly-schedule` (`effective_from` tidak di masa lalu, `days` 1-7 hari; hari yang tidak dikirim disalin dari jadwal sebelumnya; set dengan tanggal sama ditimpa), `GET /{airport}/weekly-schedules` (riwayat). Jadwal khusus `GET/POST /{airport}/special-schedules`, `PUT/DELETE /api/admin/special-schedules/{id}`: tanpa tumpang tindih per bandara, hanya tanggal yang belum lewat; yang sedang berjalan hanya bisa diubah tanggal selesainya dan "dihapus" berarti dihentikan mulai hari ini; yang sudah selesai terkunci. `GET /api/admin/offices?airport_id=`. Ringkasan jadwal untuk Log Aktivitas, misalnya "Sen-Kam 08:00-17:00, Jum 08:30-16:00, Sab-Min libur".
+- [x] **Pengaturan Umum**: `GET`/`PUT /api/admin/settings` (`late_tolerance_minutes` 0-120, `leave_quota` 1-30, `end_reminder_days` 1-60, `leave_escalation_hours` 1-168), Log Aktivitas per angka yang berubah. **Kalender libur** boleh di akhir pekan (bandara bisa bekerja hari Sabtu); jumlah presensi yang dihitung ulang hanya intern yang bandaranya bekerja pada tanggal itu menurut jadwal mingguan.
+- [x] Kelola akun: unit, bandara, universitas, jurusan sudah sejak Tahap 1. Filter bandara global ditambahkan ke daftar Izin dan Koreksi admin (`airport_id`), termasuk hitungan tab Koreksi.
+- [x] **Laporan Excel**: `POST /api/admin/reports/preview` (jumlah intern) dan `POST /api/admin/reports/export` dengan `from`, `to` (maks 12 bulan, "Pilih periode maksimal 12 bulan."), `airport_id`, `mentor_id`, `intern_ids[]`, `sheets[]` (`attendance`, `leave`, `logbook`, `assessment`; kosong = semua), `quota_exhausted`. Satu file `laporan-intern_{from}_{to}.xlsx`, satu sheet per rekap, kolom identitas (nama, email, unit, lokasi, universitas, jurusan, mentor, periode), angka ditulis sebagai angka. Rekap Izin: kuota masa magang saat ini dan hari izin (hari kerja) di dalam periode laporan. Rekap Penilaian tidak dibatasi periode. `options` ditambah email intern, `airports`, `sheets`. `type` dihapus. Tanpa data: "Tidak ada data pada periode dan filter ini."
+- [x] **Kategori Log Aktivitas** sesuai design-admin 16: Akun, Presensi, Koreksi Presensi, Izin, Presentasi, Lokasi & Jadwal, Kalender Libur, Pengaturan Umum, Unit, Warning, Pengumuman, Laporan.
 
 ### Tahap 9 - Dokumen
 
-- [ ] Tulis ulang `backend/CLAUDE.md` (tabel, enum, aturan presensi/logbook/koreksi/izin, tanpa Task dan upload, aturan migration selama belum ada production).
-- [ ] Perbarui catatan integrasi frontend di file ini untuk endpoint yang berubah.
+- [x] Tulis ulang `backend/CLAUDE.md` (25 Okt 2026): sumber kebenaran (dokumen desain, ERD, file ini; prototipe FE bukan sumber aturan), 23 tabel + enum, `system_settings`, aturan akun/jadwal/presensi/logbook/koreksi/izin/presentasi/penilaian, link Google Drive, scheduler tiga command, aturan migration selama belum ada production, dan hal terbuka. Bagian Task, upload file, dan Supabase Storage dihapus. Diperbarui setelah Tahap 8: daftar "Belum dikerjakan" dihapus, ditambah aturan Lokasi & Jadwal, dashboard, KPI, laporan, kategori Log Aktivitas, dan `system_settings` yang kini bisa diubah admin.
+- [x] Catatan integrasi frontend setelah rombak (bagian berikut). Catatan per fitur di bagian "Selesai" adalah catatan lama; untuk endpoint yang berubah, bagian berikut yang berlaku.
+
+### Catatan integrasi frontend setelah rombak
+
+Berlaku untuk kode per 25 Okt 2026 (Tahap 1-8). Rincian field ada di butir Tahap 1-8 di atas.
+
+#### Umum (tidak berubah)
+
+- Header `Authorization: Bearer <token>`. 401: kembali ke login. 403 dengan pesan akun nonaktif atau masa magang: token sudah dicabut, kembali ke login. `must_change_password`: arahkan ke Ganti Password.
+- Penolakan aturan: 422 `{message, reason}` (kadang dengan data tambahan, misalnya `blockers`). Error isian: 422 `{message, errors}`. Tampilkan `message` apa adanya; teksnya sudah sesuai dokumen.
+- Menu sidebar dari `GET /api/{role}/menu` (`key`, `path`, `badge`). Lonceng, chat, dan WebSocket tetap seperti "Catatan integrasi frontend: Lonceng dan Chat".
+- Filter lokasi global admin dikirim sebagai `airport_id` ke Dashboard, Presensi, Koreksi, Izin, Presentasi, Penilaian, dan Laporan. Pilihan bandara dari `GET /api/admin/airports`.
+- Kartu Dashboard admin dan mentor yang bisa diklik memakai `today.rows` / `yesterday.rows` (difilter per `status` di frontend); angka Performa memakai `dates`.
+
+#### Endpoint yang dihapus
+
+| Lama | Pengganti |
+| --- | --- |
+| `/api/intern/tasks*`, `/api/mentor/tasks*`, `/api/mentor/interns/{id}/tasks` | Tidak ada (Task dihapus). Review harian lewat logbook |
+| `GET`, `PUT /api/intern/attendance/daily-report` | `GET`, `PUT /api/intern/logbooks/{date}`; clock out boleh mengirim `work`/`notes` sekaligus |
+| `GET /api/mentor/interns/{id}/daily-reports` | `GET /api/mentor/interns/{intern}/logbooks` |
+| `.../evidence` (koreksi, izin) dan upload file | Koreksi tanpa bukti; izin dan presentasi memakai `evidence_url` (link Google Drive/Docs) |
+| `POST`, `DELETE /api/auth/profile/photo`, `GET /api/users/{id}/photo` | Tidak ada. Avatar dari inisial nama |
+| `GET`, `POST /api/admin/settings/work-hours` | `PUT /api/admin/airports/{airport}/weekly-schedule` dan jadwal khusus per bandara |
+| `POST /api/admin/reports/export` dengan `type`, `intern_id` | `sheets[]`, `intern_ids[]`, `airport_id`, `quota_exhausted`; file `laporan-intern_*.xlsx` |
+| `DELETE /api/admin/offices/{id}` | Tidak ada (405). Titik hanya dinonaktifkan |
+
+#### Perubahan field lintas endpoint
+
+- User/kontak chat: `title` dan `photo_url` diganti `unit` (`{id, name}` atau nama). `user.intern_profile`: `mentor`, `airport`, `university`, `major`, `start_date`, `end_date`.
+- Profil: semua role hanya mengubah `phone` (`PUT /api/auth/profile`, field wajib dikirim, boleh kosong).
+- Status presensi: `present`, `late`, `missed_clock_in`, `leave`, `absent`, `holiday`, `not_clocked_in`. `ongoing` dan `missed_clock_out` bukan lagi status; Lupa Clock Out menjadi tanda `missed_clock_out`, ditambah `is_corrected`. Rekap: `present`, `late`, `missed_clock_in`, `leave`, `absent`, `missed_clock_out`, `corrected`, `working_days`.
+- Riwayat presensi: `daily_report*` menjadi `logbook`, `logbook_state`, `logbook_work`; `has_pending_correction` menjadi `has_active_correction`; filter `?status=`.
+- Status koreksi: `pending_mentor`, `rejected_by_mentor`, `pending_admin`, `approved`, `rejected_by_admin`, `cancelled`.
+
+#### Intern
+
+| Layar | Endpoint | Status | Catatan |
+| --- | --- | --- | --- |
+| Dashboard | `GET /api/intern/dashboard` | Berubah | `presentation_banner`, `today` (state `missed_clock_in`, `schedule`, `status`, `clock_out_from`, `can_clock_out`, `logbook`), `logbook_reminder`, `action_needed` (`logbooks`, `warnings`, `corrections`, `leaves`), `monthly_recap`, `leave_quota` |
+| Titik presensi | `GET /api/intern/offices` | Berubah | Hanya titik aktif milik bandara intern |
+| Clock in / out | `POST /api/intern/attendance/clock-in`, `.../clock-out` | Berubah | Clock out: `work`, `notes` opsional (wajib saat Lupa Clock In). `reason`: `after_work_end`, `before_work_end`, `logbook_missing`, lokasi |
+| Riwayat presensi | `GET /api/intern/attendance?month&status`, `.../days/{date}` | Berubah | Lihat perubahan field |
+| Logbook | `GET /api/intern/logbooks?month&status`, `GET`/`PUT /api/intern/logbooks/{date}` | Baru | `PUT` dengan `work`, `notes`; aksi (`save`, `submit`, `resubmit`) ditentukan server dan ada di `action`. `logbook_state` `missing` = hari dikoreksi yang belum terkirim |
+| Koreksi | `/api/intern/attendance-corrections` (index, store, show, `cancel`) | Berubah | `date`, `reason`; tanpa bukti. `can_cancel` |
+| Izin | `/api/intern/leaves` (index, store, show, `cancel`, `working-days`) | Berubah | `evidence_url` link. `meta.quota`; kuota habis 422 `quota_exhausted` |
+| Presentasi Akhir | `GET`, `PUT /api/intern/presentation` | Baru | `state` `not_open`/`not_submitted`/`pending`/`revision`/`approved`, `can_submit`, `message` |
+| Catatan | `GET /api/intern/warnings`, `GET /api/intern/assessment` | Baru | Warning hanya baca; nilai `available` false + `message` sebelum submit |
+
+#### Mentor
+
+| Layar | Endpoint | Status | Catatan |
+| --- | --- | --- | --- |
+| Dashboard | `GET /api/mentor/dashboard` | Berubah | `today` (`interns`, `clocked_in`, `late`, `on_leave`, `not_clocked_in`, `rows`), `pending_logbooks`, `pending_corrections`, `pending_leaves` (`is_overdue`), `ready_to_assess`, `holiday`, `announcements` |
+| Intern Saya | `GET /api/mentor/interns`, `/{intern}`, `/attendance`, `/attendance/days/{date}`, `/logbooks`, `/leaves`, `/corrections`, `/warnings` | Berubah | Tab Catatan = `/warnings` (baru). Tab Akhir Magang = `GET /api/mentor/assessments/{intern}` |
+| Review logbook | `GET /api/mentor/logbooks?tab&intern_id`, `GET /{logbook}?tab`, `POST /{logbook}/approve`, `POST /{logbook}/revise`, `POST /logbooks/approve` (`ids`) | Baru | `tab` `pending_review`/`revision`/`all`; `previous_id`/`next_id`; `skipped` pada setujui banyak |
+| Koreksi | `GET /api/mentor/corrections?tab&intern_id`, show, `approve`, `reject` | Baru | `tab` `waiting`/`all`; catatan wajib saat Tolak |
+| Izin | `/api/mentor/leaves` (index, show, approve, reject) | Berubah | `quota` di detail; `evidence_url` link |
+| Kalender Izin | `GET /api/mentor/leave-calendar?month&intern_id` | Berubah | Libur per bandara intern |
+| Performa | `GET /api/mentor/performance?month&intern_id` | Berubah | KPI `attendance_rate`, `on_time_rate`, `logbook_approved_rate`, `logbook_revisions`, `enough_data`; `dates` per angka; `daily_report_rate` dihapus |
+| Penilaian | `GET /api/mentor/assessments`, `GET`/`PUT /{intern}`, `POST /{intern}/submit` | Baru | `scores: [{indicator_id, score}]`. `status` `ready`/`blocked`/`draft`/`submitted`, `blockers`, `unapproved_logbook_days`, `can_edit` |
+
+#### Admin
+
+| Layar | Endpoint | Status | Catatan |
+| --- | --- | --- | --- |
+| Dashboard | `GET /api/admin/dashboard?airport_id`, `GET /api/admin/ending-internships` | Berubah | `today`, `yesterday` (dengan `rows`), `pending_corrections`, `overdue_leaves`, `pending_presentations`, `ending_internships`, `quota_exhausted`, `new_assessments`, `campuses`, `holiday`, `has_active_office` |
+| Presensi | `GET /api/admin/attendance?month&airport_id&q`, `GET /api/admin/attendance/daily?date&airport_id&q` | Baru | Rekap bulanan + `attendance_rate`; status semua intern per tanggal + `counts` |
+| Pengguna | `/api/admin/users` (index, store, show, update, `deactivate`, `activate`, `extend`, `mentor-change`, `mentor`, `reset-password`), `GET /api/admin/mentors` | Berubah | `unit_id` (wajib intern/mentor), `airport_id`, `university`, `major`. Pilihan unit dari `GET /api/admin/units` (`is_active`) |
+| Tab detail intern | `GET /api/admin/users/{user}/attendance`, `/days/{date}`, `/logbooks`, `/leaves`, `/corrections`, `/warnings`; Akhir Magang = `GET /api/admin/assessments/{user}` | Berubah | Tab Logbook hanya baca (baru) |
+| Koreksi | `GET /api/admin/corrections?tab&intern_id&airport_id`, show, `approve`, `reject` | Berubah | `tab` `pending_admin`/`pending_mentor`/`all`; catatan wajib keduanya; `recorded` dan `result` di detail |
+| Izin | `/api/admin/leaves?tab&type&intern_id&airport_id&quota_exhausted` (index, show, approve, reject) | Berubah | Hanya yang lewat `leave_escalation_hours` bisa diputuskan |
+| Presentasi | `GET /api/admin/presentations?tab&airport_id`, show, `approve`, `revise` | Baru | `tab` `pending`/`revision`/`approved`/`not_submitted` |
+| Penilaian | `GET /api/admin/assessments?status&airport_id`, `GET /{user}` | Baru | Hanya baca; nilai draft disembunyikan |
+| Warning | `GET /api/admin/warnings`, `GET`/`POST /api/admin/users/{user}/warnings`, `PUT /api/admin/warnings/{warning}` | Berubah | Ringkasan ditambah `mentor`, `leave_quota`; membuat catatan mengirim notifikasi ke intern dan mentor |
+| Pengaturan | `/api/admin/holidays`, `GET`/`PUT /api/admin/settings`, `/api/admin/units` | Berubah | Libur boleh di akhir pekan; Pengaturan Umum dan Unit baru |
+| Lokasi & Jadwal | `/api/admin/airports` (index, store, show, update, `deactivate`, `activate`, `weekly-schedules`, `weekly-schedule`, `special-schedules`), `/api/admin/special-schedules/{id}` (PUT, DELETE), `/api/admin/offices?airport_id` | Baru/Berubah | Detail bandara = tiga tab (titik presensi, jadwal mingguan, jadwal khusus). Titik: `airport_id` wajib saat tambah, tidak bisa pindah bandara |
+| Pengumuman, Log Aktivitas | `/api/admin/announcements`, `/api/admin/audit-logs` | Berubah | Kategori: Akun, Presensi, Koreksi Presensi, Izin, Presentasi, Lokasi & Jadwal, Kalender Libur, Pengaturan Umum, Unit, Warning, Pengumuman, Laporan |
+| Laporan | `GET /api/admin/reports/options`, `POST /api/admin/reports/preview`, `POST /api/admin/reports/export` | Berubah | 4 sheet; filter periode (maks 12 bulan), lokasi, mentor, banyak intern, kuota habis |
+
+#### Tujuan klik notifikasi (`link_path`)
+
+Backend mengirim alamat pendek; frontend memetakannya ke halaman role penerima.
+
+| `link_path` | Penerima | `link_params` |
+| --- | --- | --- |
+| `/` | Semua | Dashboard; pengumuman `{announcement}` |
+| `/presensi` | Intern | `{tab: 'koreksi', open}` (koreksi) |
+| `/logbook` | Intern, mentor | Intern `{date}`; mentor `{open}` = id logbook |
+| `/koreksi` | Mentor, admin | `{open}` = id koreksi |
+| `/izin` | Semua | `{open}` = id izin (pembatalan tanpa params) |
+| `/presentasi` | Intern, admin | Admin `{open}` = id presentasi |
+| `/penilaian` | Mentor, admin | `{open}` = id intern |
+| `/catatan` | Intern | - |
+| `/intern-saya` | Mentor | `{open, tab: 'catatan'}` untuk warning |
+| `/chat` | Semua | `{to}` = id pengirim |
 
 ### Untuk pemilik dokumen desain dan tim FE
 
@@ -1030,9 +1132,9 @@ Perlu keputusan (belum diubah):
 - [ ] Pasang cron `schedule:run` di server production (pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin dan presentasi H-7 ke intern setiap hari).
 - [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
 - [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
-- [ ] ~~Admin: jumlah hari Terlambat di daftar menu Absensi.~~ Masuk Tahap 8 (Admin Presensi).
+- [x] ~~Admin: jumlah hari Terlambat di daftar menu Absensi.~~ Ada di Admin Presensi (`recap.late`, Tahap 8).
 - [ ] Pastikan ekstensi PHP `zip` aktif di server production (dibutuhkan export Excel).
-- [ ] Hapus `database/generate_migrations.php` setelah migration baru 25 Okt 2026 sudah di-commit (skrip ini hanya untuk membuat file migration).
+- [x] Hapus `database/generate_migrations.php` setelah migration baru 25 Okt 2026 sudah di-commit. Sudah tidak ada di repo.
 - [ ] Lepas Inertia dari starter (`HandleInertiaRequests`, `resources/js`, `config/inertia.php`, `routes/web.php`). `tests/Feature/ExampleTest.php` masih gagal karena membuka halaman Inertia yang butuh build Vite; hapus bersama Inertia.
 - [ ] CORS: izinkan origin frontend (`http://localhost:<port>` saat development, domain Vercel saat production).
 - [ ] Sambungkan frontend: simpan token, kirim header `Authorization: Bearer <token>`, arahkan ke Ganti Password jika `must_change_password`, kembali ke login saat respons 401 atau 403 akun nonaktif.
