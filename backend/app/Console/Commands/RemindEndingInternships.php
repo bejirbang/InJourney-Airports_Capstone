@@ -10,7 +10,7 @@ class RemindEndingInternships extends Command
 {
     protected $signature = 'app:remind-ending-internships';
 
-    protected $description = 'Ingatkan admin tentang magang yang berakhir dalam 7 hari';
+    protected $description = 'Ingatkan admin tentang magang yang segera berakhir (end_reminder_days)';
 
     public function handle(EndingInternshipReminders $reminders): int
     {

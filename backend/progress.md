@@ -993,11 +993,12 @@ Perlu keputusan (belum diubah):
 
 ### Tahap 7 - Warning, notifikasi, scheduler
 
-- [ ] Warning: intern dan mentor membaca (hanya baca), notifikasi ke intern dan mentor saat dibuat.
-- [ ] Scheduler: hapus pengingat Task, tambah pengingat presentasi H-7 untuk intern (`presentation_reminded_at`), pengingat akhir magang dan izin pending memakai `system_settings`.
+- [x] Warning (25 Okt 2026): intern membaca lewat `GET /api/intern/warnings`, mentor lewat `GET /api/mentor/interns/{intern}/warnings` (tab Catatan, hak akses sama dengan tab lain). Hanya baca, terbaru lebih dulu (`id`, `body`, `author`, `created_at`, `updated_at`). Saat dibuat: intern "Ada catatan baru dari admin." (`/catatan`), mentor "Ada catatan baru untuk Andi P." (`/intern-saya`, `open` + `tab: catatan`). Mengubah catatan tidak mengirim notifikasi. Pesan simpan admin: "Catatan tersimpan dan dikirim sebagai notifikasi ke intern dan mentor." Ringkasan admin (`/admin/users/{id}/warnings`) ditambah `mentor` dan `leave_quota`.
+- [x] Scheduler: pengingat Task sudah dibuang di Tahap 1. Baru `app:remind-presentations` (setiap hari 07:00): intern aktif sejak H-`end_reminder_days` yang belum mengirim bukti, sekali per masa magang lewat update bersyarat `presentation_reminded_at` ("Magang Anda berakhir 7 hari lagi. Lakukan presentasi dan kirim buktinya.", "hari ini" pada hari terakhir, `/presentasi`). Daftar dan pengingat akhir magang serta `ends_in_days` di Intern Saya kini memakai `end_reminder_days` (konstanta `InternProfile::ENDING_SOON_DAYS` dan `MentorInterns::ENDING_SOON_DAYS` dihapus). Izin pending sudah memakai `leave_escalation_hours` sejak Tahap 4.
 - [x] Ganti mentor: pindahkan koreksi `pending_mentor` (perbarui `mentor_id`). Logbook dan izin pending ikut otomatis. (Dikerjakan di Tahap 1, menggantikan pemindahan Task.)
 - [x] Perpanjang: `leave_quota_since` = hari ini, kosongkan `presentation_reminded_at`. (Dikerjakan di Tahap 4 bersama kuota izin.)
-- [ ] Sesuaikan semua teks notifikasi dengan tabel notifikasi tiap dokumen.
+- [x] Teks notifikasi dicocokkan dengan tabel di ketiga dokumen. Satu yang berubah: pembatalan izin ke mentor menjadi "Andi P. membatalkan izin 13-14 Okt." (sebelumnya "membatalkan pengajuan izin"). Nama di notifikasi tetap memakai nama pendek ("Rizki P."), seperti sebelumnya. Notifikasi ke mentor lama saat ganti mentor ("... tidak lagi menjadi bimbingan Anda.") tidak ada di tabel dokumen tetapi dipertahankan.
+- Belum: "Warning baru dari admin" di Perlu ditindak Dashboard intern butuh penanda dibaca per warning. Dikerjakan bersama Dashboard di Tahap 8 (usulan: warning yang dibuat setelah notifikasinya terakhir dibaca, atau 7 hari terakhir).
 
 ### Tahap 8 - Dashboard, performa, laporan, admin lain
 

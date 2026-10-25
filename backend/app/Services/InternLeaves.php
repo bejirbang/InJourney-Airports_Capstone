@@ -105,7 +105,7 @@ class InternLeaves
 
         $this->notifyMentor(
             $intern,
-            "{$intern->shortName()} membatalkan pengajuan izin ".IndonesianDate::range($leave->start_date, $leave->end_date).'.',
+            "{$intern->shortName()} membatalkan izin ".IndonesianDate::range($leave->start_date, $leave->end_date).'.',
             null,
         );
 

@@ -181,7 +181,7 @@ it('cancels a pending leave and notifies the mentor', function () {
         ->assertJsonPath('data.can_cancel', false);
 
     $notification = Notification::query()->latest('id')->first();
-    expect($notification->text)->toBe('Andi P. membatalkan pengajuan izin 13-14 Okt.')
+    expect($notification->text)->toBe('Andi P. membatalkan izin 13-14 Okt.')
         ->and($notification->link_path)->toBe('/izin')
         ->and($notification->link_params)->toBeNull();
 });

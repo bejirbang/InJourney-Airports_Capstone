@@ -8,12 +8,14 @@ use Illuminate\Database\Eloquent\Builder;
 
 class EndingInternships
 {
+    public function __construct(private SystemSettings $settings) {}
+
     /**
      * @return Builder<InternProfile>
      */
     public function query(CarbonInterface $now): Builder
     {
-        return InternProfile::query()->endingSoon($now->toDateString());
+        return InternProfile::query()->endingSoon($now->toDateString(), $this->settings->endReminderDays());
     }
 
     /**

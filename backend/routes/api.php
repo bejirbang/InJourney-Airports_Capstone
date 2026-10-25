@@ -28,6 +28,7 @@ use App\Http\Controllers\Intern\LogbookController as InternLogbookController;
 use App\Http\Controllers\Intern\MenuController as InternMenuController;
 use App\Http\Controllers\Intern\OfficeController as InternOfficeController;
 use App\Http\Controllers\Intern\PresentationController as InternPresentationController;
+use App\Http\Controllers\Intern\WarningController as InternWarningController;
 use App\Http\Controllers\Mentor\AssessmentController as MentorAssessmentController;
 use App\Http\Controllers\Mentor\CorrectionController as MentorCorrectionController;
 use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController;
@@ -93,6 +94,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/presentation', [InternPresentationController::class, 'show'])->name('presentation.show');
             Route::put('/presentation', [InternPresentationController::class, 'update'])->name('presentation.update');
             Route::get('/assessment', InternAssessmentController::class)->name('assessment');
+            Route::get('/warnings', InternWarningController::class)->name('warnings');
         });
 
         Route::middleware('role:mentor')->prefix('mentor')->name('mentor.')->group(function () {
@@ -106,6 +108,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/interns/{intern}/logbooks', [MentorInternController::class, 'logbooks'])->name('interns.logbooks');
             Route::get('/interns/{intern}/leaves', [MentorInternController::class, 'leaves'])->name('interns.leaves');
             Route::get('/interns/{intern}/corrections', [MentorInternController::class, 'corrections'])->name('interns.corrections');
+            Route::get('/interns/{intern}/warnings', [MentorInternController::class, 'warnings'])->name('interns.warnings');
 
             Route::get('/logbooks', [MentorLogbookController::class, 'index'])->name('logbooks.index');
             Route::post('/logbooks/approve', [MentorLogbookController::class, 'approveMany'])->name('logbooks.approve-many');

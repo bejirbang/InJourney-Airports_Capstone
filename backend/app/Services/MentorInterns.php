@@ -16,8 +16,6 @@ class MentorInterns
 
     public const FORMER = 'former';
 
-    public const ENDING_SOON_DAYS = 7;
-
     public const FILTERS = ['active', 'inactive', 'former', 'all'];
 
     public function __construct(
@@ -26,6 +24,7 @@ class MentorInterns
         private AttendanceHistory $history,
         private WorkSchedules $schedules,
         private LeaveQuotas $quotas,
+        private SystemSettings $settings,
     ) {}
 
     public function relation(User $mentor, User $intern): ?string
@@ -194,6 +193,6 @@ class MentorInterns
 
         $days = (int) $now->copy()->startOfDay()->diffInDays($profile->end_date->copy()->startOfDay());
 
-        return $days >= 0 && $days <= self::ENDING_SOON_DAYS ? $days : null;
+        return $days >= 0 && $days <= $this->settings->endReminderDays() ? $days : null;
     }
 }

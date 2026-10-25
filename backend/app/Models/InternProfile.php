@@ -39,8 +39,6 @@ class InternProfile extends Model
     /** @use HasFactory<InternProfileFactory> */
     use HasFactory;
 
-    public const ENDING_SOON_DAYS = 7;
-
     /**
      * @return array<string, string>
      */
@@ -83,9 +81,9 @@ class InternProfile extends Model
      * @param  Builder<InternProfile>  $query
      * @return Builder<InternProfile>
      */
-    public function scopeEndingSoon(Builder $query, string $date): Builder
+    public function scopeEndingSoon(Builder $query, string $date, int $days): Builder
     {
-        $until = Carbon::parse($date)->addDays(self::ENDING_SOON_DAYS)->toDateString();
+        $until = Carbon::parse($date)->addDays($days)->toDateString();
 
         return $query
             ->whereDate('start_date', '<=', $date)

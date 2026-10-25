@@ -7,6 +7,7 @@ use App\Http\Requests\Mentor\InternIndexRequest;
 use App\Http\Requests\Shared\AttendanceHistoryRequest;
 use App\Http\Resources\AttendanceCorrectionResource;
 use App\Models\User;
+use App\Services\AdminWarnings;
 use App\Services\AttendanceHistory;
 use App\Services\MentorInterns;
 use Illuminate\Http\JsonResponse;
@@ -80,6 +81,13 @@ class InternController extends Controller
             ->latest()
             ->latest('id')
             ->get())]);
+    }
+
+    public function warnings(User $intern, AdminWarnings $warnings): JsonResponse
+    {
+        Gate::authorize('viewAsMentor', $intern);
+
+        return response()->json(['data' => $warnings->readOnly($intern)]);
     }
 
     private function relation(Request $request, User $intern): string

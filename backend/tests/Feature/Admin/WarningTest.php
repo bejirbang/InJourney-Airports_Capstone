@@ -74,20 +74,62 @@ it('does not count a day that later became a holiday as late', function () {
         ->assertJsonPath('data.late_minutes', null);
 });
 
-it('adds a note without notifying anyone and logs it', function () {
+it('shows who can read the notes and the leave quota in the summary', function () {
+    $mentor = $this->intern->internProfile->mentor;
+
+    warningRequest($this->admin, 'GET', "/api/admin/users/{$this->intern->id}/warnings")
+        ->assertJsonPath('data.mentor', ['id' => $mentor->id, 'name' => $mentor->name])
+        ->assertJsonPath('data.leave_quota.limit', 3)
+        ->assertJsonPath('data.leave_quota.remaining', 3);
+});
+
+it('adds a note, notifies the intern and the mentor, and logs it', function () {
+    $mentorId = $this->intern->internProfile->mentor_id;
+
     warningRequest($this->admin, 'POST', "/api/admin/users/{$this->intern->id}/warnings", ['body' => 'Terlambat clock in 3 kali dalam seminggu.'])
         ->assertCreated()
-        ->assertJsonPath('message', 'Catatan tersimpan. Tidak ada notifikasi ke intern atau mentor.')
+        ->assertJsonPath('message', 'Catatan tersimpan dan dikirim sebagai notifikasi ke intern dan mentor.')
         ->assertJsonPath('data.body', 'Terlambat clock in 3 kali dalam seminggu.')
         ->assertJsonPath('data.author.name', 'Admin Sinta')
         ->assertJsonPath('data.can_edit', true);
 
-    expect(Notification::query()->count())->toBe(0);
+    expect(Notification::query()->orderBy('id')->get(['user_id', 'text', 'link_path', 'link_params'])->toArray())->toBe([
+        ['user_id' => $this->intern->id, 'text' => 'Ada catatan baru dari admin.', 'link_path' => '/catatan', 'link_params' => null],
+        ['user_id' => $mentorId, 'text' => 'Ada catatan baru untuk Andi P.', 'link_path' => '/intern-saya', 'link_params' => ['open' => $this->intern->id, 'tab' => 'catatan']],
+    ]);
 
     $log = AuditLog::sole();
     expect($log->action)->toBe('Warning')
         ->and($log->object)->toBe('Andi Pratama')
         ->and($log->detail)->toBe('Tambah catatan warning.');
+});
+
+it('does not notify again when a note is edited', function () {
+    $warning = Warning::factory()->create(['intern_id' => $this->intern->id, 'author_id' => $this->admin->id, 'created_at' => '2026-10-12 09:00:00']);
+
+    warningRequest($this->admin, 'PUT', "/api/admin/warnings/{$warning->id}", ['body' => 'Diubah.'])->assertOk();
+
+    expect(Notification::count())->toBe(0);
+});
+
+it('lets the intern and their mentor read the notes, newest first', function () {
+    $mentor = $this->intern->internProfile->mentor;
+    $old = Warning::factory()->create(['intern_id' => $this->intern->id, 'author_id' => $this->admin->id, 'body' => 'Logbook dua hari belum diisi.', 'created_at' => '2026-10-02 10:00:00']);
+    $new = Warning::factory()->create(['intern_id' => $this->intern->id, 'author_id' => $this->admin->id, 'body' => 'Terlambat 3 kali.', 'created_at' => '2026-10-10 09:00:00']);
+    Warning::factory()->create();
+
+    $expected = [
+        ['id' => $new->id, 'body' => 'Terlambat 3 kali.', 'author' => 'Admin Sinta', 'created_at' => '2026-10-10T09:00:00+07:00', 'updated_at' => $new->updated_at?->toIso8601String()],
+        ['id' => $old->id, 'body' => 'Logbook dua hari belum diisi.', 'author' => 'Admin Sinta', 'created_at' => '2026-10-02T10:00:00+07:00', 'updated_at' => $old->updated_at?->toIso8601String()],
+    ];
+
+    warningRequest($this->intern, 'GET', '/api/intern/warnings')->assertOk()->assertExactJson(['data' => $expected]);
+    warningRequest($mentor, 'GET', "/api/mentor/interns/{$this->intern->id}/warnings")->assertOk()->assertExactJson(['data' => $expected]);
+    warningRequest(User::factory()->mentor()->create(), 'GET', "/api/mentor/interns/{$this->intern->id}/warnings")->assertForbidden();
+});
+
+it('shows an empty list to an intern without notes', function () {
+    warningRequest($this->intern, 'GET', '/api/intern/warnings')->assertOk()->assertExactJson(['data' => []]);
 });
 
 it('requires the note text, up to 2000 characters', function (string $body, string $message) {
