@@ -2,24 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\AccountStatus;
 use App\Enums\Role;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Menentukan apakah sebuah akun boleh memakai sistem.
- * Dipakai saat login dan pada setiap request yang sudah login.
- */
 class AccountAccess
 {
     public const INACTIVE = 'Akun Anda tidak aktif. Hubungi admin.';
 
     public const NOT_STARTED = 'Masa magang Anda belum dimulai.';
 
-    /**
-     * Alasan penolakan, atau null jika akun boleh masuk.
-     */
     public function denialReason(User $user, ?CarbonInterface $today = null): ?string
     {
         if (! $user->is_active) {
@@ -42,11 +36,19 @@ class AccountAccess
             return self::NOT_STARTED;
         }
 
-        // Nonaktif otomatis mulai hari setelah tanggal selesai magang.
         if ($today > $profile->end_date->toDateString()) {
             return self::INACTIVE;
         }
 
         return null;
+    }
+
+    public function status(User $user, ?CarbonInterface $today = null): AccountStatus
+    {
+        return match ($this->denialReason($user, $today)) {
+            null => AccountStatus::Active,
+            self::NOT_STARTED => AccountStatus::NotStarted,
+            default => AccountStatus::Inactive,
+        };
     }
 }

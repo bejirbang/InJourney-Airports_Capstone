@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Foto profil yang diunggah pengguna sendiri (design-*.md, Alur 1 bagian Profil).
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
@@ -16,9 +13,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {

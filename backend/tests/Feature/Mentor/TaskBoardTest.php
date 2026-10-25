@@ -10,7 +10,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 

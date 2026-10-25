@@ -9,17 +9,10 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
-/**
- * Data contoh untuk development. Semua akun memakai password "password".
- * Production tidak memakai seeder ini; admin pertama dibuat dengan `php artisan app:create-admin`.
- */
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
         if (app()->isProduction()) {
@@ -50,7 +43,6 @@ class DatabaseSeeder extends Seeder
             'title' => 'Backend Intern',
         ]);
 
-        // Sama dengan data contoh frontend. Tanpa kantor aktif, intern tidak bisa clock in.
         Office::factory()->create([
             'name' => 'Kantor Pusat Terminal 3',
             'latitude' => -6.1256,
@@ -59,7 +51,6 @@ class DatabaseSeeder extends Seeder
             'clock_out_radius_meters' => 300,
         ]);
 
-        // Jam kerja global sama dengan prototipe. Di production diatur admin lewat menu Pengaturan.
         WorkHourSetting::factory()->create([
             'start_time' => '08:00:00',
             'end_time' => '17:00:00',

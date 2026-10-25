@@ -11,22 +11,12 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Halaman Intern Saya (docs/design-mentor.md, Alur 3). Semua hanya baca.
- *
- * Hubungan mentor dengan intern:
- * - `current`: mentor saat ini (`intern_profiles.mentor_id`), termasuk intern yang sudah nonaktif.
- * - `former`: pernah dibimbing (`mentor_histories` yang sudah berakhir) dan kini dibimbing mentor lain.
- *   Hanya baca, tanpa tombol Buka ke Task dan Izin (13.1, 17.1 no. 11).
- * Intern lain tidak bisa dilihat (16).
- */
 class MentorInterns
 {
     public const CURRENT = 'current';
 
     public const FORMER = 'former';
 
-    /** Tanda "berakhir N hari lagi" muncul sejak 7 hari sebelum tanggal selesai (5.1). */
     public const ENDING_SOON_DAYS = 7;
 
     public const FILTERS = ['active', 'inactive', 'former', 'all'];
@@ -37,9 +27,6 @@ class MentorInterns
         private AttendanceHistory $history,
     ) {}
 
-    /**
-     * `current`, `former`, atau null jika mentor tidak boleh melihat intern ini.
-     */
     public function relation(User $mentor, User $intern): ?string
     {
         if (! $intern->hasRole(Role::Intern)) {
@@ -60,9 +47,6 @@ class MentorInterns
     }
 
     /**
-     * Daftar Intern Saya. Filter: `active` (default), `inactive`, `former` (pernah dibimbing),
-     * `all` (semua intern bimbingan saat ini, aktif dan nonaktif). Urut nama.
-     *
      * @return array{interns: list<array<string, mixed>>, current_total: int, former_total: int}
      */
     public function list(User $mentor, string $filter, ?string $search, CarbonInterface $now): array
@@ -91,8 +75,6 @@ class MentorInterns
     }
 
     /**
-     * Kepala halaman detail intern: data akun, periode, dan hubungan dengan mentor.
-     *
      * @return array<string, mixed>
      */
     public function detail(User $intern, string $relation, CarbonInterface $now): array
@@ -105,17 +87,12 @@ class MentorInterns
             ...$this->identity($intern, $relation, $now),
             'email' => $intern->email,
             'phone' => $intern->phone,
-            // Banner mentor lama: "Intern ini sekarang dibimbing [nama]. Anda hanya dapat melihat riwayat."
             'current_mentor' => $currentMentor === null ? null : ['id' => $currentMentor->id, 'name' => $currentMentor->name],
-            // Pilihan bulan untuk tab Rekap Absensi dan Daily Report.
             'selectable_months' => $this->history->selectableMonths($intern, $now),
         ];
     }
 
     /**
-     * Tab Task. Mentor saat ini melihat semua Task intern; mentor lama hanya Task yang ia buat.
-     * Tenggat terbaru lebih dulu.
-     *
      * @return list<array<string, mixed>>
      */
     public function tasks(User $mentor, User $intern, string $relation, CarbonInterface $now): array
@@ -132,7 +109,6 @@ class MentorInterns
                 'status' => $task->status->value,
                 'due_at' => $task->due_at->toIso8601String(),
                 'is_late' => $task->isLate($now),
-                // Tombol Buka ke detail Task hanya untuk mentor saat ini.
                 'can_open' => $relation === self::CURRENT,
             ])
             ->values()
@@ -140,8 +116,6 @@ class MentorInterns
     }
 
     /**
-     * Tab Izin: riwayat izin intern, pengajuan terbaru lebih dulu.
-     *
      * @return list<array<string, mixed>>
      */
     public function leaves(User $intern, string $relation): array
@@ -160,12 +134,10 @@ class MentorInterns
                 'status' => $leave->status->value,
                 'has_evidence' => $leave->evidence_path !== null,
                 'submitted_at' => $leave->created_at?->toIso8601String(),
-                // "Diproses oleh": role admin ditampilkan "admin".
                 'decided_by' => $leave->decider === null ? null : [
                     'name' => $leave->decider->name,
                     'role' => $leave->decider->role->value,
                 ],
-                // Tombol Buka (Pending) atau Lihat ke halaman Izin hanya untuk mentor saat ini.
                 'can_open' => $relation === self::CURRENT,
             ])
             ->values()
@@ -183,8 +155,6 @@ class MentorInterns
     }
 
     /**
-     * Pernah dibimbing mentor ini, tetapi sekarang dibimbing mentor lain.
-     *
      * @return Builder<User>
      */
     private function formerQuery(User $mentor): Builder
@@ -204,7 +174,6 @@ class MentorInterns
 
         return [
             ...$this->identity($intern, $relation, $now),
-            // Kolom Hari ini: hanya intern aktif yang sedang dibimbing; selain itu "-".
             'today_state' => $active && $relation === self::CURRENT
                 ? $this->calendar->today($intern, $now)['state']->value
                 : null,
@@ -226,10 +195,8 @@ class MentorInterns
             'photo_url' => $intern->photoUrl(),
             'start_date' => $profile?->start_date->toDateString(),
             'end_date' => $profile?->end_date->toDateString(),
-            // Belum mulai, sudah selesai, atau dinonaktifkan admin dihitung Nonaktif.
             'is_active' => $active,
             'relation' => $relation,
-            // Tanda "! berakhir N hari lagi" (0 = hari ini hari terakhir). Null jika tidak perlu ditandai.
             'ends_in_days' => $active ? $this->endsInDays($profile, $now) : null,
         ];
     }

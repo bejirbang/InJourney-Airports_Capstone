@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Mentor;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Mentor\LeaveDecisionRequest;
-use App\Http\Requests\Mentor\LeaveIndexRequest;
+use App\Http\Requests\Shared\LeaveDecisionRequest;
+use App\Http\Requests\Shared\ReviewerLeaveIndexRequest;
 use App\Http\Resources\MentorLeaveResource;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -17,15 +17,11 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Izin mentor (docs/design-mentor.md, Alur 7): daftar, detail, lampiran, Setujui, Tolak.
- * Akses per izin lewat LeaveRequestPolicy::manage (hanya izin intern yang saat ini dibimbing).
- */
 class LeaveController extends Controller
 {
     public function __construct(private MentorLeaves $leaves) {}
 
-    public function index(LeaveIndexRequest $request): JsonResponse
+    public function index(ReviewerLeaveIndexRequest $request): JsonResponse
     {
         /** @var User $mentor */
         $mentor = $request->user();
@@ -38,7 +34,6 @@ class LeaveController extends Controller
 
         return response()->json([
             'data' => MentorLeaveResource::collection($result['leaves']),
-            // Angka di tab "Pending (2)", tidak terpengaruh filter.
             'meta' => ['pending_count' => $result['pending_count']],
         ]);
     }
@@ -50,9 +45,6 @@ class LeaveController extends Controller
         return (new MentorLeaveResource($leave->load(['intern:id,name', 'decider:id,name,role'])))->withDetail();
     }
 
-    /**
-     * Lampiran bukti. `?inline=1` untuk Pratinjau, tanpanya Unduh. Tanpa URL publik.
-     */
     public function evidence(Request $request, LeaveRequest $leave): StreamedResponse
     {
         Gate::authorize('manage', $leave);

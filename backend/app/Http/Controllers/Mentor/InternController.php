@@ -13,10 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Gate;
 
-/**
- * Intern Saya (docs/design-mentor.md, Alur 3): daftar intern bimbingan dan detailnya, hanya baca.
- * Akses per intern lewat UserPolicy::viewAsMentor (bimbingan sekarang atau dulu).
- */
 class InternController extends Controller
 {
     public function __construct(private MentorInterns $interns) {}
@@ -35,7 +31,6 @@ class InternController extends Controller
 
         return response()->json([
             'data' => $result['interns'],
-            // Keduanya 0: "Belum ada intern bimbingan." Selain itu daftar kosong: "Tidak ada intern pada filter ini."
             'meta' => ['current_total' => $result['current_total'], 'former_total' => $result['former_total']],
         ]);
     }
@@ -47,9 +42,6 @@ class InternController extends Controller
         return response()->json(['data' => $this->interns->detail($intern, $this->relation($request, $intern), Date::now())]);
     }
 
-    /**
-     * Tab Rekap Absensi: rekap dan riwayat harian satu bulan (`?month=2026-10`).
-     */
     public function attendance(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
@@ -59,9 +51,6 @@ class InternController extends Controller
         return response()->json(['data' => $history->monthForMentor($intern, $month, Date::now())]);
     }
 
-    /**
-     * Detail satu hari (klik baris Rekap Absensi atau Daily Report), termasuk Daily Report lengkap.
-     */
     public function day(User $intern, string $date, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
@@ -69,9 +58,6 @@ class InternController extends Controller
         return response()->json(['data' => $history->dayForMentor($intern, $date, Date::now())]);
     }
 
-    /**
-     * Tab Daily Report: satu baris per hari kerja dalam bulan (`?month=2026-10`).
-     */
     public function dailyReports(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
@@ -98,9 +84,6 @@ class InternController extends Controller
         return response()->json(['data' => $this->interns->leaves($intern, $this->relation($request, $intern))]);
     }
 
-    /**
-     * `current` atau `former`; dipanggil setelah UserPolicy::viewAsMentor lolos.
-     */
     private function relation(Request $request, User $intern): string
     {
         /** @var User $mentor */

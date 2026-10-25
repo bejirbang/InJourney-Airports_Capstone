@@ -10,12 +10,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
-/**
- * Kalender Izin mentor (docs/design-mentor.md, Alur 8). Hanya baca.
- *
- * Izin Pending (garis tepi) dan Disetujui (warna penuh) milik intern yang saat ini dibimbing.
- * Izin ditolak atau dibatalkan tidak tampil. Sabtu, Minggu, dan libur admin tidak berisi entri.
- */
 class MentorLeaveCalendar
 {
     /**
@@ -52,13 +46,10 @@ class MentorLeaveCalendar
 
             $days[] = [
                 'date' => $day,
-                // 1 = Senin ... 7 = Minggu, untuk menyusun kolom kalender.
                 'weekday' => $date->isoWeekday(),
                 'is_today' => $day === $today,
-                // Abu-abu; `holiday_name` null pada akhir pekan, tulis "libur".
                 'is_off' => $off,
                 'holiday_name' => $holidays[$day] ?? null,
-                // Entri ditumpuk; frontend menampilkan 3 lalu "+N lagi".
                 'entries' => $off ? [] : $leaves
                     ->filter(fn (LeaveRequest $leave): bool => $leave->covers($day))
                     ->map(fn (LeaveRequest $leave): array => [
@@ -76,7 +67,6 @@ class MentorLeaveCalendar
         return [
             'month' => $month,
             'days' => $days,
-            // Ringkasan saat entri diklik, dan "Tidak ada izin pada bulan ini." jika kosong.
             'leaves' => $leaves->map(fn (LeaveRequest $leave): array => [
                 'id' => $leave->id,
                 'intern' => ['id' => $leave->intern->id, 'name' => $leave->intern->name, 'short_name' => $leave->intern->shortName()],

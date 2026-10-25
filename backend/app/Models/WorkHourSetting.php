@@ -10,9 +10,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * Jam kerja global. Perubahan berlaku mulai `effective_from` dan tidak mengubah data sebelumnya
- * (docs/design-admin.md, Alur 7).
- *
  * @property int $id
  * @property string $start_time
  * @property string $end_time
@@ -36,9 +33,6 @@ class WorkHourSetting extends Model
         ];
     }
 
-    /**
-     * Jam kerja yang berlaku pada tanggal (Y-m-d), atau null jika admin belum mengaturnya.
-     */
     public static function effectiveOn(string $date): ?self
     {
         return self::query()
@@ -62,7 +56,7 @@ class WorkHourSetting extends Model
     }
 
     /**
-     * @param  Collection<int, WorkHourSetting>  $settings  hasil upTo()
+     * @param  Collection<int, WorkHourSetting>  $settings
      */
     public static function pickFor(Collection $settings, string $date): ?self
     {

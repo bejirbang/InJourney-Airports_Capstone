@@ -8,10 +8,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Menolak token milik akun yang sudah nonaktif atau di luar masa magang,
- * lalu mencabut token itu agar pengguna kembali ke layar login.
- */
 class EnsureAccountIsActive
 {
     public function __construct(private AccountAccess $access) {}

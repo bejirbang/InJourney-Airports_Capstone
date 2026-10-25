@@ -7,9 +7,6 @@ use App\Models\Task;
 use Carbon\CarbonInterface;
 
 /**
- * Satu-satunya pengingat tenggat untuk mentor (docs/design-mentor.md 7.6 dan 14):
- * Task yang lewat tenggat lebih dari 2 hari kerja tanpa dikumpulkan. Sekali per Task.
- *
  * "Lebih dari 2 hari kerja" dihitung dari hari kerja setelah tanggal tenggat sampai hari ini:
  * tenggat Jumat 9 Okt, pengingat dikirim Rabu 14 Okt (Senin, Selasa, Rabu = 3 hari kerja).
  */
@@ -23,16 +20,12 @@ class OverdueTaskReminders
         private Notifier $notifier,
     ) {}
 
-    /**
-     * Kirim pengingat yang jatuh tempo. Mengembalikan jumlah pengingat yang dikirim.
-     */
     public function send(CarbonInterface $now): int
     {
         $today = $now->toDateString();
         $sent = 0;
 
         $tasks = Task::query()
-            // Belum dikumpulkan: masih To Do atau In Progress (termasuk setelah Revise).
             ->whereIn('status', [TaskStatus::Todo, TaskStatus::InProgress])
             ->whereNull('overdue_reminded_at')
             ->whereNotNull('mentor_id')

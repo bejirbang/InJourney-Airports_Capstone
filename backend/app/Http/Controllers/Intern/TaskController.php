@@ -23,9 +23,6 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Task intern (docs/design-intern.md, Alur 8).
- */
 class TaskController extends Controller
 {
     public function index(TaskIndexRequest $request, InternTasks $tasks): JsonResponse
@@ -43,7 +40,6 @@ class TaskController extends Controller
 
         return response()->json([
             'data' => InternTaskResource::collection($result['tasks']),
-            // Jumlah Task Done lebih dari 30 hari yang disembunyikan; tampilkan dengan include_older_done=1.
             'meta' => ['hidden_done' => $result['hidden_done']],
         ]);
     }
@@ -73,9 +69,6 @@ class TaskController extends Controller
         return response()->json(['data' => new InternTaskResource($moved->load('mentor:id,name'))]);
     }
 
-    /**
-     * Kumpulkan Hasil atau Ganti Hasil (multipart: `link`, `file`, `from`).
-     */
     public function submit(TaskSubmissionRequest $request, Task $task, TaskSubmissions $submissions): JsonResponse
     {
         Gate::authorize('submit', $task);
@@ -98,9 +91,6 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Balas thread komentar Task.
-     */
     public function comment(TaskCommentRequest $request, Task $task, TaskComments $comments): JsonResponse
     {
         Gate::authorize('comment', $task);
@@ -113,9 +103,6 @@ class TaskController extends Controller
         return (new TaskCommentResource($comment))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
-    /**
-     * Unduh file hasil setelah hak akses dicek; file tidak pernah diberi URL publik.
-     */
     public function submissionFile(Task $task): StreamedResponse
     {
         Gate::authorize('view', $task);

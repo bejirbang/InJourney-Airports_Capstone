@@ -23,18 +23,10 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Task mentor (docs/design-mentor.md, Alur 5), buat, ubah, dan hapus Task (Alur 4),
- * serta detail, komentar, Accept, dan Revise (Alur 6).
- * Akses per Task lewat TaskPolicy::manage (hanya Task yang dipegang mentor itu).
- */
 class TaskController extends Controller
 {
     public function __construct(private MentorTasks $tasks) {}
 
-    /**
-     * Kanban dan Daftar Task (Alur 5). Kolom Done hanya 30 hari terakhir kecuali `include_older_done`.
-     */
     public function index(TaskIndexRequest $request): JsonResponse
     {
         /** @var User $mentor */
@@ -53,7 +45,6 @@ class TaskController extends Controller
 
         return response()->json([
             'data' => MentorTaskResource::collection($result['tasks']),
-            // Jumlah Task Done lebih dari 30 hari yang disembunyikan; tampilkan dengan include_older_done=1.
             'meta' => ['hidden_done' => $result['hidden_done']],
         ]);
     }
@@ -98,9 +89,6 @@ class TaskController extends Controller
         return response()->json(['message' => 'Task dihapus. Intern sudah diberi tahu.']);
     }
 
-    /**
-     * Peringatan "Tenggat jatuh pada hari libur." sebelum Simpan. Task tetap bisa disimpan.
-     */
     public function dueCheck(TaskDueCheckRequest $request): JsonResponse
     {
         return response()->json([
@@ -108,9 +96,6 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Detail Task (Alur 6): hasil kumpulan dan thread komentar. Komentar baru ditandai terbaca.
-     */
     public function show(Request $request, Task $task, MentorTaskReview $review): MentorTaskDetailResource
     {
         Gate::authorize('manage', $task);
@@ -127,10 +112,6 @@ class TaskController extends Controller
         return $resource;
     }
 
-    /**
-     * File hasil kumpulan. `?inline=1` untuk Pratinjau di tab browser, tanpanya Unduh.
-     * File tidak pernah diberi URL publik.
-     */
     public function submissionFile(Request $request, Task $task): StreamedResponse
     {
         Gate::authorize('manage', $task);
@@ -155,9 +136,6 @@ class TaskController extends Controller
         return (new TaskCommentResource($comment))->response()->setStatusCode(Response::HTTP_CREATED);
     }
 
-    /**
-     * Accept (juga dari seret kartu In Review ke Done). Body: `comment` opsional, `submitted_at` yang dilihat mentor.
-     */
     public function accept(TaskReviewRequest $request, Task $task, MentorTaskReview $review): JsonResponse
     {
         Gate::authorize('manage', $task);
@@ -179,9 +157,6 @@ class TaskController extends Controller
         ]);
     }
 
-    /**
-     * Revise (juga dari seret kartu In Review ke In Progress). Body: `comment` wajib, `submitted_at` yang dilihat mentor.
-     */
     public function revise(TaskReviewRequest $request, Task $task, MentorTaskReview $review): JsonResponse
     {
         Gate::authorize('manage', $task);

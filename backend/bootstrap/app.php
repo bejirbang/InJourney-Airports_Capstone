@@ -18,6 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    // Otorisasi channel WebSocket di POST /api/broadcasting/auth memakai token Sanctum, sama dengan API lain.
+    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
+        'prefix' => 'api',
+        'middleware' => ['auth:sanctum', 'active', 'password.changed'],
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             HandleInertiaRequests::class,

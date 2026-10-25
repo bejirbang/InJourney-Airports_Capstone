@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class InternProfileFactory extends Factory
 {
     /**
-     * Magang sedang berjalan: mulai sebulan lalu, selesai dua bulan lagi.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

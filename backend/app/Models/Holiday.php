@@ -9,8 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * Hari libur tambahan di luar Sabtu dan Minggu, diatur admin.
- *
  * @property int $id
  * @property Carbon $date
  * @property string $name

@@ -14,7 +14,6 @@ use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -70,10 +69,8 @@ it('counts today per intern: clocked in, on leave, and not clocked in yet', func
     Attendance::factory()->for($andi, 'intern')->create(['clock_out_at' => null]);
     Attendance::factory()->for($rina, 'intern')->create();
     LeaveRequest::factory()->for($dewi, 'intern')->approved()->create();
-    // Sudah clock in tetap dihitung Sudah Clock In walau izinnya disetujui.
     Attendance::factory()->for($budi, 'intern')->create();
     LeaveRequest::factory()->for($budi, 'intern')->approved()->create();
-    // Izin Pending tidak dihitung Izin.
     LeaveRequest::factory()->for($doni, 'intern')->create();
 
     mentorDashboard($this->mentor)
@@ -129,7 +126,6 @@ it('lists tasks in review, longest waiting first', function () {
         'due_at' => '2026-10-15 17:00:00', 'submitted_at' => '2026-10-09 10:00:00',
     ]);
     taskFor($this->mentor, $andi, ['status' => TaskStatus::InProgress]);
-    // Task mentor lain tidak tampil.
     Task::factory()->status(TaskStatus::InReview)->create(['submitted_at' => '2026-10-01 10:00:00']);
 
     mentorDashboard($this->mentor)
@@ -175,7 +171,6 @@ it('lists pending leaves of current interns, longest pending first, with an over
         'type' => LeaveType::Urgent, 'start_date' => '2026-10-13', 'end_date' => '2026-10-13',
         'created_at' => '2026-10-11 12:39:00',
     ]);
-    // Tepat 24 jam belum diberi tanda.
     $exactly = LeaveRequest::factory()->for($andi, 'intern')->create(['created_at' => '2026-10-11 14:39:00']);
     LeaveRequest::factory()->for($andi, 'intern')->create(['status' => RequestStatus::Approved]);
     LeaveRequest::factory()->for(User::factory()->intern()->create(), 'intern')->create();
@@ -249,7 +244,6 @@ it('lists late tasks that are not done, oldest due date first', function () {
     $reviewLate = taskFor($this->mentor, $budi, [
         'status' => TaskStatus::InReview, 'due_at' => '2026-10-08 17:00:00', 'submitted_at' => '2026-10-09 18:00:00',
     ]);
-    // Dikumpulkan sebelum tenggat, walau tenggat sudah lewat sekarang.
     taskFor($this->mentor, $budi, ['status' => TaskStatus::InReview, 'due_at' => '2026-10-11 17:00:00', 'submitted_at' => '2026-10-11 10:00:00']);
     taskFor($this->mentor, $budi, ['status' => TaskStatus::Done, 'due_at' => '2026-10-01 17:00:00', 'done_at' => '2026-10-05 09:00:00']);
     taskFor($this->mentor, $budi, ['status' => TaskStatus::Todo, 'due_at' => '2026-10-13 17:00:00']);

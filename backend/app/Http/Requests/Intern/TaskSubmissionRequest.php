@@ -6,10 +6,6 @@ use App\Enums\TaskStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Dialog Kumpulkan Hasil dan Ganti Hasil (docs/design-intern.md 11.2 dan 11.3).
- * Pesan sama dengan validateSubmission di frontend/src/lib/mock-rules.ts.
- */
 class TaskSubmissionRequest extends FormRequest
 {
     public const LINK_OR_FILE = 'Isi link atau pilih file.';
@@ -32,7 +28,6 @@ class TaskSubmissionRequest extends FormRequest
                 'max:'.config('uploads.max_kilobytes'),
                 'mimes:'.implode(',', config('uploads.mimes')),
             ],
-            // Status yang dilihat intern saat membuka dialog, untuk memilih pesan bila mentor sudah Accept.
             'from' => ['sometimes', Rule::enum(TaskStatus::class)],
         ];
     }

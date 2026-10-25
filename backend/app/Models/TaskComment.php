@@ -12,8 +12,6 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 
 /**
- * Komentar Task, thread dua arah intern dan mentor. Tidak bisa diedit atau dihapus.
- *
  * @property int $id
  * @property int $task_id
  * @property int|null $user_id
@@ -49,9 +47,6 @@ class TaskComment extends Model
     }
 
     /**
-     * Komentar orang lain yang belum dibaca $userId: lebih baru dari `task_reads.last_read_at` miliknya.
-     * Satu aturan untuk kartu Task intern dan mentor serta kotak Dashboard mentor.
-     *
      * @param  Builder<TaskComment>  $query
      * @return Builder<TaskComment>
      */
@@ -68,8 +63,6 @@ class TaskComment extends Model
     }
 
     /**
-     * Kosong jika akun penulis sudah dihapus permanen.
-     *
      * @return BelongsTo<User, $this>
      */
     public function author(): BelongsTo

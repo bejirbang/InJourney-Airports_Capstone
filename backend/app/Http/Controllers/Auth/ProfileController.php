@@ -14,10 +14,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Profil Saya untuk semua role (design-intern.md 3.3, design-mentor.md 3.3, design-admin.md 13.3).
- * Pengguna hanya mengubah nama, foto, dan nomor telepon. Password tidak bisa diganti di sini.
- */
 class ProfileController extends Controller
 {
     public const SAVED = 'Perubahan tersimpan.';
@@ -57,9 +53,6 @@ class ProfileController extends Controller
         return $this->saved($user);
     }
 
-    /**
-     * Foto profil siapa pun, lewat alamat bertanda tangan dari `photo_url` (tanpa token).
-     */
     public function photo(User $user): StreamedResponse
     {
         $path = $user->photo_path;

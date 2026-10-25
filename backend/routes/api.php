@@ -1,6 +1,20 @@
 <?php
 
+use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
+use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
+use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
+use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
+use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordController;
+use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
+use App\Http\Controllers\Admin\MenuController as AdminMenuController;
+use App\Http\Controllers\Admin\OfficeController as AdminOfficeController;
+use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\ResetPasswordController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\WarningController as AdminWarningController;
+use App\Http\Controllers\Admin\WorkHourController as AdminWorkHourController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
@@ -17,6 +31,9 @@ use App\Http\Controllers\Mentor\LeaveController as MentorLeaveController;
 use App\Http\Controllers\Mentor\MenuController as MentorMenuController;
 use App\Http\Controllers\Mentor\PerformanceController as MentorPerformanceController;
 use App\Http\Controllers\Mentor\TaskController as MentorTaskController;
+use App\Http\Controllers\Shared\AnnouncementController;
+use App\Http\Controllers\Shared\ChatController;
+use App\Http\Controllers\Shared\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/auth/login', [AuthController::class, 'login'])
@@ -37,6 +54,18 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::put('/auth/profile', [ProfileController::class, 'update'])->name('auth.profile.update');
         Route::post('/auth/profile/photo', [ProfileController::class, 'uploadPhoto'])->name('auth.profile.photo.store');
         Route::delete('/auth/profile/photo', [ProfileController::class, 'deletePhoto'])->name('auth.profile.photo.destroy');
+
+        Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show'])->name('announcements.show');
+
+        Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+        Route::post('/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('notifications.read');
+
+        Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
+        Route::get('/chats/contacts', [ChatController::class, 'contacts'])->name('chats.contacts');
+        Route::get('/chats/{user}/messages', [ChatController::class, 'messages'])->whereNumber('user')->name('chats.messages');
+        Route::post('/chats/{user}/messages', [ChatController::class, 'send'])->whereNumber('user')->middleware('throttle:60,1')->name('chats.send');
+        Route::post('/chats/{user}/read', [ChatController::class, 'read'])->whereNumber('user')->name('chats.read');
 
         Route::middleware('role:intern')->prefix('intern')->name('intern.')->group(function () {
             Route::get('/menu', InternMenuController::class)->name('menu');
@@ -104,6 +133,69 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         });
 
         Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
+            Route::get('/menu', AdminMenuController::class)->name('menu');
+            Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
+            Route::get('/ending-internships', AdminEndingInternshipController::class)->name('ending-internships');
+
+            Route::get('/mentors', [AdminUserController::class, 'mentors'])->name('mentors.index');
+            Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+            Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
+            Route::get('/users/{user}', [AdminUserController::class, 'show'])->whereNumber('user')->name('users.show');
+            Route::put('/users/{user}', [AdminUserController::class, 'update'])->whereNumber('user')->name('users.update');
+            Route::get('/users/{user}/mentor-change', [AdminUserController::class, 'mentorChange'])->name('users.mentor-change');
+            Route::post('/users/{user}/mentor', [AdminUserController::class, 'changeMentor'])->name('users.change-mentor');
+            Route::post('/users/{user}/deactivate', [AdminUserController::class, 'deactivate'])->name('users.deactivate');
+            Route::post('/users/{user}/activate', [AdminUserController::class, 'activate'])->name('users.activate');
+            Route::post('/users/{user}/extend', [AdminUserController::class, 'extend'])->name('users.extend');
+
+            Route::get('/users/{user}/attendance', [AdminInternRecordController::class, 'attendance'])->name('users.attendance');
+            Route::get('/users/{user}/attendance/days/{date}', [AdminInternRecordController::class, 'day'])->name('users.attendance.day');
+            Route::get('/users/{user}/leaves', [AdminInternRecordController::class, 'leaves'])->name('users.leaves');
+            Route::get('/users/{user}/corrections', [AdminInternRecordController::class, 'corrections'])->name('users.corrections');
+
+            Route::get('/corrections', [AdminCorrectionController::class, 'index'])->name('corrections.index');
+            Route::get('/corrections/{correction}', [AdminCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
+            Route::get('/corrections/{correction}/evidence', [AdminCorrectionController::class, 'evidence'])->name('corrections.evidence');
+            Route::post('/corrections/{correction}/approve', [AdminCorrectionController::class, 'approve'])->name('corrections.approve');
+            Route::post('/corrections/{correction}/reject', [AdminCorrectionController::class, 'reject'])->name('corrections.reject');
+
+            Route::get('/leaves', [AdminLeaveController::class, 'index'])->name('leaves.index');
+            Route::get('/leaves/{leave}', [AdminLeaveController::class, 'show'])->whereNumber('leave')->name('leaves.show');
+            Route::get('/leaves/{leave}/evidence', [AdminLeaveController::class, 'evidence'])->name('leaves.evidence');
+            Route::post('/leaves/{leave}/approve', [AdminLeaveController::class, 'approve'])->name('leaves.approve');
+            Route::post('/leaves/{leave}/reject', [AdminLeaveController::class, 'reject'])->name('leaves.reject');
+
+            Route::get('/warnings', [AdminWarningController::class, 'index'])->name('warnings.index');
+            Route::get('/users/{user}/warnings', [AdminWarningController::class, 'forIntern'])->name('users.warnings.index');
+            Route::post('/users/{user}/warnings', [AdminWarningController::class, 'store'])->name('users.warnings.store');
+            Route::put('/warnings/{warning}', [AdminWarningController::class, 'update'])->name('warnings.update');
+
+            Route::get('/settings/work-hours', [AdminWorkHourController::class, 'show'])->name('work-hours.show');
+            Route::post('/settings/work-hours', [AdminWorkHourController::class, 'store'])->name('work-hours.store');
+            Route::get('/holidays', [AdminHolidayController::class, 'index'])->name('holidays.index');
+            Route::post('/holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
+            Route::put('/holidays/{holiday}', [AdminHolidayController::class, 'update'])->name('holidays.update');
+            Route::delete('/holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
+
+            Route::get('/offices', [AdminOfficeController::class, 'index'])->name('offices.index');
+            Route::post('/offices', [AdminOfficeController::class, 'store'])->name('offices.store');
+            Route::get('/offices/{office}', [AdminOfficeController::class, 'show'])->name('offices.show');
+            Route::put('/offices/{office}', [AdminOfficeController::class, 'update'])->name('offices.update');
+            Route::post('/offices/{office}/deactivate', [AdminOfficeController::class, 'deactivate'])->name('offices.deactivate');
+            Route::post('/offices/{office}/activate', [AdminOfficeController::class, 'activate'])->name('offices.activate');
+            Route::delete('/offices/{office}', [AdminOfficeController::class, 'destroy'])->name('offices.destroy');
+
+            Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('announcements.index');
+            Route::post('/announcements', [AdminAnnouncementController::class, 'store'])->name('announcements.store');
+            Route::put('/announcements/{announcement}', [AdminAnnouncementController::class, 'update'])->name('announcements.update');
+            Route::delete('/announcements/{announcement}', [AdminAnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
+            Route::get('/reports/options', [AdminReportController::class, 'options'])->name('reports.options');
+            Route::post('/reports/export', [AdminReportController::class, 'export'])->name('reports.export');
+
+            Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');
+            Route::get('/audit-logs/options', [AdminAuditLogController::class, 'options'])->name('audit-logs.options');
+
             Route::post('/users/{user}/reset-password', ResetPasswordController::class)
                 ->name('users.reset-password');
         });

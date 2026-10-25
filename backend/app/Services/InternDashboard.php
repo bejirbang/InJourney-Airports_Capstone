@@ -9,10 +9,6 @@ use App\Models\Task;
 use App\Models\User;
 use Carbon\CarbonInterface;
 
-/**
- * Isi Dashboard Intern (docs/design-intern.md, Alur 2).
- * Semua data hanya milik intern yang login.
- */
 class InternDashboard
 {
     public const ANNOUNCEMENT_LIMIT = 3;
@@ -31,7 +27,6 @@ class InternDashboard
         return [
             'date' => $now->toDateString(),
             'today' => [...$today, 'state' => $today['state']->value],
-            // Banner: sudah clock in tetapi Daily Report hari ini belum terkirim.
             'daily_report_reminder' => $today['state'] === TodayState::ClockedIn && ! $today['daily_report_sent'],
             'monthly_recap' => $this->calendar->monthlyRecap($intern, $now),
             'tasks' => $this->tasks($intern, $now),
@@ -45,9 +40,6 @@ class InternDashboard
     }
 
     /**
-     * Jumlah Task aktif per status, jumlah Terlambat, dan tenggat terdekat.
-     * `total` ikut menghitung Task Done, untuk membedakan "Belum ada Task dari mentor".
-     *
      * @return array<string, mixed>
      */
     private function tasks(User $intern, CarbonInterface $now): array
@@ -77,8 +69,6 @@ class InternDashboard
     }
 
     /**
-     * Pengumuman terbaru untuk role Intern.
-     *
      * @return array<int, array<string, mixed>>
      */
     private function announcements(): array

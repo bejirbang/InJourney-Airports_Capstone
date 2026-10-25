@@ -8,7 +8,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
-// Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
@@ -151,7 +150,6 @@ it('rejects submitting a done task, saying whether the mentor just accepted it',
         ->assertUnprocessable()
         ->assertExactJson(['message' => $message, 'reason' => $reason]);
 
-    // Hasil yang diterima tetap, dan file baru tidak tertinggal di storage.
     expect($this->task->refresh()->submission_link)->toBe('https://example.com/diterima')
         ->and(Storage::allFiles())->toBe([])
         ->and(Notification::count())->toBe(0);

@@ -6,6 +6,7 @@ use App\Enums\Role;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,6 +40,8 @@ use Laravel\Sanctum\HasApiTokens;
  * @property-read Collection<int, LeaveRequest> $leaveRequests
  * @property-read Collection<int, Task> $assignedTasks
  * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
+ * @property-read Collection<int, Warning> $warnings
+ * @property-read int|null $warnings_count
  */
 #[Fillable(['name', 'email', 'password', 'role', 'title', 'phone', 'photo_path', 'is_active', 'must_change_password'])]
 #[Hidden(['password', 'remember_token', 'photo_path'])]
@@ -48,8 +51,6 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, SoftDeletes;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
@@ -64,8 +65,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Email disimpan huruf kecil agar login tidak peka huruf besar.
-     *
      * @return Attribute<string, string>
      */
     protected function email(): Attribute
@@ -82,8 +81,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Absensi milik intern ini.
-     *
      * @return HasMany<Attendance, $this>
      */
     public function attendances(): HasMany
@@ -108,8 +105,13 @@ class User extends Authenticatable
     }
 
     /**
-     * Nama pendek untuk notifikasi: "Rina Wulandari" menjadi "Rina W.".
+     * @return HasMany<Warning, $this>
      */
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(Warning::class, 'intern_id');
+    }
+
     public function shortName(): string
     {
         $parts = preg_split('/\s+/', trim($this->name)) ?: [];
@@ -118,8 +120,6 @@ class User extends Authenticatable
     }
 
     /**
-     * Task yang dikerjakan intern ini (bukan Task yang dibuat mentor).
-     *
      * @return HasMany<Task, $this>
      */
     public function assignedTasks(): HasMany
@@ -130,7 +130,6 @@ class User extends Authenticatable
     /**
      * Alamat foto profil yang bisa langsung dipakai di <img> tanpa header Authorization.
      * Alamat bertanda tangan dan sama sepanjang hari, jadi browser dapat menyimpannya di cache.
-     * Berlaku 24 sampai 48 jam; ambil ulang lewat /api/auth/me saat aplikasi dibuka.
      */
     public function photoUrl(): ?string
     {
@@ -148,5 +147,31 @@ class User extends Authenticatable
     public function hasRole(Role $role): bool
     {
         return $this->role === $role;
+    }
+
+    /**
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeReachable(Builder $query, string $date): Builder
+    {
+        return $query->where('is_active', true)->where(fn (Builder $q) => $q
+            ->where('role', '!=', Role::Intern)
+            ->orWhereHas('internProfile', fn (Builder $p) => $p->whereDate('end_date', '>=', $date)));
+    }
+
+    public function isReachable(string $date): bool
+    {
+        if (! $this->is_active) {
+            return false;
+        }
+
+        if (! $this->hasRole(Role::Intern)) {
+            return true;
+        }
+
+        $profile = $this->internProfile;
+
+        return $profile !== null && $profile->end_date->toDateString() >= $date;
     }
 }

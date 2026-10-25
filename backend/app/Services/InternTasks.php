@@ -10,10 +10,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-/**
- * Task dari sisi intern (docs/design-intern.md, Alur 8): daftar atau Kanban, detail, dan perpindahan status.
- * Pengumpulan hasil (Alur 9) dan komentar baru (Alur 10) ada di alur masing-masing.
- */
 class InternTasks
 {
     /**
@@ -40,9 +36,6 @@ class InternTasks
     }
 
     /**
-     * Detail dengan thread komentar. Membuka detail berarti membaca komentar, jadi indikator
-     * komentar baru hilang setelah respons ini (12.1 langkah 3).
-     *
      * @return array{task: Task, unread_ids: list<int>}
      */
     public function open(User $intern, Task $task, CarbonInterface $now): array
@@ -54,9 +47,7 @@ class InternTasks
     }
 
     /**
-     * Perpindahan oleh intern (10.2): To Do ke In Progress, dan In Progress ke To Do jika belum pernah
-     * dikumpulkan. In Progress ke In Review hanya lewat pengumpulan hasil. `$expected` adalah status
-     * yang dilihat intern saat menyeret; jika sudah berubah, perpindahan ditolak.
+     * `$expected` adalah status yang dilihat intern saat menyeret; jika sudah berubah, perpindahan ditolak.
      *
      * @throws ActionRejected
      */
@@ -97,8 +88,6 @@ class InternTasks
     }
 
     /**
-     * Task milik intern beserta mentor dan jumlah komentar orang lain yang belum dibaca.
-     *
      * @return Builder<Task>
      */
     private function query(User $intern): Builder

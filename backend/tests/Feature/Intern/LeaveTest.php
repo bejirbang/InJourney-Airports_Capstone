@@ -10,7 +10,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
-// Senin, 12 Oktober 2026 pukul 09:00. Magang 1 Sep sampai 31 Des 2026.
 beforeEach(function () {
     Storage::fake();
     $this->travelTo(Carbon::parse('2026-10-12 09:00:00'));
@@ -81,7 +80,6 @@ it('allows past dates and labels them as submitted after the leave date', functi
 });
 
 it('counts only working days and recounts when admin adds a holiday', function () {
-    // Jumat 16 sampai Senin 19 Okt: Sabtu dan Minggu tidak dihitung.
     $id = applyLeave(['start_date' => '2026-10-16', 'end_date' => '2026-10-19'])
         ->assertJsonPath('data.working_days', 2)
         ->json('data.id');

@@ -518,26 +518,402 @@ Daftar dan Kanban Task mentor (tempat tombol Buat Task, Ubah, dan Hapus) ada di 
   - **Bentuk `submission` sama** di detail Task intern dan mentor: `{link, file: {name, size} | null, submitted_at, submitted_late, late_hours}`. Field `has_file` intern diganti `file` (null = tanpa file). Dibentuk `Task::submissionData()`.
   - **Nama field sama:** jumlah komentar belum dibaca selalu `unread_comments` (kotak Dashboard mentor sebelumnya `unread_count`).
   - **Satu sumber untuk aturan bersama** (di model): `TaskComment::scopeUnreadFor()` (komentar belum dibaca), `Task::markCommentsRead()`, `Task::withoutOldDone()` (Done lebih dari 30 hari), `Task::STALE`, `Task::DONE_LOCKED`, `Task::DONE_DAYS`, `Task::submissionFileName()`, `LeaveRequest::pendingHours()`, `isOverduePending()`, `evidenceFileName()`, `LeaveRequest::OVERDUE_PENDING_HOURS`.
-  - **Request bersama** dipindah ke `App\Http\Requests\Shared`: `AttendanceHistoryRequest`, `TaskCommentRequest`. `LeaveRequestResource` (khusus intern) diganti nama `InternLeaveResource`, sejajar dengan `MentorLeaveResource`.
+  - **Request bersama** dipindah ke `App\Http\Requests\Shared`: `AttendanceHistoryRequest`, `TaskCommentRequest`, lalu (20 Okt 2026) `LeaveDecisionRequest` dan `ReviewerLeaveIndexRequest` (dulu `Mentor\LeaveIndexRequest`) yang dipakai mentor dan admin. `LeaveRequestResource` (khusus intern) diganti nama `InternLeaveResource`, sejajar dengan `MentorLeaveResource`.
   - Daftar dengan `meta` ditulis sama di kedua role (`response()->json(['data' => Resource::collection(...), 'meta' => ...])`); service mengembalikan data, controller yang membentuk respons.
   - Tabel "Catatan integrasi frontend" ditambahkan untuk setiap alur intern.
 
+- [x] **Admin Alur 1: login pertama, arah ke Dashboard, menu sidebar** (20 Okt 2026, docs/design-admin.md 2.1, 2.2, dan 3)
+  - Login dan ganti password memakai endpoint yang sama dengan role lain. `user.home_path` admin = `/admin/dashboard`. Selama `must_change_password` true, semua endpoint admin ditolak 403 dengan `must_change_password: true`.
+  - `GET /api/admin/menu`: `data` berisi `key`, `path`, `badge` untuk dashboard, users, attendance, corrections, leaves, warnings, announcements, reports, settings, offices, audit_log (alamat dari design-admin.md 2.2). Intern dan mentor ditolak 403 "Anda tidak memiliki akses."
+  - `badge` hanya terisi pada `corrections` (semua koreksi absensi Pending) dan `leaves` (izin Pending **lebih dari 24 jam**, karena admin hanya memproses izin yang menggantung; sama dengan `isOverduePending` di prototipe). Menu lain `badge: null`.
+  - Scope baru `LeaveRequest::scopeOverduePending()`: versi query dari `isOverduePending()` (24 jam 1 menit ke atas), dipakai lagi untuk Dashboard dan daftar Izin admin.
+  - Test di `tests/Feature/Admin/MenuTest.php` (9 test lolos).
+
+### Catatan integrasi frontend: Admin Alur 1
+
+| Langkah layar | Endpoint | Yang dibaca frontend |
+| --- | --- | --- |
+| Login | `POST /api/auth/login` `{email, password}` | `token`, `user.role` (`admin`), `user.must_change_password`, `user.home_path` (`/admin/dashboard`) |
+| Ganti Password (jika `must_change_password`) | `PUT /api/auth/password` `{password, password_confirmation}` | `data.home_path` lalu buka halaman itu |
+| Muat ulang aplikasi | `GET /api/auth/me` | `data.role` untuk menentukan sidebar dan Dashboard role |
+| Sidebar admin | `GET /api/admin/menu` | `data[].key`, `path`, `badge` (angka di sebelah Koreksi dan Izin) |
+
+Contoh respons `GET /api/admin/menu`:
+
+```json
+{ "data": [
+  { "key": "dashboard", "path": "/admin/dashboard", "badge": null },
+  { "key": "users", "path": "/admin/users", "badge": null },
+  { "key": "attendance", "path": "/admin/attendance", "badge": null },
+  { "key": "corrections", "path": "/admin/corrections", "badge": 2 },
+  { "key": "leaves", "path": "/admin/leaves", "badge": 1 },
+  { "key": "warnings", "path": "/admin/warnings", "badge": null },
+  { "key": "announcements", "path": "/admin/announcements", "badge": null },
+  { "key": "reports", "path": "/admin/reports", "badge": null },
+  { "key": "settings", "path": "/admin/settings", "badge": null },
+  { "key": "offices", "path": "/admin/offices", "badge": null },
+  { "key": "audit_log", "path": "/admin/audit-log", "badge": null }
+] }
+```
+
+Temuan untuk tim frontend (tidak diubah dari sisi backend): role tampilan di `MockProvider` selalu mulai dari `Intern` dan hanya disamakan dengan akun saat submit login (`LoginPage`). Setelah halaman dimuat ulang, admin yang masih login melihat sidebar dan Dashboard intern. Role perlu diambil dari `auth.user.role` (hasil `/api/auth/me`) setiap kali sesi dipulihkan.
+
+- [x] **Dashboard Admin** `GET /api/admin/dashboard` (20 Okt 2026, docs/design-admin.md Alur 3)
+  - Intern yang dihitung: akun aktif (`is_active`) dan tanggal itu masuk periode magangnya (aturan sama dengan `AccountAccess`). Data intern yang sudah dihapus tidak ikut di kotak mana pun.
+  - `holiday`: `{name}` pada akhir pekan (`name` null) atau libur admin, selain itu null. `has_active_office` untuk banner "Belum ada kantor aktif. Intern tidak bisa clock in."
+  - `today` (null pada hari libur): `interns`, `clocked_in` (termasuk yang sudah clock out), `on_leave` (izin disetujui, belum clock in), `not_clocked_in`, `late` dan `late_interns` (isi daftar saat kartu Terlambat diklik: `intern`, `clock_in_at`, `late_minutes`; urut jam clock in). Terlambat hanya tanda, jadi tetap dihitung Sudah Clock In. Tanpa pengaturan jam kerja, tidak ada yang terlambat.
+  - `yesterday`: status final **hari kerja sebelumnya** (Senin melihat Jumat, libur dilewati), sama dengan prototipe: `date`, `present`, `leave`, `absent`, `missed_clock_out`. Terlambat tidak ikut. Intern yang hari terakhir magangnya tanggal itu tetap dihitung.
+  - Tiga kotak Perlu Tindakan berbentuk `{total, items}`, maksimal 5 baris (Lihat semua jika `total > 5`):
+    - `overdue_leaves`: izin Pending lebih dari 24 jam, paling lama lebih dulu. Baris: `id`, `intern`, `type`, `start_date`, `end_date`, `created_at`, `pending_hours`.
+    - `pending_corrections`: koreksi Pending, paling lama diajukan lebih dulu. Baris: `id`, `intern`, `date`, `created_at`.
+    - `ending_internships`: intern aktif yang selesai hari ini sampai 7 hari lagi, paling dekat lebih dulu. Baris: `intern`, `end_date`, `ends_in_days` (0 = hari terakhir, ditambahkan 23 Okt 2026), `mentor {id, name}` (untuk Tanya mentor). Lihat semua: `GET /api/admin/ending-internships` (Alur 6).
+  - `intern` di semua baris: `{id, name, short_name}`.
+  - Badge menu Koreksi dan Izin (`/api/admin/menu`) sama dengan `total` kedua kotak itu.
+  - Logika di `App\Services\AdminDashboard`, controller `App\Http\Controllers\Admin\DashboardController`.
+  - Test di `tests/Feature/Admin/DashboardTest.php` (15 test lolos).
+
+### Catatan integrasi frontend: Dashboard Admin
+
+Contoh respons (`GET /api/admin/dashboard`, Senin 12 Okt 2026 14:39):
+
+```json
+{ "data": {
+  "date": "2026-10-12",
+  "holiday": null,
+  "has_active_office": true,
+  "today": {
+    "interns": 24, "clocked_in": 18, "on_leave": 2, "not_clocked_in": 4, "late": 1,
+    "late_interns": [
+      { "intern": { "id": 7, "name": "Rina Wulandari", "short_name": "Rina W." }, "clock_in_at": "08:15", "late_minutes": 15 }
+    ]
+  },
+  "yesterday": { "date": "2026-10-09", "present": 20, "leave": 2, "absent": 1, "missed_clock_out": 1 },
+  "overdue_leaves": { "total": 1, "items": [
+    { "id": 12, "intern": { "id": 9, "name": "Andi Pratama", "short_name": "Andi P." }, "type": "sick",
+      "start_date": "2026-10-13", "end_date": "2026-10-14", "created_at": "2026-10-11T08:39:00+07:00", "pending_hours": 30 }
+  ] },
+  "pending_corrections": { "total": 1, "items": [
+    { "id": 4, "intern": { "id": 7, "name": "Rina Wulandari", "short_name": "Rina W." }, "date": "2026-10-09", "created_at": "2026-10-10T09:12:00+07:00" }
+  ] },
+  "ending_internships": { "total": 1, "items": [
+    { "intern": { "id": 7, "name": "Rina Wulandari", "short_name": "Rina W." }, "end_date": "2026-10-17", "ends_in_days": 5, "mentor": { "id": 2, "name": "Budi Santoso" } }
+  ] }
+} }
+```
+
+| Bagian layar (design-admin.md 5) | Field | Catatan |
+| --- | --- | --- |
+| Banner libur | `holiday` | "Hari ini hari libur: [nama]"; `name` null = akhir pekan. Kartu hari ini disembunyikan (`today` null) |
+| Banner kantor | `has_active_office` false | Tautan ke Lokasi Kantor |
+| Kartu Sudah Clock In, Izin, Belum Clock In | `today.clocked_in`, `on_leave`, `not_clocked_in` | Judul panel memakai `today.interns` |
+| Kartu Terlambat | `today.late`, `late_interns` | Klik membuka daftar nama, jam clock in, lama terlambat |
+| Ringkasan kemarin | `yesterday` | Label tanggal dari `yesterday.date` (bisa Jumat saat Senin) |
+| Izin pending > 24 jam | `overdue_leaves` | Buka: `/izin?open={id}`; meta "`pending_hours` jam" |
+| Permintaan koreksi | `pending_corrections` | Buka: `/koreksi?open={id}`; tanggal absensi `date` |
+| Magang berakhir dalam 7 hari | `ending_internships` | Tanya mentor memakai `mentor.name`; Perpanjang dan Lihat semua lihat "Akhir periode magang" (Alur 6) |
+| Kotak kosong | `total === 0` | "Tidak ada yang perlu ditindak hari ini." |
+
+- [x] **Kelola Akun Pengguna** (20 Okt 2026, docs/design-admin.md Alur 2). Semua tindakan yang mengubah data masuk `audit_logs` (aksi `Akun`, objek nama akun).
+  - `GET /api/admin/users?q=&role=&status=&page=`: 10 per halaman, urut nama. `q` mencari nama atau email tanpa beda huruf besar. `status` = `active` (default; termasuk intern yang belum mulai, seperti prototipe), `inactive` (dinonaktifkan admin atau intern yang sudah lewat tanggal selesai), `all`. Baris: `id`, `name`, `email`, `role`, `title`, `status` (`active`, `not_started` = "Belum dimulai", `inactive`), `mentor {id, name}`, `start_date`, `end_date` (null untuk mentor dan admin). `meta`: `current_page`, `last_page`, `per_page`, `total`.
+  - `GET /api/admin/mentors`: mentor aktif (`id`, `name`, `title`), urut nama, untuk pilihan di Tambah Akun dan Ganti Mentor.
+  - `POST /api/admin/users`: `name`, `email`, `role`, `title` (opsional, kosong = label role), untuk intern juga `mentor_id` (mentor aktif), `start_date`, `end_date` (tidak boleh sebelum tanggal mulai, design-admin.md 4.2; sama dengan tanggal mulai boleh). Respons 201 berisi `data` (detail akun) dan `temporary_password` (**hanya tampil sekali**). Akun baru `must_change_password = true`. Intern langsung mendapat `intern_profiles` dan baris pertama `mentor_histories` (`started_at` = tanggal mulai). Email boleh memakai ulang email akun yang sudah dihapus.
+  - `GET /api/admin/users/{id}`: baris daftar ditambah `phone`, `photo_url`, `is_active`, `must_change_password`, `created_at`, lalu `former_mentors [{id, name}]` (intern) atau `interns [{id, name, status}]` (mentor, intern bimbingan saat ini). Akun yang dihapus: 404.
+  - `PUT /api/admin/users/{id}`: `name`, `email`, `title` (kosong = tetap), untuk intern juga `start_date`, `end_date`. `role` dan `mentor_id` diabaikan (role tidak bisa diubah, mentor lewat Ganti mentor).
+  - `GET /api/admin/users/{id}/mentor-change`: ringkasan dampak (`current_mentor`, `active_tasks` = Task belum Done, `comments` di Task itu, `pending_leaves`).
+  - `POST /api/admin/users/{id}/mentor` `{mentor_id}`: Task belum Done pindah ke mentor baru (`tasks.mentor_id`), Task Done tetap milik mentor lama. Izin Pending ikut pindah karena izin mengikuti mentor saat ini. `mentor_histories`: baris terbuka ditutup (`ended_at` = hari ini) dan baris baru dibuat; intern tanpa riwayat (data seeder lama) mendapat baris mentor lama dulu, agar mentor lama tetap melihatnya lewat "Pernah dibimbing". Notifikasi: intern "Mentor Anda sekarang [nama].", mentor baru "Intern [nama] kini menjadi bimbingan Anda.", mentor lama "Intern [nama] tidak lagi menjadi bimbingan Anda." (teks prototipe). Ditolak: `same_mentor` ("Pilih mentor baru."), `not_intern`.
+  - `POST /api/admin/users/{id}/deactivate`: semua token akun itu dicabut. Ditolak (422 `reason`): `self` ("Anda tidak bisa menonaktifkan akun Anda sendiri."), `last_admin` ("Minimal harus ada satu admin aktif.", design-admin.md 15.5; hanya terpicu saat dua admin saling menonaktifkan bersamaan, karena admin tidak bisa menonaktifkan dirinya sendiri), `mentor_has_interns` ("Mentor ini masih memiliki intern aktif. Pindahkan intern ke mentor lain lebih dulu."), `already_inactive`.
+  - `POST /api/admin/users/{id}/activate`. Ditolak: `internship_ended` ("Aktifkan kembali intern dengan memperbarui tanggal selesai magang."; frontend lalu membuka dialog Perpanjang), `already_active`.
+  - Reset password tetap `POST /api/admin/users/{id}/reset-password`; pembuat password sementara kini satu tempat (`AccountManagement::temporaryPassword()`).
+  - Logika di `App\Services\AdminUsers` (baca) dan `App\Services\AccountManagement` (ubah). Status akun dihitung `AccountAccess::status()` (enum `AccountStatus`), aturan sama dengan izin login.
+  - Test di `tests/Feature/Admin/UserTest.php` (49 test lolos).
+
+Keputusan di Alur 2 (aturan backend mengikuti docs/design-admin.md, bukan prototipe frontend; keputusan pemilik repo 20 Okt 2026):
+
+- "Intern aktif" yang menghalangi nonaktif mentor = intern yang belum dinonaktifkan dan belum lewat tanggal selesai, **termasuk yang belum mulai**, agar intern yang akan mulai tidak kehilangan mentor.
+- Pesan admin terakhir dan aturan tanggal selesai mengikuti design-admin.md (15.5 dan 4.2).
+- Selalu ada minimal satu admin aktif: seeder membuat `admin@injourney.test` (development), `php artisan app:create-admin` membuat admin pertama (production), admin tidak bisa menonaktifkan dirinya sendiri, dan nonaktif bersamaan dikunci di database.
+
+### Catatan integrasi frontend: Kelola Akun
+
+| Layar (design-admin.md 4) | Endpoint | Catatan |
+| --- | --- | --- |
+| Daftar, Cari, Role, Status, halaman | `GET /api/admin/users?q=&role=&status=&page=` | "Menampilkan 1-10 dari 24" dari `meta`; status `not_started` = "Belum dimulai" |
+| Menu Nonaktifkan atau Aktifkan | `status` baris | `active`/`not_started` = Nonaktifkan; `inactive` = Aktifkan |
+| Pilihan mentor | `GET /api/admin/mentors` | Ganti mentor: sembunyikan `mentor.id` saat ini |
+| Tambah Akun | `POST /api/admin/users` | Tampilkan `temporary_password` sekali dengan tombol Salin |
+| Detail, tab Profil | `GET /api/admin/users/{id}` | "Mentor sebelumnya" dari `former_mentors`; "Intern bimbingan" dari `interns` |
+| Ubah data | `PUT /api/admin/users/{id}` | Error per kolom dari `errors` (422) |
+| Ganti mentor | `GET .../mentor-change` lalu `POST .../mentor` | "N Task aktif beserta M komentar", "N izin Pending" |
+| Reset password | `POST .../reset-password` | `temporary_password` sekali |
+| Nonaktifkan, Aktifkan | `POST .../deactivate`, `POST .../activate` | Penolakan 422 `message` untuk toast; `internship_ended` membuka dialog Perpanjang |
+
+| Tab Absensi | `GET /api/admin/users/{id}/attendance?month=` lalu `.../attendance/days/{date}` | Lihat "Tab detail intern" di bawah |
+| Tab Izin, Koreksi | `GET /api/admin/users/{id}/leaves`, `.../corrections` | |
+| Tab Warning | `GET`/`POST /api/admin/users/{id}/warnings`, `PUT /api/admin/warnings/{id}` | Lihat "Warning" di bawah |
+
+- [x] **Tab detail intern: Absensi, Izin, Koreksi** (20 Okt 2026, docs/design-admin.md 4.3). Hanya baca. Akun bukan intern ditolak 422 `not_intern` ("Akun ini bukan intern.").
+  - `GET /api/admin/users/{id}/attendance?month=2026-10`: bentuk sama dengan riwayat absensi intern (`month`, `selectable_months`, `recap` termasuk `late`, `days` terbaru lebih dulu). Tiap hari: `date`, `status`, `clock_in_at`, `clock_out_at`, `late_minutes` (tanda Terlambat untuk admin, design-admin.md 2.2), `is_corrected` ("Dikoreksi admin"), `daily_report_sent`, `daily_report_work` (isi kolom Daily Report), `holiday_name`, `leave_type`, `has_pending_correction`. Bulan di luar periode: 422 "Bulan di luar periode magang."
+  - `GET /api/admin/users/{id}/attendance/days/{date}`: detail satu hari dengan Terlambat, kantor clock in dan clock out, dan Daily Report lengkap (sama dengan detail hari milik intern).
+  - `GET /api/admin/users/{id}/leaves`: semua izin, pengajuan terbaru lebih dulu: `id`, `type`, tanggal, `working_days`, `status`, `has_evidence`, `submitted_at`, `decided_by {name, role}`, `decision_note`, `decided_at`.
+  - `GET /api/admin/users/{id}/corrections`: semua koreksi, terbaru lebih dulu: `id`, `date`, `submitted_at`, `status`, `recorded`, `requested`, `reason`, `has_evidence`, `decision_note` (kolom "Catatan admin"), `decided_by` (nama), `decided_at`.
+  - Logika: `AttendanceHistory::monthForAdmin()`, `AdminUsers::leaves()`, `corrections()`. Controller `App\Http\Controllers\Admin\InternRecordController`.
+  - Test di `tests/Feature/Admin/InternRecordTest.php` (10 test lolos).
+
+- [x] **Warning** (20 Okt 2026, docs/design-admin.md Alur 8). Menu Warning dan tab Warning di detail intern memakai endpoint yang sama. Hanya admin; intern dan mentor 403.
+  - `GET /api/admin/warnings?q=`: daftar intern (kiri halaman) dengan `warnings` (jumlah catatan), urut nama.
+  - `GET /api/admin/users/{id}/warnings`: `late_this_month` ("Terlambat bulan ini: 3 kali", termasuk hari ini; tidak ada warning otomatis) dan `warnings` terbaru lebih dulu: `id`, `body`, `author {id, name}`, `created_at`, `updated_at`, `can_edit` (pembuat, dalam 24 jam; selain itu "Terkunci.").
+  - `POST /api/admin/users/{id}/warnings` `{body}`: 201 "Catatan tersimpan. Tidak ada notifikasi ke intern atau mentor." Tanpa notifikasi. `body` kosong: "Catatan wajib diisi."; lebih dari 2000 karakter: "Catatan maksimal 2000 karakter." (ditambahkan 23 Okt 2026)
+  - `PUT /api/admin/warnings/{id}` `{body}`: hanya pembuat dalam 24 jam, selain itu 422 `locked` ("Catatan hanya bisa diubah pembuatnya dalam 24 jam."). Tidak ada hapus. Simpan tanpa perubahan tidak masuk log; catatan milik akun intern yang sudah dihapus: 404 (23 Okt 2026).
+  - Tambah dan ubah masuk `audit_logs` (aksi `Warning`, objek nama intern).
+  - Model baru `Warning` (dan factory), relasi `User::warnings()`. Logika di `App\Services\AdminWarnings`, controller `App\Http\Controllers\Admin\WarningController`.
+  - Perbaikan 23 Okt 2026: hari yang menjadi Libur setelah intern clock in (libur tanggal lampau, Alur 7) tidak lagi bertanda Terlambat. `AttendanceCalendar::days()` mengosongkan `late_minutes` pada hari Libur, jadi "Terlambat bulan ini", rekap `late`, dan detail hari ikut benar.
+  - Test di `tests/Feature/Admin/WarningTest.php` (13 test lolos).
+
+- [x] **Koreksi Absensi, sisi admin** (20 Okt 2026, docs/design-admin.md Alur 4)
+  - `GET /api/admin/corrections?status=&intern_id=&from=&to=`: `status` = `pending` (default), `approved`, `rejected`, `cancelled`, `all`; `from`/`to` = rentang tanggal absensi. Pending urut paling lama diajukan lebih dulu (antrean), status lain terbaru lebih dulu. Baris: `id`, `intern {id, name, short_name}`, `date`, `submitted_at`, `status`. `meta.interns` = pilihan filter Intern (intern yang pernah mengajukan koreksi).
+  - `GET /api/admin/corrections/{id}`: baris ditambah `recorded {clock_in, clock_out, status}` (jam saat diajukan dan status hari itu **sekarang**, misalnya `missed_clock_out`), `requested`, `reason`, `has_evidence`, `decision_note`, `final`, `decided_by`, `decided_at`, `can_decide` (false = layar hanya baca).
+  - `GET /api/admin/corrections/{id}/evidence` (`?inline=1` untuk Pratinjau): file bukti, tanpa URL publik.
+  - `POST /api/admin/corrections/{id}/approve` `{clock_in, clock_out, note}`: jam final menggantikan jam di `attendances` hari itu, atau membuat baris baru jika intern belum clock in; `is_corrected = true` ("Dikoreksi admin"); kantor dan koordinat lama tetap; validasi lokasi tidak dijalankan. Status hari itu dan tanda Terlambat terhitung ulang otomatis karena dihitung saat dibaca. Respons "Koreksi disetujui. Status absensi dihitung ulang."
+  - `POST /api/admin/corrections/{id}/reject` `{note}`: data absensi tidak berubah. Respons "Koreksi ditolak. Data absensi tidak berubah."
+  - Validasi: "Catatan verifikasi wajib diisi." (Setujui dan Tolak), "Jam clock out harus setelah jam clock in.", "Format jam tidak valid. Gunakan JJ:MM."
+  - Ditolak (422 `reason`): `already_processed` ("Permintaan ini sudah diproses oleh [nama admin]."), `cancelled` ("Permintaan ini sudah dibatalkan intern."). Baris koreksi dikunci saat diputuskan, jadi dua admin atau pembatalan intern di saat yang sama tidak bertabrakan.
+  - Notifikasi intern: "Koreksi absensi 9 Okt disetujui." / "... ditolak." (link `/absensi`, `tab` = `koreksi`, `open` = id). Catatan admin dibaca di detail koreksi.
+  - `audit_logs` aksi `Absensi`: "Setujui koreksi 9 Okt: 08:02 - 17:00." atau "Tolak koreksi 9 Okt." (design-admin.md 13.1).
+  - Logika di `App\Services\AdminCorrections`, controller `App\Http\Controllers\Admin\CorrectionController`, resource `AdminCorrectionResource`.
+  - Test di `tests/Feature/Admin/CorrectionTest.php` (18 test lolos).
+
+### Catatan integrasi frontend: Koreksi Absensi admin
+
+| Layar (design-admin.md 6) | Endpoint | Catatan |
+| --- | --- | --- |
+| Daftar, filter Status, Intern, Tanggal | `GET /api/admin/corrections?status=&intern_id=&from=&to=` | Tombol Buka jika `pending`, Lihat selain itu. Kosong: "Belum ada permintaan koreksi." |
+| Buka dari notifikasi, dashboard, atau tab Koreksi pengguna | `GET /api/admin/corrections/{id}` | `/koreksi?open={id}` |
+| Data tercatat vs diajukan | `recorded`, `requested` | `recorded.status` untuk badge status |
+| Tanya intern lewat chat | `intern.id` | Chat belum dibuat |
+| Bukti | `GET .../evidence?inline=1` atau tanpa `inline` | Butuh header Authorization, ambil lewat fetch lalu buka blob |
+| Setujui | `POST .../approve` `{clock_in, clock_out, note}` | Isi awal jam final dari `requested` |
+| Tolak | `POST .../reject` `{note}` | |
+| Admin lain sudah memproses / intern membatalkan | 422 `reason` | Tampilkan `message`, lalu muat ulang detail |
+
+- [x] **Izin Pending, sisi admin** (20 Okt 2026, docs/design-admin.md Alur 5, design-mentor.md 13.4)
+  - `GET /api/admin/leaves?tab=&type=&intern_id=`: semua intern. `tab` = `pending` (default) atau `all`. Pending lebih dulu dari yang paling lama pending, sisanya terbaru. Baris sama dengan sisi mentor (`intern`, `type`, tanggal, `working_days`, `has_evidence`, `status`, `submitted_at`, `pending_hours`, `is_overdue` untuk "! pending 30 jam", `decided_by`) ditambah `mentor {id, name}`, `can_decide` (masih Pending: tombol Tolak), `can_approve` (Pending lebih dari 24 jam dan ada bukti: tombol Setujui). `meta.pending_count` untuk "Pending (3)", `meta.interns` untuk filter Intern.
+  - `GET /api/admin/leaves/{id}`: ditambah `reason`, `decision_note`, `evidence {name, size}`. `GET .../evidence` (`?inline=1` untuk Pratinjau).
+  - `POST /api/admin/leaves/{id}/approve` `{note, evidence_checked: true}` dan `POST .../reject` `{note}`. Catatan wajib ("Catatan wajib diisi.").
+  - **Tolak** boleh untuk semua izin Pending, tanpa menunggu 24 jam dan tanpa bukti (keputusan pemilik repo 20 Okt 2026; design-admin.md 7.4). **Setujui** hanya untuk izin Pending lebih dari 24 jam yang punya bukti.
+  - Syarat Setujui admin (422 `reason`): `not_overdue` ("Izin ini masih menunggu mentor. Admin dapat menyetujuinya setelah Pending lebih dari 24 jam."), `no_evidence` ("Tidak ada surat resmi atau bukti."), `evidence_unchecked` (centang "Saya sudah memeriksa surat resmi atau bukti" belum dikirim), `already_processed` ("Izin ini sudah diproses oleh mentor." atau "... oleh admin."), `cancelled` ("Pengajuan ini sudah dibatalkan intern."). Baris izin dikunci saat diputuskan.
+  - Setelah disetujui, hari kerja yang tercakup terbaca Izin (status dihitung saat dibaca).
+  - Notifikasi: intern "Izin Sakit 13-14 Okt disetujui." / "ditolak." (sama dengan keputusan mentor), mentor saat ini "Izin Andi P. diproses oleh admin." (design-mentor.md 14). Mentor yang membuka izin itu mendapat "Izin ini sudah diproses oleh admin.".
+  - `audit_logs` aksi `Izin`: "Setujui Izin Sakit 13-14 Okt." atau "Tolak Izin Sakit 13-14 Okt.".
+  - Logika keputusan tetap satu tempat di `LeaveDecisions::decide()` (mentor dan admin); daftar di `App\Services\AdminLeaves`; controller `App\Http\Controllers\Admin\LeaveController`; resource `AdminLeaveResource` (turunan `MentorLeaveResource`).
+  - **Pengingat ke admin** `php artisan app:remind-overdue-leaves` (scheduler setiap jam): "Izin Andi P. belum diproses mentor lebih dari 24 jam." ke semua admin aktif, link `/izin` `open` = id, sekali per izin (kolom baru `leave_requests.overdue_notified_at`, migration `2026_10_20_234211`). Service `OverdueLeaveReminders`.
+  - Test di `tests/Feature/Admin/LeaveTest.php` (18 test lolos).
+
+### Catatan integrasi frontend: Izin admin
+
+| Layar (design-admin.md 7) | Endpoint | Catatan |
+| --- | --- | --- |
+| Tab Pending (N) / Semua, filter Jenis dan Intern | `GET /api/admin/leaves?tab=&type=&intern_id=` | "! pending N jam" jika `is_overdue`, dari `pending_hours` |
+| Buka dari dashboard, notifikasi, atau tab Izin pengguna | `GET /api/admin/leaves/{id}` | `/izin?open={id}` |
+| Pratinjau, Unduh lampiran | `GET .../evidence?inline=1` atau tanpa `inline` | Butuh header Authorization |
+| Centang bukti, Setujui | `POST .../approve` `{note, evidence_checked}` | Tombol aktif jika `can_approve` dan dicentang; tooltip "Tidak ada surat resmi atau bukti." jika tidak ada bukti |
+| Tolak | `POST .../reject` `{note}` | Aktif jika `can_decide` (masih Pending) |
+| Sudah diproses atau dibatalkan | `can_decide` false | Layar hanya baca dengan keputusan, pemroses, dan catatan |
+
+- [x] **Akhir periode magang** (23 Okt 2026, docs/design-admin.md Alur 6, 4.6, 14)
+  - `POST /api/admin/users/{id}/extend` `{end_date}`: dialog Perpanjang dari Dashboard, menu Aksi "Perpanjang magang", atau setelah Aktifkan ditolak `internship_ended`. Respons "Perubahan tersimpan." dan `data` detail akun (sama dengan `GET /api/admin/users/{id}`). Setelah diperpanjang intern keluar dari daftar pengingat.
+  - Validasi (422 `errors.end_date`): "Tanggal selesai baru wajib diisi.", "Format tanggal tidak valid.", "Tanggal baru harus setelah tanggal selesai saat ini." (8.3), "Tanggal selesai baru tidak boleh sebelum hari ini.". Akun bukan intern: 422 `not_intern` ("Akun ini bukan intern."). Profil dikunci saat diperpanjang, jadi dua admin bersamaan dibandingkan dengan tanggal selesai terbaru.
+  - Intern yang dinonaktifkan admin ikut aktif lagi saat diperpanjang (4.6: mengaktifkan kembali intern dilakukan dengan memperbarui tanggal selesai; prototipe `ExtendDialog` juga `active: true`).
+  - `audit_logs` aksi `Akun`: "Perpanjang magang dari 17 Okt 2026 ke 31 Des 2026." ditambah " Akun diaktifkan kembali." bila akun tadinya dinonaktifkan. Tidak ada notifikasi ke intern atau mentor (dokumen tidak menyebutkannya).
+  - `GET /api/admin/ending-internships`: Lihat semua untuk kotak "Magang berakhir dalam 7 hari" (Dashboard hanya 5 baris). Baris sama dengan `ending_internships` di Dashboard: `intern`, `end_date`, `ends_in_days`, `mentor {id, name}`. Aturan satu tempat: scope `InternProfile::endingSoon()` (intern aktif, sudah mulai, selesai hari ini sampai 7 hari lagi) dan `App\Services\EndingInternships`.
+  - **Pengingat ke admin** `php artisan app:remind-ending-internships` (scheduler setiap hari 07:00): "Magang Rina W. berakhir dalam 7 hari." ke semua admin aktif, link `/` (Dashboard). Sekali per tanggal selesai (kolom baru `intern_profiles.ending_notified_for`, migration `2026_10_23_202728`); setelah diperpanjang, tanggal baru diingatkan lagi saat masuk rentang 7 hari. Intern yang masuk rentang dengan sisa kurang dari 7 hari mendapat jumlah sebenarnya ("dalam 3 hari", "hari ini"). Service `EndingInternshipReminders`.
+  - Nonaktif otomatis tidak butuh job: `AccountAccess` sudah menolak login dan request intern mulai hari setelah tanggal selesai (8.3, 17.1 no. 9), dan status di daftar Pengguna menjadi `inactive`.
+  - Tanya mentor: chat belum dibuat. Draf pesan (8.2) disusun frontend dari `intern.name`, `end_date`, `mentor`.
+  - Test di `tests/Feature/Admin/InternshipEndTest.php` (16 test lolos); `DashboardTest` disesuaikan untuk `ends_in_days`.
+
+### Catatan integrasi frontend: Akhir periode magang
+
+| Layar (design-admin.md 8) | Endpoint | Catatan |
+| --- | --- | --- |
+| Kotak "Magang berakhir dalam 7 hari" | `GET /api/admin/dashboard` `ending_internships` | `ends_in_days` 0 = "hari ini" |
+| Lihat semua | `GET /api/admin/ending-internships` | Tampil jika `ending_internships.total > 5` |
+| Tanya mentor | `mentor.id`, `mentor.name` | Draf: "Halo [mentor], masa magang [intern] berakhir [17 Okt 2026]. Apakah akan diperpanjang? ..." ; chat menunggu backend chat |
+| Dialog Perpanjang | `POST /api/admin/users/{id}/extend` `{end_date}` | "Tanggal selesai saat ini" dari `end_date` baris; `min` input = besok dari tanggal itu dan tidak sebelum hari ini; error dari `errors.end_date` |
+| Aktifkan intern yang magangnya berakhir | `POST .../activate` 422 `internship_ended` lalu dialog Perpanjang | Setelah Simpan akun langsung aktif, tidak perlu klik Aktifkan lagi |
+| Notifikasi lonceng | baris `notifications` link `/` | "Magang Rina W. berakhir dalam 7 hari." |
+
+- [x] **Pengaturan: Jam Kerja dan Kalender Libur** (23 Okt 2026, docs/design-admin.md Alur 7). Semua perubahan masuk `audit_logs` aksi `Kalender dan jam kerja` (13.1).
+  - `GET /api/admin/settings/work-hours`: `current` (jam kerja yang berlaku hari ini `{effective_from, start, end}`, null jika belum diatur), `cutoff` (`"23:59"`, hanya informasi), `history` terbaru lebih dulu dengan `state` = `upcoming` (dijadwalkan), `current`, `past`.
+  - `POST /api/admin/settings/work-hours` `{start_time, end_time, effective_from}`: respons "Perubahan tersimpan. Data absensi sebelumnya tidak berubah." dan isi `GET` terbaru. Tanggal efektif yang sudah punya pengaturan diganti. Validasi: "Jam pulang harus setelah jam masuk.", "Tanggal berlaku tidak boleh sebelum hari ini.", "Format jam tidak valid. Gunakan JJ:MM.". Log: objek "Jam kerja", "Ubah jam kerja menjadi 08:30 - 17:30 mulai 13 Okt 2026.".
+  - Hari ini boleh menjadi tanggal efektif (sama dengan prototipe). Tanda Terlambat dan batas clock out hari ini langsung mengikuti jam baru; hari sebelumnya tidak berubah karena jam kerja dipilih per tanggal (`WorkHourSetting::effectiveOn`).
+  - `GET /api/admin/holidays`: libur tambahan urut tanggal: `id`, `date`, `name`, `is_past`. Sabtu dan Minggu tidak disimpan; frontend mewarnainya sendiri.
+  - `POST /api/admin/holidays` `{date, name, confirm}`, `PUT /api/admin/holidays/{id}` (sama), `DELETE /api/admin/holidays/{id}`. Validasi: "Tanggal dan nama libur wajib diisi.", "Sabtu dan Minggu sudah libur otomatis.", "Tanggal ini sudah menjadi hari libur." (juga saat dua admin menambah tanggal sama bersamaan).
+  - **Tanggal lampau** (sebelum hari ini; hari ini dianggap belum lewat, 9.3): tanpa `confirm: true` ditolak 422 `{message: "Tanggal ini sudah lewat.", reason: "confirm_recalculate", affected: 21}` untuk dialog "Status absensi 21 intern pada tanggal ini akan dihitung ulang". Kirim ulang dengan `confirm: true` setelah "Ya, hitung ulang". Ubah libur meminta konfirmasi hanya jika tanggal berpindah dan tanggal lama atau baru sudah lewat; ubah nama saja tidak. Hapus tidak butuh `confirm` (dialog Hapus di frontend).
+  - Hitung ulang tidak perlu job: status absensi dihitung saat dibaca, jadi tanggal yang menjadi libur langsung terbaca Libur (termasuk yang sudah clock in) dan tanggal yang dihapus kembali menjadi Hadir, Tidak Hadir, dan seterusnya. `affected` = intern (termasuk yang nonaktif, tanpa akun terhapus) yang tanggal itu masuk periode magangnya.
+  - Log: objek tanggal ("2 Okt 2026"), detail `Tambah libur "Libur Daerah". 21 absensi dihitung ulang.`, `Ubah libur "X" (sebelumnya 2 Okt 2026).`, `Hapus libur "X".` Jumlah absensi hanya ditulis untuk tanggal lampau.
+  - `ActionRejected` kini bisa membawa data tambahan di respons (dipakai untuk `affected`).
+  - Logika di `App\Services\AdminWorkHours` dan `App\Services\AdminHolidays`; controller `Admin\WorkHourController`, `Admin\HolidayController`.
+  - Test di `tests/Feature/Admin/SettingsTest.php` (25 test lolos).
+
+### Catatan integrasi frontend: Pengaturan
+
+| Layar (design-admin.md 9) | Endpoint | Catatan |
+| --- | --- | --- |
+| Tab Jam Kerja, "Jam kerja saat ini" | `GET /api/admin/settings/work-hours` | `current` null: tampilkan form kosong; teks batas dari `cutoff` |
+| Simpan jam kerja | `POST /api/admin/settings/work-hours` | Error per kolom dari `errors`; tabel Riwayat dari `data.history` |
+| Tab Kalender Libur, Daftar libur tambahan | `GET /api/admin/holidays` | Kosong: "Belum ada libur tambahan." |
+| Tambah atau Ubah libur | `POST /api/admin/holidays`, `PUT .../{id}` | 422 `reason: confirm_recalculate`: buka dialog "Tanggal ini sudah lewat" memakai `affected`, lalu kirim ulang dengan `confirm: true` |
+| Hapus libur | `DELETE /api/admin/holidays/{id}` | Kalimat "Status absensi tanggal itu dihitung ulang." jika `is_past` |
+
+- [x] **Lokasi Kantor** (23 Okt 2026, docs/design-admin.md Alur 7B / 9A). Semua tindakan masuk `audit_logs` aksi `Lokasi kantor`, objek nama kantor. Tanpa notifikasi ke intern atau mentor.
+  - `GET /api/admin/offices`: semua kantor (aktif dan nonaktif) urut nama: `id`, `name`, `latitude`, `longitude`, `clock_in_radius_meters`, `clock_out_radius_meters`, `is_active`. `meta.active_count` untuk "N kantor aktif", dialog kantor aktif terakhir, dan banner (0 = "Belum ada kantor aktif. Intern tidak bisa clock in."). `GET /api/admin/offices/{id}` untuk formulir Ubah.
+  - `POST /api/admin/offices` dan `PUT /api/admin/offices/{id}` `{name, latitude, longitude, clock_in_radius_meters, clock_out_radius_meters}`. Kantor baru langsung aktif. Respons berisi `data` dan `meta.active_count`.
+  - Validasi (9A.4): "Pilih titik kantor di peta." (koordinat kosong atau di luar -90..90 / -180..180), "Nama kantor wajib diisi.", "Nama kantor sudah dipakai kantor lain." (tanpa beda huruf besar, termasuk kantor nonaktif tetapi tidak kantor yang dihapus, juga saat dua admin menyimpan bersamaan), "Isi radius dalam meter, lebih dari 0." (bilangan bulat; tanpa rentang tetap sesuai keputusan 17.1 no. 16).
+  - Log: "Tambah kantor di -6.1275, 106.6537, radius 150 m / 150 m."; Ubah hanya menyebut yang berubah ("Ubah nama dari \"...\".", "Ubah titik ke ...", "Ubah radius: clock in 120 m, clock out 300 m."); simpan tanpa perubahan tidak dicatat.
+  - `POST /api/admin/offices/{id}/deactivate` dan `.../activate`: log "Nonaktifkan kantor." / "Aktifkan kantor.". Ditolak 422 `already_inactive` ("Kantor ini sudah nonaktif.") atau `already_active`. Kantor aktif terakhir boleh dinonaktifkan; konfirmasinya di dialog frontend (9A.6). Kedua endpoint ini dipakai untuk toggle Aktif/Nonaktif di frontend.
+  - `DELETE /api/admin/offices/{id}`: hanya kantor nonaktif; kantor aktif ditolak 422 `still_active` ("Nonaktifkan kantor lebih dulu sebelum menghapusnya."). Respons "Kantor dihapus." dan `meta.active_count`. Log "Hapus kantor.". Penghapusan berupa soft delete (`offices.deleted_at`): kantor hilang dari daftar dan detail (404), riwayat absensi tetap menampilkan nama kantornya (`Attendance::clockInOffice()`/`clockOutOffice()` memakai `withTrashed`), dan nama serta titik yang sama boleh dipakai kantor baru. Unik nama kini indeks parsial `LOWER(name) WHERE deleted_at IS NULL` (migration `2026_10_23_205521`).
+  - Ubah titik atau radius langsung berlaku untuk clock in dan clock out berikutnya (`AttendanceClock` membaca kantor aktif saat itu); absensi lama hanya menyimpan id kantor sehingga tidak berubah.
+  - Logika di `App\Services\AdminOffices`; controller `Admin\OfficeController`; request `OfficeRequest`; resource `AdminOfficeResource` (turunan `OfficeResource` milik intern).
+  - Test di `tests/Feature/Admin/OfficeTest.php` (24 test lolos).
+
+### Catatan integrasi frontend: Lokasi Kantor
+
+| Layar (design-admin.md 9A) | Endpoint | Catatan |
+| --- | --- | --- |
+| Daftar, "N kantor aktif", banner | `GET /api/admin/offices` | Kosong: "Belum ada kantor. Tambahkan kantor agar intern bisa clock in."; `meta.active_count === 0`: banner |
+| Tambah Kantor (peta, pin, dua radius) | `POST /api/admin/offices` | Koordinat dari pin; error per kolom dari `errors` |
+| Ubah | `GET /api/admin/offices/{id}` lalu `PUT` | |
+| Toggle Aktif/Nonaktif | `POST .../deactivate`, `.../activate` | Dialog kantor aktif terakhir jika `is_active` dan `meta.active_count === 1` |
+| Hapus (hanya kantor nonaktif) | `DELETE /api/admin/offices/{id}` | Sembunyikan atau nonaktifkan tombol Hapus jika `is_active`; dialog konfirmasi menjelaskan riwayat absensi tetap tersimpan |
+
+Temuan untuk tim frontend: `validateOffice` di `frontend/src/lib/mock-rules.ts` masih membatasi radius 10 sampai 1000 m ("Isi radius antara 10 dan 1000 meter."). Dokumen memutuskan tanpa rentang tetap, cukup lebih dari 0 ("Isi radius dalam meter, lebih dari 0."); backend mengikuti dokumen.
+
+- [x] **Pengumuman** (23 Okt 2026, docs/design-admin.md Alur 9, design-intern.md 16, design-mentor.md 14). Semua tindakan masuk `audit_logs` aksi `Pengumuman`, objek judul.
+  - `GET /api/admin/announcements`: semua pengumuman terbaru lebih dulu: `id`, `title`, `body`, `author_name`, `created_at`, `updated_at`, `for_intern`, `for_mentor`.
+  - `POST /api/admin/announcements` `{title, body, for_intern, for_mentor}`: 201 "Pengumuman terkirim ke bell icon penerima.". `PUT /api/admin/announcements/{id}` (sama): "Perubahan tersimpan.". `DELETE /api/admin/announcements/{id}`: "Pengumuman dihapus.".
+  - Validasi: "Judul wajib diisi." (maksimal 255 karakter karena menjadi teks lonceng), "Isi pengumuman wajib diisi." (maksimal 5000), "Pilih minimal satu penerima." (`errors.recipients`).
+  - Notifikasi lonceng: teks = judul pengumuman (design-intern.md 16, design-mentor.md 14), `link_path` `/`, `link_params` `{announcement: id}`. Penerima: akun role terpilih yang tidak dinonaktifkan; intern termasuk yang belum mulai magang, tidak termasuk yang magangnya sudah berakhir. Admin tidak menerima.
+  - **Notifikasi mengikuti pengumumannya** (kolom baru `notifications.announcement_id`, migration `2026_10_23_211623`): ubah judul mengganti teks lonceng semua penerima tanpa mengubah status dibaca; role yang ditambahkan mendapat notifikasi; role yang dicabut kehilangan notifikasinya; hapus pengumuman ikut menghapus notifikasinya (cascade).
+  - Log: "Buat pengumuman untuk Intern dan Mentor.", "Ubah pengumuman." atau "Ubah pengumuman, penerima kini Mentor.", "Hapus pengumuman.". Simpan tanpa perubahan tidak dicatat.
+  - `GET /api/announcements/{id}` (semua role, `AnnouncementPolicy`): isi pengumuman saat notifikasi diklik (`id`, `title`, `body`, `author_name`, `created_at`, `updated_at`). Intern dan mentor hanya pengumuman role-nya ("Anda tidak memiliki akses ke pengumuman ini."); pengumuman yang dihapus 404. Kotak Pengumuman di Dashboard intern dan mentor (3 terbaru) sudah ada sebelumnya.
+  - Logika di `App\Services\AdminAnnouncements` dan `Notifier::announce()`; controller `Admin\AnnouncementController` dan `Shared\AnnouncementController`.
+  - Test di `tests/Feature/Admin/AnnouncementTest.php` (14 test lolos).
+
+### Catatan integrasi frontend: Pengumuman
+
+| Layar | Endpoint | Catatan |
+| --- | --- | --- |
+| Daftar (Judul, Penerima, Tanggal) | `GET /api/admin/announcements` | Penerima dari `for_intern`/`for_mentor`; tanggal dari `created_at` |
+| Buat, Ubah | `POST`, `PUT /api/admin/announcements/{id}` | Error per kolom dari `errors` (`recipients` untuk centang penerima) |
+| Hapus | `DELETE /api/admin/announcements/{id}` | Dialog konfirmasi di frontend |
+| Klik notifikasi pengumuman (intern, mentor) | `GET /api/announcements/{id}` | `link_params.announcement`; tampilkan judul dan isi, misalnya dalam dialog di Dashboard |
+
+- [x] **Laporan Excel** (23 Okt 2026, docs/design-admin.md Alur 10). File .xlsx dibuat dengan `openspout/openspout` ^5.12 (ringan, menulis baris per baris). Butuh ekstensi PHP `zip` (di Laragon lokal sudah diaktifkan di `php.ini`; pastikan juga ada di server production).
+  - `GET /api/admin/reports/options`: pilihan filter `interns [{id, name}]` dan `mentors [{id, name, is_active}]`, termasuk akun nonaktif karena laporan bisa untuk periode lampau.
+  - `POST /api/admin/reports/export` `{type, from, to, intern_id?, mentor_id?}`: `type` = `attendance` (Rekap Absensi) atau `tasks` (Rekap Task). Respons unduhan .xlsx (`rekap-absensi_2026-10-01_2026-10-31.xlsx`). Tanpa data: 422 `no_data` "Tidak ada data pada periode ini." Validasi: "Pilih jenis laporan.", "Periode tidak valid." (akhir sebelum awal), "Intern tidak ditemukan.", "Mentor tidak ditemukan.". Rekap Izin tidak ada.
+  - Isi file: baris keterangan (nama aplikasi, jenis laporan, periode, filter, waktu dibuat dan nama admin), lalu tabel dengan judul kolom tebal.
+  - **Rekap Absensi**: satu baris per intern: Intern, Mentor (mentor saat ini), Hadir, Izin, Tidak Hadir, Lupa Clock Out, Hari Terlambat, Total Hari Kerja. Hanya status final (aturan sama dengan rekap riwayat absensi): hari ini belum dihitung (ada baris keterangan jika periode mencakup hari ini), hari libur bukan hari kerja, tanggal di luar periode magang tidak dihitung, hari Libur tanpa tanda Terlambat. Intern tanpa hari kerja final di periode itu tidak ditampilkan. Filter Mentor memakai mentor intern saat ini.
+  - **Rekap Task**: Kode, Intern, Mentor, Judul Task, Tenggat, Status (To Do, In Progress, In Review, Done), Terakhir Dikumpulkan, Terlambat. Task yang **tenggatnya** di dalam periode; filter Mentor memakai **mentor pemilik Task** (`tasks.mentor_id`); tanda Terlambat untuk Task yang hasil terakhirnya dikumpulkan setelah tenggat (In Review dan Done) atau belum dikumpulkan dan tenggatnya sudah lewat (keputusan pemilik repo 23 Okt 2026). Task milik akun intern yang dihapus tidak ikut.
+  - `audit_logs` aksi `Laporan`, objek jenis laporan: "Export Excel 1 Okt 2026 - 31 Okt 2026, mentor Sari Wijaya." (12.1 langkah 5).
+  - Logika di `App\Services\AdminReports`; controller `Admin\ReportController`; request `ReportRequest`. `TaskStatus::label()` baru untuk teks status di file.
+  - Test di `tests/Feature/Admin/ReportTest.php` (12 test lolos; isi .xlsx dibaca ulang dengan reader OpenSpout).
+
+### Catatan integrasi frontend: Laporan
+
+| Layar (design-admin.md 12) | Endpoint | Catatan |
+| --- | --- | --- |
+| Pilihan Intern dan Mentor | `GET /api/admin/reports/options` | Tandai mentor nonaktif dengan `is_active` |
+| Buat Excel | `POST /api/admin/reports/export` | Ambil lewat `fetch` dengan header Authorization lalu simpan blob; nama file dari header `Content-Disposition` |
+| Tidak ada data | 422 `reason: no_data` | Tampilkan `message` |
+| Error isian | 422 `errors` (`type`, `from`, `to`, `intern_id`, `mentor_id`) | |
+
+Temuan untuk tim frontend: pratinjau Rekap Absensi di prototipe (`admin/reports.tsx`) belum punya kolom jumlah hari Terlambat (design-admin.md 12.3); file dari backend sudah memuatnya.
+
+- [x] **Log Aktivitas** (23 Okt 2026, docs/design-admin.md 13.1). Chat (13.2) masih ditunda; Profil admin (13.3) sudah tercakup "Profil Saya, semua role" (17 Okt 2026), termasuk tanpa ganti password mandiri.
+  - `GET /api/admin/audit-logs?from=&to=&admin_id=&action=&page=`: 20 per halaman, terbaru lebih dulu. Baris: `id`, `created_at`, `admin {id, name}` (nama saat tindakan dilakukan, jadi tetap benar walau admin berganti nama atau akunnya dihapus), `action` (jenis aksi), `object`, `detail`. `meta`: `current_page`, `last_page`, `per_page`, `total` ("N catatan").
+  - `GET /api/admin/audit-logs/options`: `admins` (admin yang pernah tercatat, nama saat ini, termasuk akun nonaktif atau terhapus) dan `actions` (Akun, Absensi, Izin, Kalender dan jam kerja, Lokasi kantor, Warning, Pengumuman, Laporan; urutan 13.1, konstanta `AuditLog::ACTIONS`).
+  - Validasi: "Periode tidak valid.", "Jenis aksi tidak valid.".
+  - Hanya baca: tidak ada endpoint ubah atau hapus, dan model `AuditLog` menolak update dan delete (LogicException).
+  - Logika di `App\Services\AdminAuditLogs`; controller `Admin\AuditLogController`; request `AuditLogIndexRequest`.
+  - Test di `tests/Feature/Admin/AuditLogTest.php` (12 test lolos).
+
+### Catatan integrasi frontend: Log Aktivitas
+
+| Layar (design-admin.md 13.1) | Endpoint | Catatan |
+| --- | --- | --- |
+| Filter Tanggal, Admin, Jenis aksi | `GET /api/admin/audit-logs/options` | `admins[].id` untuk `admin_id`, `actions[]` untuk `action` |
+| Tabel Waktu, Admin, Jenis, Objek, Detail | `GET /api/admin/audit-logs?...` | Waktu dari `created_at`; Admin dari `admin.name`; halaman dari `meta`. Kosong: "Tidak ada aktivitas pada filter ini." |
+
+- [x] **WebSocket: lonceng notifikasi dan chat, semua role** (23 Okt 2026, design-intern.md 14 dan 16, design-mentor.md 12 dan 14, design-admin.md 13.2 dan 14, backend/CLAUDE.md "Real time")
+  - **Reverb** dipasang (`laravel/reverb` ^1.0 lewat `php artisan install:broadcasting --reverb`): `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php`. Otorisasi channel di `POST /api/broadcasting/auth` dengan token Sanctum (middleware `auth:sanctum`, `active`, `password.changed`), bukan sesi web. `REVERB_ALLOWED_ORIGINS` (baru) membatasi host frontend yang boleh membuka WebSocket; bawaan `*`.
+  - Installer ikut memperbarui paket: `laravel/framework` 13.35 ke 13.38, Symfony 8.1.x, dan **Guzzle turun dari 8 ke 7** (dibutuhkan `pusher/pusher-php-server`, dependensi Reverb; HTTP client Laravel 13 mendukung keduanya). Perubahan `resources/js/app.tsx` dari installer dibatalkan karena Inertia akan dilepas. `CreateAdmin` disesuaikan dengan tipe `option()` framework terbaru.
+  - **Channel**: `private-users.{id}` (hanya pemilik akun: lonceng, pesan, status dibaca), `private-chats.{low}.{high}` (dua peserta percakapan, id kecil lebih dulu: client event `client-typing`), `presence-online` (semua pengguna yang membuka aplikasi: status online; `user_info` = `{id, name}`). Client event diterima dari anggota channel (`accept_client_events_from = members`).
+  - **Event** di `users.{id}` (nama dengan titik di depan untuk Echo): `.notification.sent` `{notification, unread_count}` (item baru, atau notifikasi chat yang naik lagi), `.notifications.read` `{ids | null (semua), unread_count}` (sinkron antar-tab), `.notifications.changed` `{unread_count}` (judul pengumuman diubah atau pengumuman dihapus: muat ulang daftar), `.chat.message` `{message, sender {id, name}}` (ke penerima dan pengirim), `.chat.read` `{reader_id, partner_id, last_read_id, read_at}` (ke pembaca dan pengirim: tanda "Dibaca"). Semua disimpan ke database lebih dulu, lalu dikirim lewat queue setelah transaksi selesai (`ShouldBroadcast` + `ShouldDispatchAfterCommit`). Semua notifikasi yang sudah ada (izin, Task, koreksi, pengingat, pengumuman) otomatis ikut real-time karena lewat `Notifier`.
+  - **Lonceng** `GET /api/notifications?cursor=`: 20 item per muatan, terbaru lebih dulu (`id`, `text`, `link_path`, `link_params`, `read_at`, `created_at`), `meta.next_cursor` dan `meta.unread_count`. `POST /api/notifications/{id}/read` (milik orang lain 404), `POST /api/notifications/read-all`.
+  - **Notifikasi chat** satu baris per pengirim (kolom baru `notifications.chat_sender_id`, unik per penerima dan pengirim, migration `2026_10_23_215426`): "Pesan baru dari Sari Wijaya.", link `/chat` `{to: id pengirim}`. Pesan berikutnya dari orang yang sama menjadikan baris itu belum dibaca lagi dan naik ke atas (`created_at` diperbarui), tanpa baris baru. Membuka percakapan ikut membaca notifikasi itu.
+  - **Chat** (tabel `chat_messages` sudah ada, model baru `ChatMessage` dan factory):
+    - `GET /api/chats?q=`: percakapan milik sendiri, pesan terakhir paling baru lebih dulu: `partner {id, name, role, title, photo_url, can_send}`, `last_message`, `unread_count`; `meta.unread_total` untuk angka di ikon chat. Admin hanya melihat percakapannya sendiri. Akun yang dihapus tidak tampil.
+    - `GET /api/chats/contacts?q=`: akun yang bisa dihubungi selain diri sendiri (maks 50, urut nama) untuk memulai chat.
+    - `GET /api/chats/{userId}/messages?before_id=`: 30 pesan, lama ke baru, `meta.has_more`, `meta.partner`.
+    - `POST /api/chats/{userId}/messages` `{body}`: 201 dengan pesan. Teks saja, maksimal 2000 karakter ("Pesan wajib diisi.", "Pesan maksimal 2000 karakter."), tanpa ubah atau hapus. Ditolak 422 `inactive_recipient` ("Akun ini nonaktif.") untuk akun yang dinonaktifkan atau magangnya berakhir, `self` ("Anda tidak bisa chat dengan diri sendiri."). Dibatasi 60 pesan per menit.
+    - `POST /api/chats/{userId}/read`: tandai semua pesan dari orang itu dibaca, `meta.unread_total`.
+  - **Akun yang bisa dihubungi** satu aturan (`User::scopeReachable()` dan `isReachable()`): tidak dinonaktifkan, dan untuk intern magangnya belum berakhir (yang belum mulai termasuk). Dipakai chat dan penerima pengumuman.
+  - Logika di `App\Services\Chats`, `App\Services\UserNotifications`, `App\Services\Notifier`; controller `Shared\ChatController`, `Shared\NotificationController`; event di `App\Events`.
+  - Test di `tests/Feature/Realtime` (`NotificationTest`, `ChatTest`, `ChannelAuthTest`: 29 test lolos; otorisasi channel diuji dengan driver Reverb tanpa server). Uji coba ujung ke ujung dengan `reverb:start` dan dua klien WebSocket (database SQLite terpisah): berlangganan dan penolakan channel, status online, indikator mengetik, pesan dan notifikasi real-time, tanda Dibaca, sinkron angka lonceng; 13/13 lolos.
+
+### Catatan integrasi frontend: Lonceng dan Chat
+
+Sambungan (paket `laravel-echo` dan `pusher-js`):
+
+```ts
+new Echo({
+  broadcaster: "reverb",
+  key: REVERB_APP_KEY, wsHost: REVERB_HOST, wsPort: REVERB_PORT, wssPort: REVERB_PORT,
+  forceTLS: REVERB_SCHEME === "https", enabledTransports: ["ws", "wss"],
+  authEndpoint: `${API_URL}/api/broadcasting/auth`,
+  auth: { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } },
+});
+echo.private(`users.${me.id}`)
+  .listen(".notification.sent", ...).listen(".notifications.read", ...).listen(".notifications.changed", ...)
+  .listen(".chat.message", ...).listen(".chat.read", ...);
+echo.join("online").here(...).joining(...).leaving(...);
+echo.private(`chats.${Math.min(a, b)}.${Math.max(a, b)}`).whisper("typing", { user_id: me.id }).listenForWhisper("typing", ...);
+```
+
+| Layar | Data awal (REST) | Pembaruan real-time | Catatan |
+| --- | --- | --- | --- |
+| Lonceng (angka dan popup) | `GET /api/notifications`, muat berikutnya dengan `?cursor=` | `.notification.sent` (sisipkan atau ganti item ber-`id` sama, pindah ke atas), `.notifications.read`, `.notifications.changed` (muat ulang) | Angka dari `unread_count`. Klik item: `POST .../{id}/read`, lalu buka `link_path` + `link_params` |
+| Tandai semua dibaca | `POST /api/notifications/read-all` | `.notifications.read` dengan `ids: null` di tab lain | |
+| Ikon chat (angka) | `GET /api/chats` `meta.unread_total` | `.chat.message` dari orang lain menambah, `.chat.read` milik sendiri mengurangi | |
+| Daftar percakapan, Cari kontak | `GET /api/chats?q=`, `GET /api/chats/contacts?q=` | `.chat.message` memindahkan percakapan ke atas | Tampilkan kontak baru di bawah percakapan |
+| Isi percakapan | `GET /api/chats/{id}/messages`, gulir ke atas dengan `before_id` | `.chat.message` (abaikan `id` yang sudah ada) | Saat percakapan terbuka dan pesan masuk, panggil `POST /api/chats/{id}/read` |
+| Tanda "Dibaca" | `read_at` pada pesan | `.chat.read`: pesan milik sendiri dengan `id <= last_read_id` ke `reader_id` menjadi Dibaca | |
+| Kotak kirim | `meta.partner.can_send` | - | false: tutup kotak kirim dengan "Akun ini nonaktif." |
+| Sedang mengetik | - | whisper `typing` di `chats.{low}.{high}` | Kirim paling sering tiap 2-3 detik, sembunyikan bila tidak ada kabar beberapa detik |
+| Status online | - | presence `online` | Titik hijau untuk `id` yang ada di daftar anggota |
+| Tanya mentor (Alur 6), Tanya intern (Alur 4) | `POST /api/chats/{id}/messages` | | Draf pesan disusun frontend |
+
+Temuan untuk tim frontend: prototipe membuka chat dengan `search.to` berupa nama; backend memakai id pengguna (`link_params.to`, `/api/chats/{id}`).
+
+- [x] **Pemeriksaan keamanan backend** (23 Okt 2026)
+  - Kode: tidak ada temuan berkeyakinan tinggi (IDOR, SQL injection, path traversal, privilege escalation, deserialisasi, secret di repo). Diperbaiki: **formula injection di Excel laporan**. Nama atau judul Task berawalan `=` sebelumnya ditulis sebagai rumus Excel; kini semua teks ditulis sebagai teks (`AdminReports::row()`, test di `ReportTest`).
+  - Catatan penguatan (belum dikerjakan): koneksi WebSocket yang sudah terbuka tetap menerima event sampai putus walau token sudah dicabut (logout, reset password, nonaktif); Reverb hanya memeriksa izin saat berlangganan. Opsi: putuskan koneksi Reverb pengguna saat akunnya dinonaktifkan atau direset.
+  - Dependensi: `composer audit` bersih. Advisory Laravel 2026 sudah tertutup versi terpasang (TokenGuard CVE-2026-114509 diperbaiki di 13.29, terpasang 13.38; CRLF email CVE-2026-48019; Reverb CVE-2026-23524 diperbaiki di 1.7, terpasang 1.12).
+- [x] **Pembersihan komentar** (23 Okt 2026): komentar yang mengulang kode, rujukan dokumen, dan catatan keputusan dihapus dari `app/`, `routes/`, `database/`, `bootstrap/`, dan `tests/` (catatan keputusan tetap di file ini dan `docs/`). Yang tersisa hanya tipe PHPDoc dan penjelasan logika yang tidak terlihat dari kode (penguncian baris, update bersyarat, batasan database, keamanan). Diverifikasi: token kode di 247 file identik sebelum dan sesudah.
+
 ## Berikutnya
 
-- [ ] Ganti mentor oleh admin: perbarui `tasks.mentor_id` untuk Task aktif, pindahkan izin pending ke mentor baru, dan isi `mentor_histories` (tutup baris mentor lama dengan `ended_at`, buat baris mentor baru) (design-mentor.md 13.1). Dashboard Mentor membaca Task dari `tasks.mentor_id`, dan filter "Pernah dibimbing" membaca `mentor_histories`.
-- [ ] Tambah akun intern oleh admin harus membuat baris `mentor_histories` pertama (`started_at` = tanggal mulai magang).
-- [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path` dan `tasks.overdue_reminded_at`.
-- [ ] Pasang cron `schedule:run` di server production (pengingat Task terlambat).
-- [ ] Admin: memutuskan izin Pending yang menggantung lebih dari 24 jam, hanya yang punya bukti, centang "Saya sudah memeriksa bukti", notifikasi ke intern dan mentor ("Izin Dewi S. diproses oleh admin."), `audit_logs`. Pakai `LeaveDecisions` (design-admin.md Alur 5). Bagian mentor sudah selesai.
-- [ ] Admin: memutuskan koreksi (Setujui/Tolak, catatan wajib, jam final, perbarui atau buat `attendances` dengan `is_corrected = true`, notifikasi ke intern, `audit_logs`, pesan "Permintaan ini sudah diproses oleh [nama admin]."). design-admin.md Alur 4.
-- [ ] Chat dan lonceng notifikasi untuk semua role (design-mentor.md Alur 10, design-intern.md Alur 12, design-admin.md 13.2). Ditunda sampai fitur dasar ketiga role selesai.
-- [ ] Broadcast notifikasi lewat Reverb (private channel `users.{id}`), setelah baris `notifications` dibuat.
-- [ ] Admin: kartu "Terlambat hari ini" di dashboard, jumlah terlambat bulan ini di layar Warning, kolom jumlah hari Terlambat di Rekap Absensi Excel dan daftar Absensi (design-admin 5, 10, 12.3).
+- [ ] **PHP2Shell (CVE-2026-109618 dan CVE-2026-109619, RCE tanpa login di mesin PHP).** Perbarui PHP ke 8.4.27, 8.5.12, atau 8.3.36 ke atas di semua mesin (lokal Laragon saat ini 8.4.12, masih rentan) dan jadikan syarat host production. Sampai diperbarui: `session.upload_progress.enabled=0` dan `post_max_size` kecil (aplikasi hanya butuh 2 MB per file) di `php.ini`, lalu restart worker PHP.
+
+- [ ] Jalankan `php artisan migrate` di database development dan production untuk kolom `users.photo_path`, `tasks.overdue_reminded_at`, `leave_requests.overdue_notified_at`, `intern_profiles.ending_notified_for`, `offices.deleted_at` (beserta indeks nama baru), `notifications.announcement_id`, dan `notifications.chat_sender_id`.
+- [ ] Pasang cron `schedule:run` di server production (pengingat Task terlambat setiap hari, pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin setiap hari).
+- [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
+- [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
+- [ ] Admin: jumlah hari Terlambat di daftar menu Absensi (design-admin 2.2). Kartu Terlambat di dashboard, jumlah Terlambat di Warning (20 Okt 2026), dan kolom Hari Terlambat di Rekap Absensi Excel (23 Okt 2026) sudah selesai.
+- [ ] Pastikan ekstensi PHP `zip` aktif di server production (dibutuhkan export Excel).
 - [ ] Hapus `database/generate_migrations.php` (migration sudah terbentuk).
 - [ ] Lepas Inertia dari starter (`HandleInertiaRequests`, `resources/js`, `config/inertia.php`, `routes/web.php`). `tests/Feature/ExampleTest.php` masih gagal karena membuka halaman Inertia yang butuh build Vite; hapus bersama Inertia.
 - [ ] CORS: izinkan origin frontend (`http://localhost:<port>` saat development, domain Vercel saat production).
 - [ ] Sambungkan frontend: simpan token, kirim header `Authorization: Bearer <token>`, arahkan ke Ganti Password jika `must_change_password`, kembali ke login saat respons 401 atau 403 akun nonaktif.
-- [ ] Kelola akun oleh admin: tambah (password sementara tampil sekali), ubah, nonaktifkan/aktifkan, ganti mentor. Pakai `AuditLog::record()`.
 
 ## Keputusan pemilik repo
 
@@ -546,6 +922,11 @@ Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). 
 - **Ubah Task yang lewat tenggat: tetap seperti sekarang.** Tenggat yang tidak diubah boleh tetap lewat, jadi Task terlambat masih bisa diperbaiki judul dan deskripsinya. Tenggat yang diubah harus setelah waktu sekarang. (Prototipe `validateTask` selalu mewajibkan tenggat setelah sekarang.)
 - **Lupa Clock Out tidak dihitung Hadir di KPI Kehadiran.** Sama dengan prototipe (`attendanceRate`). Perbaikannya lewat koreksi absensi: setelah admin menyetujui, hari itu menjadi Hadir dan KPI ikut berubah karena dihitung saat dibaca. Di rekap, Lupa Clock Out tetap kolom sendiri, tidak masuk Tidak Hadir.
 - **Notifikasi keputusan izin tetap singkat**: "Izin Sakit 13-14 Okt disetujui." tanpa catatan mentor. Catatan dibaca intern di detail izin. (design-mentor.md 9.1 menyebut notifikasi berisi catatan; design-intern.md 16 memakai teks singkat.)
+- **Kantor boleh dihapus** (23 Okt 2026). Berbeda dengan design-admin.md 9A.5 dan 16 ("Menghapus kantor" tidak bisa). Hanya kantor nonaktif, berupa soft delete agar riwayat absensi tetap utuh, dan nama kantor yang dihapus boleh dipakai lagi. Dokumen desain perlu disesuaikan oleh pemiliknya.
+- **Hari yang dijadikan libur setelah intern clock in terbaca Libur tanpa tanda Terlambat** (23 Okt 2026). Status Libur mengalahkan Hadir dan Lupa Clock Out (aturan lama, sama dengan prototipe), dan tanpa jam masuk tidak ada Terlambat. Hari itu tidak masuk "Terlambat bulan ini" di Warning maupun rekap `late`.
+- **Notifikasi pengumuman mengikuti pengumumannya** (23 Okt 2026). Dokumen hanya menyebut "perubahan tampil ke penerima". Ubah judul mengganti teks lonceng tanpa menandai belum dibaca, perubahan penerima menambah atau menghapus notifikasi, dan hapus pengumuman menghapus notifikasinya. Penerima: akun aktif, termasuk intern yang belum mulai magang.
+- **Rekap Task** (23 Okt 2026). Dokumen hanya menyebut kolom. Task masuk laporan bila tenggatnya di dalam periode, filter Mentor memakai mentor pemilik Task, dan Terlambat juga menandai Task Done atau In Review yang hasil terakhirnya dikumpulkan setelah tenggat (berbeda dengan tampilan aplikasi yang tidak menandai Task Done).
+- **Chat dan lonceng real-time** (23 Okt 2026). Pesan chat masuk lonceng satu baris per pengirim (dokumen menulis notifikasi per pesan baru, prototipe tidak memasukkannya ke lonceng). Chat baru hanya ke akun yang bisa dihubungi; percakapan lama dengan akun nonaktif tetap terbaca. Teks saja, tanpa ubah atau hapus. Fitur tambahan yang dipilih: sinkron status dibaca antar-tab, tanda "Dibaca", indikator mengetik, dan status online (dokumen tidak menyebutkannya).
 
 ## Ditinjau setelah integrasi frontend
 
@@ -556,6 +937,8 @@ Perubahan yang muncul dari keputusan di atas atau dari integrasi dicatat di sini
 - [ ] Cek ulang bentuk respons yang berubah saat penyeragaman (`submission.file` menggantikan `has_file`, `unread_comments` di kotak Dashboard mentor) terhadap kode frontend.
 
 ## Perlu diputuskan
+
+- [ ] Intern yang diperpanjang setelah magangnya lewat (misalnya selesai 9 Okt, diperpanjang 12 Okt sampai 30 Nov): hari kerja 10-11 Okt kini masuk periode magang dan terbaca Tidak Hadir, karena periode disimpan sebagai satu rentang `start_date` sampai `end_date`. Dokumen tidak membahas jeda periode. Pilihan: biarkan (admin memakai koreksi), atau simpan tanggal aktif kembali agar hari jeda tidak dihitung.
 
 - [ ] Pengingat Task terlambat (design-mentor.md 7.6) saat ini **tidak** dikirim untuk Task milik intern nonaktif, karena intern itu tidak bisa mengumpulkan lagi. Dokumen tidak membahasnya.
 - [ ] Masa berlaku token. Saat ini `expiration` di `config/sanctum.php` bernilai `null`, jadi token berlaku sampai logout, direset admin, atau akun dinonaktifkan.

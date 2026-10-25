@@ -9,10 +9,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * Riwayat mentor seorang intern. Dibuat saat admin mengganti mentor, supaya mentor lama
- * tetap bisa melihat intern itu lewat filter "Pernah dibimbing" (docs/design-mentor.md 13.1).
- * `ended_at` kosong berarti masih mentor saat ini.
- *
  * @property int $id
  * @property int $intern_id
  * @property int|null $mentor_id
@@ -54,8 +50,6 @@ class MentorHistory extends Model
     }
 
     /**
-     * Periode bimbingan yang sudah berakhir.
-     *
      * @param  Builder<MentorHistory>  $query
      * @return Builder<MentorHistory>
      */

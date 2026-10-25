@@ -8,10 +8,15 @@ enum Role: string
     case Mentor = 'mentor';
     case Admin = 'admin';
 
-    /**
-     * Halaman pertama setelah login (alamat usulan di docs/design-*.md, bagian Menu sidebar).
-     * Frontend membuka halaman ini, kecuali akun masih wajib ganti password.
-     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Intern => 'Intern',
+            self::Mentor => 'Mentor',
+            self::Admin => 'Admin',
+        };
+    }
+
     public function homePath(): string
     {
         return match ($this) {

@@ -9,10 +9,6 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
-/**
- * Membuat akun admin (dipakai tim teknis untuk admin pertama saat sistem dipasang).
- * Password sementara dibuat sistem dan wajib diganti saat login pertama.
- */
 class CreateAdmin extends Command
 {
     protected $signature = 'app:create-admin {email : Email internal admin} {name : Nama lengkap} {--title=Admin : Posisi}';
@@ -21,7 +17,7 @@ class CreateAdmin extends Command
 
     public function handle(): int
     {
-        $email = mb_strtolower(trim((string) $this->argument('email')));
+        $email = mb_strtolower(trim($this->text($this->argument('email'))));
 
         $validator = Validator::make(['email' => $email], [
             'email' => ['required', 'email', Rule::unique('users', 'email')->withoutTrashed()],
@@ -39,11 +35,11 @@ class CreateAdmin extends Command
         $temporaryPassword = Str::password(12, symbols: false);
 
         User::create([
-            'name' => (string) $this->argument('name'),
+            'name' => $this->text($this->argument('name')),
             'email' => $email,
             'password' => $temporaryPassword,
             'role' => Role::Admin,
-            'title' => (string) $this->option('title'),
+            'title' => $this->text($this->option('title')),
             'is_active' => true,
             'must_change_password' => true,
         ]);
@@ -53,5 +49,10 @@ class CreateAdmin extends Command
         $this->line('Password ini hanya tampil sekali dan wajib diganti saat login pertama.');
 
         return self::SUCCESS;
+    }
+
+    private function text(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
     }
 }

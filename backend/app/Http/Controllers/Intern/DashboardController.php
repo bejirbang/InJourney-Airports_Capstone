@@ -9,9 +9,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 
-/**
- * Dashboard Intern: status hari ini, rekap bulan ini, Task aktif, periode magang, pengumuman.
- */
 class DashboardController extends Controller
 {
     public function __invoke(Request $request, InternDashboard $dashboard): JsonResponse

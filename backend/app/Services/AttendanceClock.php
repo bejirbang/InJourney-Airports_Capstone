@@ -13,10 +13,6 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
-/**
- * Clock in dan clock out intern (docs/design-intern.md, Alur 3 dan Alur 5).
- * Lokasi dihitung di backend; hasil hitung dari frontend tidak dipercaya.
- */
 class AttendanceClock
 {
     public const OUTSIDE_PERIOD = 'Di luar periode magang.';
@@ -36,9 +32,6 @@ class AttendanceClock
     public function __construct(private AttendanceCalendar $calendar) {}
 
     /**
-     * Hanya pada hari kerja dalam periode magang, sekali sehari, tanpa izin disetujui hari itu.
-     * Izin yang masih Pending tidak menghalangi clock in. Tidak ada batas jam clock in.
-     *
      * @throws ActionRejected
      */
     public function clockIn(User $intern, float $latitude, float $longitude, CarbonInterface $now): Attendance
@@ -69,11 +62,6 @@ class AttendanceClock
     }
 
     /**
-     * Urutan pemeriksaan: Daily Report, jam pulang, lalu lokasi.
-     * Clock out sebelum jam pulang ditolak (keputusan 17 Okt 2026, menggantikan dialog konfirmasi
-     * di docs/design-intern.md 7.1). Tanpa jam kerja dari admin, tidak ada batas jam pulang.
-     * Kantor clock out boleh berbeda dari kantor clock in.
-     *
      * @throws ActionRejected
      */
     public function clockOut(User $intern, float $latitude, float $longitude, CarbonInterface $now): Attendance
@@ -139,8 +127,7 @@ class AttendanceClock
     }
 
     /**
-     * Intern boleh memakai kantor aktif mana pun. Clock in memakai radius clock in, clock out
-     * memakai radius clock out. Jika posisi masuk radius beberapa kantor, yang dicatat kantor terdekat.
+     * Jika posisi masuk radius beberapa kantor, yang dicatat kantor terdekat.
      *
      * @throws ActionRejected
      */

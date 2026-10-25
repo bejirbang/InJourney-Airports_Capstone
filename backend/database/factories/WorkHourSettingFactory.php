@@ -11,8 +11,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class WorkHourSettingFactory extends Factory
 {
     /**
-     * Jam kerja 08:00 sampai 17:00, berlaku sejak awal tahun.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array

@@ -14,7 +14,6 @@ use App\Models\WorkHourSetting;
 use App\Services\AttendanceCalendar;
 use Illuminate\Support\Carbon;
 
-// "Hari ini" sama dengan prototipe frontend: Senin, 12 Oktober 2026 pukul 14:39.
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
 
@@ -54,18 +53,17 @@ it('shows the intern period, mentor, and the date of today', function () {
 });
 
 it('counts only final statuses of this month in the recap', function () {
-    attend($this->intern, '2026-09-30'); // bulan lalu, tidak dihitung
+    attend($this->intern, '2026-09-30');
     attend($this->intern, '2026-10-01');
-    attend($this->intern, '2026-10-02', null); // lupa clock out
+    attend($this->intern, '2026-10-02', null);
     LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create([
         'start_date' => '2026-10-05',
         'end_date' => '2026-10-06',
     ]);
-    attend($this->intern, '2026-10-06'); // tetap hadir walau ada izin
-    // 7 Okt: tanpa clock in, jadi tidak hadir
+    attend($this->intern, '2026-10-06');
     attend($this->intern, '2026-10-08');
     Holiday::factory()->create(['date' => '2026-10-09', 'name' => 'Cuti Bersama']);
-    attend($this->intern, '2026-10-12', null); // hari ini belum final
+    attend($this->intern, '2026-10-12', null);
 
     dashboardFor($this->intern)
         ->assertOk()
@@ -75,17 +73,17 @@ it('counts only final statuses of this month in the recap', function () {
             'leave' => 1,
             'absent' => 1,
             'missed_clock_out' => 1,
-            'late' => 0, // jam kerja belum diatur
+            'late' => 0,
             'working_days' => 6,
         ]);
 });
 
 it('counts late clock-in days in the recap without changing the status', function () {
     WorkHourSetting::factory()->create(['start_time' => '08:00:00', 'effective_from' => '2026-01-01']);
-    attend($this->intern, '2026-10-01'); // 08:02, terlambat, tetap hadir
+    attend($this->intern, '2026-10-01');
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-02', 'clock_in_at' => '07:55:00']);
-    attend($this->intern, '2026-10-05', null); // terlambat dan lupa clock out
-    attend($this->intern, '2026-10-12', null); // hari ini belum dihitung
+    attend($this->intern, '2026-10-05', null);
+    attend($this->intern, '2026-10-12', null);
 
     dashboardFor($this->intern)
         ->assertJsonPath('data.monthly_recap.present', 2)
@@ -185,19 +183,19 @@ it('summarizes active tasks with the late count and the nearest deadline', funct
 
     $nearest = $task(['title' => 'Desain ERD', 'due_at' => '2026-10-14 17:00:00']);
     $task(['due_at' => '2026-10-20 17:00:00']);
-    $task(['status' => TaskStatus::InProgress, 'due_at' => '2026-10-10 17:00:00']); // terlambat
-    $task([ // dikumpulkan sebelum tenggat: tidak terlambat
+    $task(['status' => TaskStatus::InProgress, 'due_at' => '2026-10-10 17:00:00']);
+    $task([
         'status' => TaskStatus::InReview,
         'due_at' => '2026-10-10 17:00:00',
         'submitted_at' => '2026-10-09 10:00:00',
     ]);
-    $task([ // dikumpulkan setelah tenggat: terlambat
+    $task([
         'status' => TaskStatus::InReview,
         'due_at' => '2026-10-08 17:00:00',
         'submitted_at' => '2026-10-09 10:00:00',
     ]);
     $task(['status' => TaskStatus::Done, 'due_at' => '2026-10-01 17:00:00']);
-    Task::factory()->create(); // milik intern lain
+    Task::factory()->create();
 
     dashboardFor($this->intern)
         ->assertJsonPath('data.tasks.total', 6)

@@ -19,14 +19,8 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * Halaman Izin intern (docs/design-intern.md, Alur 11).
- */
 class LeaveController extends Controller
 {
-    /**
-     * Riwayat izin, tanggal izin terbaru lebih dulu. Filter `status` opsional.
-     */
     public function index(LeaveIndexRequest $request): AnonymousResourceCollection
     {
         /** @var User $intern */
@@ -42,9 +36,6 @@ class LeaveController extends Controller
         return InternLeaveResource::collection($leaves);
     }
 
-    /**
-     * "Total: 2 hari kerja" di formulir, sebelum dikirim.
-     */
     public function workingDays(LeaveWorkingDaysRequest $request, AttendanceCalendar $calendar): JsonResponse
     {
         return response()->json(['data' => [
@@ -90,9 +81,6 @@ class LeaveController extends Controller
         ]);
     }
 
-    /**
-     * Unduh lampiran setelah hak akses dicek; file tidak pernah diberi URL publik.
-     */
     public function evidence(LeaveRequest $leave): StreamedResponse
     {
         Gate::authorize('view', $leave);

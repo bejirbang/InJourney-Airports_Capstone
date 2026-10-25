@@ -7,11 +7,10 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 
 /**
- * Lokasi kantor dan dua radius, dibuat admin di menu Lokasi Kantor (docs/design-admin.md, Bagian 9A).
- *
  * @property int $id
  * @property string $name
  * @property string $latitude
@@ -21,12 +20,13 @@ use Illuminate\Support\Carbon;
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 #[Fillable(['name', 'latitude', 'longitude', 'clock_in_radius_meters', 'clock_out_radius_meters', 'is_active'])]
 class Office extends Model
 {
     /** @use HasFactory<OfficeFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     public const EARTH_RADIUS_METERS = 6371000;
 
@@ -53,9 +53,6 @@ class Office extends Model
         return $query->where('is_active', true);
     }
 
-    /**
-     * Jarak dari titik kantor dalam meter (rumus Haversine, sama dengan distanceMeters di mock-rules.ts).
-     */
     public function distanceTo(float $latitude, float $longitude): float
     {
         $lat1 = deg2rad((float) $this->latitude);

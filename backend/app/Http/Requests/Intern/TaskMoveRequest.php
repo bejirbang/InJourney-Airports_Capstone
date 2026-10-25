@@ -7,7 +7,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Perpindahan kartu Kanban atau tombol Mulai Kerjakan.
  * `from` adalah status yang dilihat intern; dipakai untuk mendeteksi perubahan oleh mentor.
  */
 class TaskMoveRequest extends FormRequest

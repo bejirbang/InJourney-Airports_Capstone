@@ -14,16 +14,8 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
-/**
- * Isi Dashboard Mentor (docs/design-mentor.md, Alur 2).
- *
- * Intern bimbingan = intern yang `intern_profiles.mentor_id`-nya mentor ini (mentor saat ini).
- * Task mengikuti `tasks.mentor_id`, sama dengan penerima notifikasi pengumpulan Task.
- * Izin mengikuti mentor saat ini, karena izin pending ikut pindah saat ganti mentor (13.1).
- */
 class MentorDashboard
 {
-    /** Tiap kotak Perlu Tindakan menampilkan maksimal 5 baris (4.2). */
     public const LIST_LIMIT = 5;
 
     public const ANNOUNCEMENT_LIMIT = 3;
@@ -47,11 +39,8 @@ class MentorDashboard
 
         return [
             'date' => $date,
-            // `name` null berarti akhir pekan; frontend menulis "akhir pekan".
             'holiday' => $isHoliday ? ['name' => $holidayName] : null,
-            // 0 berarti "Belum ada intern bimbingan. Hubungi admin untuk penugasan."
             'interns_total' => $interns->count(),
-            // Kartu hari ini disembunyikan pada hari libur (4.3).
             'today' => $isHoliday ? null : $this->today($interns, $now),
             'review_tasks' => $this->reviewTasks($mentor, $now),
             'pending_leaves' => $this->pendingLeaves($mentor, $now),
@@ -62,9 +51,6 @@ class MentorDashboard
     }
 
     /**
-     * Kartu "Intern saya hari ini": hanya intern aktif dan dalam periode magang.
-     * Yang belum clock in disebut Belum Clock In, bukan Tidak Hadir, karena status final baru setelah 23:59.
-     *
      * @param  Collection<int, User>  $interns
      * @return array{interns: int, clocked_in: int, on_leave: int, not_clocked_in: int}
      */
@@ -98,8 +84,6 @@ class MentorDashboard
     }
 
     /**
-     * Task In Review, dari yang paling lama menunggu.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function reviewTasks(User $mentor, CarbonInterface $now): array
@@ -114,8 +98,6 @@ class MentorDashboard
     }
 
     /**
-     * Izin Pending intern bimbingan, dari yang paling lama pending.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function pendingLeaves(User $mentor, CarbonInterface $now): array
@@ -133,16 +115,12 @@ class MentorDashboard
             'start_date' => $leave->start_date->toDateString(),
             'end_date' => $leave->end_date->toDateString(),
             'created_at' => $leave->created_at?->toIso8601String(),
-            // Lama pending dalam jam, misalnya "26 jam", dan tanda "!" lebih dari 24 jam.
             'pending_hours' => $leave->pendingHours($now),
             'is_overdue' => $leave->isOverduePending($now),
         ]);
     }
 
     /**
-     * Task yang punya komentar intern (atau orang lain selain mentor ini) yang belum dibaca mentor.
-     * Dari komentar belum dibaca yang paling lama. Membuka detail Task sebagai mentor akan menghapusnya dari daftar.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function unreadComments(User $mentor): array
@@ -160,15 +138,11 @@ class MentorDashboard
         return $this->box($query, $ordered, fn (Task $task): array => [
             ...$this->taskRow($task),
             'status' => $task->status->value,
-            // Nama sama dengan kartu Task intern dan mentor.
             'unread_comments' => (int) $task->unread_comments_count,
         ]);
     }
 
     /**
-     * Task yang lewat tenggat dan belum Done, aturan sama dengan Task::isLate().
-     * Task In Review dinilai dari waktu pengumpulan terakhir. Tenggat paling lama lewat lebih dulu.
-     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
     private function lateTasks(User $mentor, CarbonInterface $now): array
@@ -187,14 +161,11 @@ class MentorDashboard
             ...$this->taskRow($task),
             'status' => $task->status->value,
             'due_at' => $task->due_at->toIso8601String(),
-            // "Lewat 2 hari"; untuk In Review dihitung sampai waktu pengumpulan.
             'late_label' => $task->lateLabel($task->status === TaskStatus::InReview && $task->submitted_at !== null ? $task->submitted_at : $now),
         ]);
     }
 
     /**
-     * Task milik mentor ini yang internnya belum dihapus.
-     *
      * @return Builder<Task>
      */
     private function tasksOf(User $mentor): Builder
@@ -203,8 +174,6 @@ class MentorDashboard
     }
 
     /**
-     * Satu kotak Perlu Tindakan: jumlah seluruhnya dan maksimal LIST_LIMIT baris.
-     *
      * @template TModel of \Illuminate\Database\Eloquent\Model
      *
      * @param  Builder<TModel>  $count
@@ -247,8 +216,6 @@ class MentorDashboard
     }
 
     /**
-     * Pengumuman terbaru untuk role Mentor.
-     *
      * @return array<int, array<string, mixed>>
      */
     private function announcements(): array

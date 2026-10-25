@@ -12,27 +12,17 @@ use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Riwayat absensi dan rekap bulanan milik intern sendiri (docs/design-intern.md, Alur 6),
- * dan versi hanya baca untuk mentor di Intern Saya (docs/design-mentor.md, Alur 3).
- */
 class AttendanceHistory
 {
     public const MONTH_OUTSIDE_PERIOD = 'Bulan di luar periode magang.';
 
     public const DATE_UNAVAILABLE = 'Tanggal di luar periode magang atau belum berjalan.';
 
-    /**
-     * Status yang boleh diajukan koreksi: hari kerja yang sudah lewat, selain Izin.
-     */
     private const CORRECTABLE = [AttendanceStatus::Present, AttendanceStatus::MissedClockOut, AttendanceStatus::Absent];
 
     public function __construct(private AttendanceCalendar $calendar) {}
 
     /**
-     * Bulan yang bisa dipilih: dari bulan mulai magang sampai bulan berjalan
-     * (atau bulan selesai magang jika lebih awal). Bulan di luar itu tidak bisa dipilih.
-     *
      * @return array{first: string, last: string}|null
      */
     public function selectableMonths(User $intern, CarbonInterface $now): ?array
@@ -50,8 +40,6 @@ class AttendanceHistory
     }
 
     /**
-     * Rekap dan baris harian satu bulan, tanggal terbaru lebih dulu. Tanpa $month, bulan terakhir yang bisa dipilih.
-     *
      * @return array<string, mixed>
      *
      * @throws ValidationException
@@ -62,7 +50,6 @@ class AttendanceHistory
         [$from, $to] = AttendanceCalendar::monthRange($month);
         $today = $now->toDateString();
 
-        // Satu tanggal hanya boleh punya satu koreksi Pending.
         $pendingDates = $intern->attendanceCorrections()
             ->where('status', RequestStatus::Pending)
             ->whereDate('date', '>=', $from)
@@ -92,8 +79,6 @@ class AttendanceHistory
     }
 
     /**
-     * Detail satu hari, hanya baca: jam, status, kantor, dan Daily Report.
-     *
      * @return array<string, mixed>
      *
      * @throws ValidationException
@@ -124,10 +109,6 @@ class AttendanceHistory
     }
 
     /**
-     * Tab Rekap Absensi di Intern Saya (docs/design-mentor.md 5.3). Hanya baca.
-     * Tanda Terlambat tidak ditampilkan untuk mentor (keputusan 17 Okt 2026), jadi `late_minutes`
-     * dan `recap.late` tidak dikirim. Tidak ada kolom koreksi karena koreksi hak intern dan admin.
-     *
      * @return array<string, mixed>
      *
      * @throws ValidationException
@@ -154,9 +135,42 @@ class AttendanceHistory
     }
 
     /**
-     * Tab Daily Report di Intern Saya (docs/design-mentor.md 5.4): satu baris per hari kerja, terbaru lebih dulu.
-     * `report_missing` true untuk hari yang sudah clock in tetapi tanpa laporan ("Belum ada laporan").
+     * @return array<string, mixed>
      *
+     * @throws ValidationException
+     */
+    public function monthForAdmin(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+        [$from, $to] = AttendanceCalendar::monthRange($month);
+
+        $pendingDates = $intern->attendanceCorrections()
+            ->where('status', RequestStatus::Pending)
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->get()
+            ->map(fn (AttendanceCorrection $correction): string => $correction->date->toDateString())
+            ->all();
+
+        $rows = [];
+
+        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
+            $rows[] = [
+                ...$this->dayFields($date, $day),
+                'daily_report_work' => $day['attendance']?->dailyReport?->work,
+                'has_pending_correction' => in_array($date, $pendingDates, true),
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'recap' => $this->calendar->recap($days, $month, $now),
+            'days' => $rows,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      *
      * @throws ValidationException
@@ -195,8 +209,6 @@ class AttendanceHistory
     }
 
     /**
-     * Detail satu hari untuk mentor: sama dengan day() tanpa tanda Terlambat.
-     *
      * @return array<string, mixed>
      *
      * @throws ValidationException
@@ -207,8 +219,6 @@ class AttendanceHistory
     }
 
     /**
-     * Bulan yang diminta (default bulan terakhir yang bisa dipilih), rentang pilihan, dan status tiap tanggal.
-     *
      * @return array{0: string, 1: array{first: string, last: string}, 2: array<string, array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}>}
      *
      * @throws ValidationException
@@ -252,7 +262,6 @@ class AttendanceHistory
             'clock_in_at' => $attendance === null ? null : substr($attendance->clock_in_at, 0, 5),
             'clock_out_at' => $attendance?->clock_out_at === null ? null : substr($attendance->clock_out_at, 0, 5),
             'late_minutes' => $day['late_minutes'],
-            // Label "Dikoreksi admin".
             'is_corrected' => $attendance !== null && $attendance->is_corrected,
             'daily_report_sent' => $attendance?->dailyReport !== null,
             'holiday_name' => $day['status'] === AttendanceStatus::Holiday ? $day['holiday_name'] : null,

@@ -16,10 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Koreksi absensi dari sisi intern (docs/design-intern.md, Alur 7): mengajukan dan membatalkan.
- * Keputusan Setujui atau Tolak ada di alur admin.
- */
 class AttendanceCorrections
 {
     public const DATE_NOT_ALLOWED = 'Pilih hari kerja yang sudah lewat atau hari ini, dalam periode magang.';
@@ -31,9 +27,6 @@ class AttendanceCorrections
     public function __construct(private AttendanceCalendar $calendar, private Notifier $notifier) {}
 
     /**
-     * Jam tercatat disalin saat pengajuan sebagai pembanding bagi admin.
-     * Tidak ada batas berapa hari ke belakang (kebijakan diserahkan ke perusahaan).
-     *
      * @param  array{date: string, clock_in: string, clock_out: string, reason: string}  $input
      *
      * @throws ValidationException
@@ -43,7 +36,6 @@ class AttendanceCorrections
         $date = $input['date'];
         $day = $this->calendar->days($intern, $date, $date, $now)[$date] ?? null;
 
-        // Kosong berarti di luar periode magang atau tanggal yang akan datang.
         if ($day === null || $day['status'] === AttendanceStatus::Holiday) {
             throw ValidationException::withMessages(['date' => self::DATE_NOT_ALLOWED]);
         }
@@ -84,8 +76,6 @@ class AttendanceCorrections
     }
 
     /**
-     * Hanya permintaan Pending yang bisa dibatalkan. Keputusan admin tidak bisa dibuka ulang.
-     *
      * @throws ActionRejected
      */
     public function cancel(AttendanceCorrection $correction): AttendanceCorrection
@@ -110,9 +100,6 @@ class AttendanceCorrections
         return $correction;
     }
 
-    /**
-     * "Rina W. mengajukan koreksi absensi 9 Okt." untuk setiap admin aktif (docs/design-admin.md, bagian 14).
-     */
     private function notifyAdmins(User $intern, AttendanceCorrection $correction): void
     {
         $this->notifier->send(

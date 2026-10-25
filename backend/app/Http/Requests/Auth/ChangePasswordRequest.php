@@ -7,9 +7,6 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Validator;
 
-/**
- * Ganti password sementara. Pesan sama dengan validatePassword di frontend/src/lib/mock-rules.ts.
- */
 class ChangePasswordRequest extends FormRequest
 {
     public const RULE_MESSAGE = 'Password minimal 8 karakter dan berisi huruf serta angka.';

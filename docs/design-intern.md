@@ -1,20 +1,28 @@
 # design-intern.md - Desain Role Intern (Lengkap, Berdasarkan Alur)
 
 Sistem: Web Intern Management dan Attendance System
-Versi: Draft 2 | Tanggal: 10 Oktober 2026 | Acuan: PRD tanggal 7 Oktober 2026, design-admin.md (Draft 2), dan design-mentor.md
-Perubahan Draft 2: validasi lokasi saat clock in dan clock out memakai radius kantor aktif (menu Lokasi Kantor di sisi admin), batas file 2 MB.
-Pembaruan 13 Oktober 2026: jenis file diputuskan (PDF, Word, Excel, PowerPoint; lainnya lewat link), intern boleh memilih kantor aktif mana pun untuk clock in dan clock out, dan besar radius ditentukan admin.
-Pembaruan 17 Oktober 2026: clock in lewat jam masuk diberi tanda Terlambat (bukan status), dan clock out sebelum jam pulang tidak diperbolehkan (5.4, 7.1, 7.3, 19).
+Versi: Draft 3 | Tanggal: 24 Oktober 2026 | Acuan: PRD, design-mentor.md (Draft 2), design-admin.md (Draft 3), Arsitektur Backend & Desain Data (Versi 2)
 
-Tanda yang dipakai di dokumen ini:
-- **[Keputusan]** = sudah disepakati di PRD atau di percakapan.
-- **[Usulan]** = pilihan desain dari saya. Per 10 Oktober 2026 semua usulan di dokumen ini **diikuti**, kecuali hal yang tercantum di Bagian 20.
+Perubahan Draft 3 (hasil wawancara mitra 22 Oktober 2026):
+- Istilah **Absensi diganti Presensi** di seluruh sistem.
+- **Task, Kanban, dan komentar Task dihapus.** Daily Report menjadi **Logbook** yang direview mentor (Disetujui atau Revisi).
+- Status presensi baru: **Terlambat** (toleransi 15 menit) dan **Lupa Clock In**. Lupa Clock Out menjadi tanda terpisah.
+- Jam kerja mengikuti **jadwal lokasi magang** (per hari dan jadwal khusus).
+- **Koreksi presensi dua tahap**: mentor memvalidasi, admin mengeksekusi. Tanpa bukti.
+- **Upload file dihapus.** Bukti izin dan presentasi memakai link Google Drive/Docs.
+- **Kuota izin 3 kali** per masa magang, pengajuan ke-4 diblokir.
+- Fitur baru: **Presentasi Akhir** (H-7) dan melihat **Catatan Warning**.
+- Dashboard lebih ringkas, kartu bisa diklik, minim klik ("one touch point"), dan nyaman di ponsel.
+
+Tanda:
+- **[Keputusan]** = sudah disepakati (PRD, percakapan, atau wawancara mitra).
+- **[Usulan]** = pilihan desain dari saya, diikuti kecuali tercantum di Bagian 20.
 
 ---
 
 ## 1. Cara Membaca Dokumen Ini
 
-Dokumen disusun menurut **alur kerja Intern**, bukan menurut daftar menu. Tiap alur berisi: tujuan, langkah demi langkah, sketsa layar, kondisi khusus, dan dampaknya (status dan notifikasi). Cara penulisannya sama dengan `design-admin.md` dan `design-mentor.md`.
+Dokumen disusun menurut **alur kerja Intern**. Tiap alur berisi tujuan, langkah, sketsa layar, aturan, dan kondisi khusus.
 
 Isi:
 1. Cara membaca
@@ -22,87 +30,102 @@ Isi:
 3. Alur 1 - Login pertama dan profil
 4. Alur 2 - Dashboard
 5. Alur 3 - Clock in
-6. Alur 4 - Daily Report
+6. Alur 4 - Mengisi logbook harian
 7. Alur 5 - Clock out
-8. Alur 6 - Riwayat absensi dan rekap bulanan
-9. Alur 7 - Koreksi absensi
-10. Alur 8 - Task (daftar, Kanban, detail)
-11. Alur 9 - Mengumpulkan hasil dan menindaklanjuti revisi
-12. Alur 10 - Komentar Task
-13. Alur 11 - Izin
+8. Alur 6 - Riwayat presensi dan rekap bulanan
+9. Alur 7 - Koreksi presensi
+10. Alur 8 - Logbook: riwayat dan revisi
+11. Alur 9 - Izin
+12. Alur 10 - Presentasi akhir
+13. Alur 11 - Catatan warning dan nilai akhir
 14. Alur 12 - Chat dan notifikasi
 15. Situasi khusus
-16. Notifikasi Intern (bell icon)
-17. Aturan tampilan (status, warna, pesan)
-18. Hak akses Intern (bisa dan tidak bisa)
-19. Keputusan tambahan (mengikuti usulan)
-20. Hal yang masih terbuka (menyentuh backend)
+16. Notifikasi Intern
+17. Aturan tampilan
+18. Hak akses Intern
+19. Ringkasan keputusan
+20. Hal yang masih terbuka
 
 ---
 
 ## 2. Gambaran Intern dan Navigasi
 
-**Peran:** Intern melakukan clock in dan clock out, mengisi Daily Report, mengerjakan Task dari mentor, serta mengajukan izin dan koreksi absensi. **[Keputusan]**
+**Peran:** Intern melakukan presensi, mengisi logbook harian, mengajukan izin dan koreksi presensi, serta mengirim bukti presentasi akhir. **[Keputusan]**
 
-**Relasi:** satu intern memiliki tepat satu mentor. **[Keputusan]** Intern hanya melihat data miliknya sendiri.
+**Relasi:** satu intern tepat satu mentor, dan punya satu **lokasi magang** yang menentukan jadwal kerjanya. **[Keputusan]** Intern hanya melihat data miliknya sendiri.
 
-**Platform:** web, dengan layar desktop dan layar kecil. Clock in dan clock out sering dilakukan dari ponsel, jadi halaman Absensi harus nyaman di layar kecil. Di layar kecil sidebar menjadi menu bawah, dan Kanban menjadi satu kolom per layar. **[Usulan]**
+**Platform:** web responsif. Presensi paling sering dilakukan dari ponsel, jadi semua halaman Intern dirancang **mobile first**. Di ponsel sidebar menjadi **menu bawah**. **[Keputusan]**
+
+**Prinsip "one touch point":** aksi harian (clock in, isi logbook, clock out) bisa diselesaikan langsung dari Dashboard tanpa pindah halaman. **[Keputusan]**
 
 ### 2.1 Kerangka halaman
+
+Desktop:
 
 ```
 +------------------------------------------------------------------------+
 | [Logo]  Nama Sistem                         [Chat] [Bell 2] [Intern v] |
-+--------------+---------------------------------------------------------+
-| Dashboard    |                                                         |
-| Absensi      |                                                         |
-| Task         |                AREA KONTEN HALAMAN                      |
-| Izin         |                                                         |
-+--------------+---------------------------------------------------------+
++------------------+-----------------------------------------------------+
+| Dashboard        |                                                     |
+| Presensi         |                                                     |
+| Logbook (1)      |              AREA KONTEN HALAMAN                    |
+| Izin             |                                                     |
+| Presentasi Akhir |                                                     |
+| Catatan          |                                                     |
++------------------+-----------------------------------------------------+
 ```
 
-### 2.2 Menu sidebar
+Ponsel:
 
-| Menu | Isi | Alamat halaman (usulan) |
+```
++------------------------------+
+| [Logo]       [Chat] [Bell 2] |
+|                              |
+|      AREA KONTEN HALAMAN     |
+|                              |
++------------------------------+
+| Beranda Presensi Logbook Izin Lainnya |
++------------------------------+
+```
+
+Menu **Lainnya** berisi Presentasi Akhir, Catatan, Profil, dan Keluar. **[Usulan]**
+
+### 2.2 Menu
+
+| Menu | Isi | Alamat (usulan) |
 |---|---|---|
-| Dashboard | Status hari ini, rekap bulanan, ringkasan Task | /intern/dashboard |
-| Absensi | Tab Hari Ini (clock in, Daily Report, clock out), Riwayat, Koreksi | /intern/attendance |
-| Task | Kanban dan daftar Task, detail, pengumpulan hasil, komentar | /intern/tasks |
-| Izin | Ajukan izin, riwayat izin, batalkan izin Pending | /intern/leaves |
+| Dashboard | Kartu hari ini, rekap bulan ini, hal yang perlu ditindak | /intern/dashboard |
+| Presensi | Tab Hari Ini, Riwayat, Koreksi | /intern/attendance |
+| Logbook | Daftar logbook, revisi, logbook belum diisi | /intern/logbooks |
+| Izin | Ajukan izin, sisa kuota, riwayat | /intern/leaves |
+| Presentasi Akhir | Kirim link bukti presentasi | /intern/presentation |
+| Catatan | Catatan warning dari admin (hanya baca) dan nilai akhir | /intern/notes |
 
-Chat dan notifikasi (bell icon) ada di navbar atas, bukan di sidebar. **[Keputusan]** Tidak ada halaman notifikasi terpisah.
+Angka di sebelah Logbook adalah jumlah logbook yang perlu ditindak (Revisi atau belum diisi).
 
-Menu yang **tidak ada** untuk Intern: Laporan atau Export, Pengaturan, Warning, Log Aktivitas, Pengumuman (intern hanya menerima), dan Performa. Intern tidak melihat catatan warning. **[Keputusan]**
+Menu yang **tidak ada**: Task (dihapus), Laporan, Pengaturan, Log Aktivitas, Pengumuman (hanya menerima), Performa.
 
 ---
 
 ## 3. Alur 1 - Login Pertama dan Profil
 
-**Tujuan:** intern masuk ke sistem untuk pertama kali dengan aman.
-**Latar:** akun intern dibuat oleh admin dengan **email internal**, beserta password sementara. Tidak ada login Google OAuth. **[Keputusan]** Semua pembuatan akun bergantung pada admin. **[Keputusan]**
+**Latar:** akun dibuat admin dengan **email internal** dan password sementara. Tidak ada Google OAuth. **[Keputusan]**
 
-### 3.1 Langkah
+| No | Langkah Intern | Respons sistem |
+|---|---|---|
+| 1 | Menerima email dan password sementara dari admin | - |
+| 2 | Login | Sistem meminta ganti password |
+| 3 | Mengisi password baru | Masuk ke Dashboard |
+| 4 | (Opsional) membuka Profil | Melihat data diri, mengubah nomor telepon |
 
-| No | Langkah Intern | Respons sistem | Layar |
-|---|---|---|---|
-| 1 | Menerima email internal dan password sementara dari admin | - | - |
-| 2 | Login | Sistem meminta ganti password | Login, lalu Ganti Password |
-| 3 | Mengisi password baru dan konfirmasinya | Password tersimpan, masuk ke Dashboard | Ganti Password |
-| 4 | (Opsional) membuka menu profil di navbar dan melengkapi nama, foto, kontak | Profil tersimpan | Profil |
-
-Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Alur 1). Halaman lain tidak bisa dibuka sebelum password diganti. **[Keputusan]**
-
-### 3.2 Layar Login
+### 3.1 Layar Login
 
 ```
 +----------------------------------------------+
 |  Masuk                                       |
-|                                              |
 |  Email internal  [____________________]      |
 |  Password        [____________________] (mata)|
-|                                              |
 |                          [ Masuk ]           |
-|                                              |
 |  Lupa password? Hubungi admin.               |
 +----------------------------------------------+
 ```
@@ -110,771 +133,569 @@ Layar Ganti Password sama dengan yang dipakai Admin (lihat `design-admin.md`, Al
 | Situasi | Pesan |
 |---|---|
 | Email atau password salah | "Email atau password salah." |
-| Akun nonaktif (magang sudah selesai) | "Akun Anda tidak aktif. Hubungi admin." **[Usulan]** |
-| Masa magang belum dimulai | "Masa magang Anda belum dimulai." **[Usulan]** |
+| Terlalu banyak percobaan | "Terlalu banyak percobaan. Coba lagi dalam 1 menit." **[Usulan, keamanan]** |
+| Akun nonaktif | "Akun Anda tidak aktif. Hubungi admin." |
+| Masa magang belum dimulai | "Masa magang Anda belum dimulai." |
 
-### 3.3 Lupa password dan profil
+### 3.2 Profil
 
-- Intern tidak memulihkan password sendiri. Ia menghubungi admin, admin menekan reset, lalu menyampaikan password sementara baru. **[Keputusan]**
-- Tidak ada ganti password mandiri. Password hanya diganti saat login pertama dan lewat reset oleh admin. **[Usulan, diikuti]**
-- Intern dapat mengedit profil sendiri (nama, foto, kontak). **[Keputusan]** Email internal, mentor, dan periode magang hanya bisa diubah admin.
+```
++--------------------------------------------------+
+| Profil                                           |
+|  (AP)  Andi Pratama                              |
+|        andi@injourney.id                         |
+|                                                  |
+| Unit            : Divisi IT                      |
+| Lokasi magang   : Soekarno-Hatta Terminal 3      |
+| Universitas     : Telkom University              |
+| Jurusan         : Sistem Informasi               |
+| Mentor          : Bu Sari                        |
+| Periode magang  : 1 Sep - 31 Des 2026            |
+| No. telepon     [0812xxxxxxx]        [Simpan]    |
++--------------------------------------------------+
+```
+
+- Avatar memakai **inisial nama**, tidak ada unggah foto karena sistem tidak menyimpan file. **[Keputusan: upload file dihapus]**
+- Intern hanya mengubah nomor telepon. Data lain diubah admin. **[Usulan]**
+- Tidak ada ganti password mandiri. Lupa password: hubungi admin. **[Keputusan]**
 
 ---
 
 ## 4. Alur 2 - Dashboard
 
-**Tujuan:** intern melihat status hari ini dan apa yang perlu dikerjakan dalam satu layar.
-**Halaman:** Dashboard.
-**Keputusan:** rekap kehadiran bulanan tampil di dashboard. **[Keputusan]**
+**Tujuan:** semua yang perlu dilakukan hari ini ada di satu layar.
 
-### 4.1 Layout
+### 4.1 Layout (ponsel)
 
 ```
-+------------------------------------------------------------------------+
-| Dashboard                                      Senin, 12 Okt 2026      |
-|                                                                        |
-| ! Daily Report hari ini belum dikirim.              [Isi Daily Report] |
-|                                                                        |
-| +-----------------------------+  +-----------------------------------+ |
-| | HARI INI                    |  | REKAP BULAN INI (Oktober 2026)    | |
-| | Status: Sudah Clock In      |  | Hadir 8       | Izin 1            | |
-| | Clock in: 08:02             |  | Tidak Hadir 0 | Lupa Clock Out 1  | |
-| |        [ CLOCK OUT ]        |  | Hari kerja berjalan: 10           | |
-| +-----------------------------+  +-----------------------------------+ |
-|                                                                        |
-| TASK AKTIF                                                             |
-| To Do 2  |  In Progress 3  |  In Review 1                              |
-| Tenggat terdekat: Desain ERD - 14 Okt 17:00            [Lihat Task]    |
-| 1 Task [Terlambat]                                                     |
-|                                                                        |
-| Periode magang: 1 Sep - 31 Des 2026         Mentor: Bu Sari            |
-+------------------------------------------------------------------------+
++--------------------------------------+
+| Halo, Andi           Sen, 12 Okt 2026|
+|                                      |
+| ! Presentasi akhir: kirim bukti      |
+|   sebelum 31 Des.        [Kirim]     |
+|                                      |
+| +----------------------------------+ |
+| | HARI INI   Jadwal 08:00 - 17:00  | |
+| | Status: Belum Clock In           | |
+| |        [   CLOCK IN   ]          | |
+| +----------------------------------+ |
+|                                      |
+| PERLU DITINDAK                       |
+| > 1 logbook perlu direvisi           |
+| > 1 logbook belum diisi (9 Okt)      |
+| > Warning baru dari admin            |
+|                                      |
+| REKAP OKTOBER 2026                   |
+| [Hadir 8] [Terlambat 1] [Izin 1]     |
+| [Lupa Clock In 0] [Tidak Hadir 0]    |
+| Sisa kuota izin: 2 dari 3            |
+|                                      |
+| PENGUMUMAN                           |
+| Besok WFA, presensi tetap wajib.     |
++--------------------------------------+
 ```
 
-### 4.2 Penjelasan tiap bagian
+Di desktop, isi yang sama disusun dua kolom.
+
+### 4.2 Aturan tiap bagian
 
 | Bagian | Isi | Aturan |
 |---|---|---|
-| Banner Daily Report | Muncul jika sudah clock in tetapi Daily Report hari ini belum terkirim | Daily Report wajib sebelum clock out. **[Keputusan]** Banner hilang setelah laporan terkirim |
-| Kartu Hari Ini | Status hari ini dan tombol aksi | Tombol berubah sesuai kondisi: **Clock In**, **Clock Out**, atau tanpa tombol (lihat tabel 4.3) |
-| Rekap bulan ini | Jumlah Hadir, Izin, Tidak Hadir, Lupa Clock Out, hari kerja berjalan, dan jumlah hari Terlambat | **[Keputusan]** Memakai status final yang sudah ditetapkan sistem. Hari berjalan belum dihitung sampai lewat 23:59. Terlambat hanya informasi, bukan status (lihat 5.4). **[Keputusan 17 Okt 2026]** |
-| Task aktif | Jumlah Task per status dan tenggat terdekat | Task Terlambat ditandai merah dan dihitung terpisah. Klik membuka halaman Task |
-| Periode magang dan mentor | Informasi saja | **[Usulan]** |
+| Banner presentasi | Muncul mulai H-7 sebelum magang berakhir sampai presentasi disetujui | **[Keputusan]** Klik membuka Presentasi Akhir |
+| Kartu Hari Ini | Jadwal hari itu, status, dan **satu tombol aksi** | Isi tombol berubah sesuai kondisi (4.3). Logbook bisa diisi dari kartu ini tanpa pindah halaman. **[Keputusan: one touch point]** |
+| Perlu ditindak | Logbook revisi, logbook belum diisi, warning baru, hasil koreksi/izin baru | Tiap baris bisa diklik langsung ke itemnya. Disembunyikan jika kosong |
+| Rekap bulan ini | Hadir, Terlambat, Lupa Clock In, Izin, Tidak Hadir, dan jumlah Lupa Clock Out | **Setiap kotak bisa diklik** dan membuka Riwayat yang sudah difilter status itu. **[Keputusan]** |
+| Sisa kuota izin | "Sisa kuota izin: X dari 3" | **[Keputusan]** |
+| Pengumuman | Pengumuman terbaru untuk Intern | **[Keputusan]** |
 
 ### 4.3 Kondisi kartu Hari Ini
 
-| Kondisi | Tampilan kartu |
-|---|---|
-| Hari kerja, belum clock in | "Belum Clock In" dan tombol **Clock In** |
-| Sudah clock in, belum clock out | "Sudah Clock In" dan tombol **Clock Out** |
-| Sudah clock out | "Hadir, clock out 17:03". Tanpa tombol |
-| Hari Sabtu, Minggu, atau libur | "Hari ini libur: [nama libur]". Tanpa tombol. **[Keputusan]** soal hari non-kerja |
-| Izin hari ini sudah disetujui | "Izin hari ini (Sakit)". Tanpa tombol. **[Keputusan]** soal status otomatis Izin |
-| Di luar periode magang | "Di luar periode magang." Tanpa tombol |
-
-### 4.4 Kondisi khusus
-
 | Kondisi | Tampilan |
 |---|---|
-| Belum ada Task | "Belum ada Task dari mentor." |
-| Data gagal dimuat | "Data gagal dimuat." dan tombol **Coba lagi** |
+| Hari kerja, sebelum jam pulang, belum clock in | "Belum Clock In" + tombol **Clock In** |
+| Sudah clock in, logbook belum diisi | "Hadir sejak 08:02" + kotak logbook singkat + tombol **Simpan Logbook** |
+| Sudah clock in, logbook terisi, belum jam pulang | "Hadir sejak 08:02. Clock out mulai 17:00." Tombol Clock Out nonaktif |
+| Sudah jam pulang, sudah clock in | Tombol **Clock Out** |
+| Sudah jam pulang, **belum clock in** | "Anda belum clock in hari ini." + tombol **Clock Out**. Hari ini akan tercatat **Lupa Clock In** |
+| Sudah clock out | "Selesai. Clock out 17:03. Logbook menunggu review mentor." |
+| Libur (hari libur, jadwal non-kerja kantor) | "Hari ini libur: [nama]". Tanpa tombol |
+| Izin disetujui | "Izin hari ini (Sakit)". Tanpa tombol |
+| Di luar periode magang | "Di luar periode magang." Tanpa tombol |
 
 ---
 
 ## 5. Alur 3 - Clock In
 
-**Tujuan:** mencatat kehadiran hari ini.
-**Halaman:** Absensi, tab **Hari Ini** (atau tombol di Dashboard).
 **Aturan:**
-- Sistem memvalidasi lokasi saat clock in. Clock in diterima bila posisi intern berada dalam **radius clock in** salah satu **kantor aktif**. **[Keputusan]**
-- Kantor dan radiusnya dibuat admin di menu Lokasi Kantor (lihat `design-admin.md`, Bagian 9A). **[Keputusan]**
-- Intern boleh memilih kantor aktif mana pun untuk clock in, tidak terikat satu kantor. **[Keputusan]**
-- Besar radius tiap kantor ditentukan admin. **[Keputusan]**
+- Jadwal (jam masuk dan pulang) diambil dari **lokasi magang** intern: jadwal khusus jika ada, selain itu jadwal mingguan hari itu. **[Keputusan]**
+- Lokasi divalidasi terhadap **radius clock in** kantor aktif mana pun. Intern boleh clock in di kantor aktif mana pun. **[Keputusan]**
+- Clock in hanya pada hari kerja, dalam periode magang, dan **sebelum jam pulang**. Setelah jam pulang, yang tersedia hanya Clock Out. **[Keputusan]**
 
 ### 5.1 Langkah
 
 | No | Langkah Intern | Respons sistem |
 |---|---|---|
-| 1 | Membuka Absensi atau Dashboard | Kartu Hari Ini tampil dengan tombol **Clock In** |
-| 2 | Menekan **Clock In** | Sistem meminta lokasi dari browser dan membandingkannya dengan radius clock in kantor aktif |
-| 3 | - | Jika berada dalam radius: clock in tercatat, tampil jam clock in |
-| 4 | - | Tampilan berubah menjadi "Sudah Clock In". Muncul pengingat untuk mengisi Daily Report |
+| 1 | Menekan **Clock In** di Dashboard atau Presensi | Browser meminta izin lokasi |
+| 2 | - | Backend memeriksa radius |
+| 3 | - | Jika sesuai: clock in tercatat. Jika lewat jam masuk + 15 menit: status **Terlambat** |
+| 4 | - | Kartu berubah, kotak logbook muncul |
 
-### 5.2 Layar
-
-```
-+--------------------------------------------------------------+
-| Absensi   [Hari Ini] [Riwayat] [Koreksi]                     |
-|                                                              |
-| Senin, 12 Okt 2026               Jam kerja: 08:00 - 17:00    |
-|                                                              |
-|                       08:02:15                               |
-|                Status: Belum Clock In                        |
-|                                                              |
-|                  [    CLOCK IN    ]                          |
-|       Lokasi Anda akan diperiksa saat tombol ditekan.        |
-+--------------------------------------------------------------+
-```
-
-### 5.3 Pesan validasi lokasi
+### 5.2 Pesan
 
 | Situasi | Pesan |
 |---|---|
-| Sedang memeriksa | "Memeriksa lokasi..." |
-| Lokasi sesuai | "Clock in berhasil pukul 08:00." |
-| Lokasi sesuai, lewat jam masuk | "Clock in berhasil pukul 08:15. Anda terlambat 15 menit." Durasi 60 menit atau lebih ditulis dalam jam, misalnya "1 jam 1 menit". **[Keputusan 17 Okt 2026]** |
-| Di luar radius clock in semua kantor aktif | "Lokasi Anda belum sesuai. Clock in belum bisa dilakukan." dan tombol **Coba lagi** |
-| Belum ada kantor aktif | "Belum ada kantor aktif. Clock in belum bisa dilakukan. Hubungi admin." Tombol Clock In tidak aktif |
-| Akses lokasi ditolak di browser | "Izinkan akses lokasi di browser untuk melakukan clock in." |
-| Gagal mengambil lokasi | "Lokasi tidak dapat dibaca. Coba lagi." |
+| Memeriksa | "Memeriksa lokasi..." |
+| Berhasil tepat waktu | "Clock in berhasil pukul 08:05." |
+| Berhasil, terlambat | "Clock in berhasil pukul 08:20. Anda tercatat Terlambat 20 menit." |
+| Di luar radius | "Lokasi Anda belum sesuai. Clock in belum bisa dilakukan." + **Coba lagi** |
+| Belum ada kantor aktif | "Belum ada kantor aktif. Hubungi admin." |
+| Akses lokasi ditolak | "Izinkan akses lokasi di browser untuk melakukan clock in." |
+| Gagal membaca lokasi | "Lokasi tidak dapat dibaca. Coba lagi." |
+| Koneksi terputus | "Clock in belum tercatat. Periksa koneksi lalu coba lagi." |
 
-Batas jarak memakai radius tiap kantor yang ditentukan admin, tanpa rentang tetap dari sistem. Penanganan kasus khusus (GPS kurang akurat, VPN) ditentukan tim teknis, lihat Bagian 20.
+### 5.3 Aturan Terlambat
 
-### 5.4 Aturan
+- Terlambat jika clock in **lewat jam masuk + toleransi 15 menit**. Contoh jadwal 08:00: clock in 08:15 masih Hadir, 08:16 Terlambat. **[Keputusan, toleransi menunggu konfirmasi mitra]**
+- Lama terlambat dihitung dari jam masuk (08:16 = terlambat 16 menit). **[Usulan]**
+- Terlambat adalah **status presensi** dan terlihat oleh intern, mentor, dan admin. Di rekap, Terlambat **tetap dihitung hadir**. **[Keputusan]**
+- Jadwal Jumat atau jadwal khusus yang berbeda otomatis dipakai. Intern melihat jam jadwal di kartu Hari Ini.
 
-- Clock in hanya pada **hari kerja** dalam **periode magang**. **[Keputusan]**
-- Satu hari hanya satu kali clock in. Setelah berhasil, tombol Clock In hilang. **[Usulan]**
-- Clock in tidak dibatasi jam tertentu. Jam clock in tersimpan apa adanya dan dapat dilihat mentor dan admin.
-- Clock in yang lewat **jam masuk** (Pengaturan Jam Kerja admin yang berlaku hari itu, saat ini 08:00) diberi tanda **Terlambat** beserta lamanya. Dihitung per menit: 08:00 tepat waktu, 08:01 terlambat 1 menit. **[Keputusan 17 Okt 2026]**
-- Terlambat adalah **tanda**, bukan status kehadiran. Status tetap Hadir, Izin, Tidak Hadir, dan Lupa Clock Out, sehingga rekap Hadir dan KPI tidak berubah rumusnya. **[Keputusan 17 Okt 2026]**
-- Tanda Terlambat terlihat oleh intern (pesan clock in dan dashboard) dan admin (Absensi, Laporan, Dashboard, Warning). Mentor tidak melihat tanda ini. **[Keputusan 17 Okt 2026]**
-- Jika admin mengoreksi jam clock in, tanda Terlambat dihitung ulang otomatis.
-- Batas penetapan status otomatis adalah 23:59. Tanpa clock in sampai 23:59, status hari itu menjadi **Tidak Hadir**. **[Keputusan]**
-
-### 5.5 Kondisi khusus
+### 5.4 Kondisi khusus
 
 | Kondisi | Perilaku |
 |---|---|
-| Hari libur atau akhir pekan | Tombol tidak tersedia. "Hari ini libur." |
-| Izin hari ini sudah disetujui | Tombol tidak tersedia. "Anda sedang izin hari ini." |
-| Izin hari ini masih Pending | Clock in tetap bisa. Setelah clock in, hari itu dikeluarkan dari izin saat diproses dan tetap berstatus Hadir. **[Usulan]** |
-| Koneksi terputus saat menekan tombol | "Clock in belum tercatat. Periksa koneksi lalu coba lagi." Sistem tidak mencatat clock in sebelum ada konfirmasi dari server |
-| Admin menambah libur pada hari ini | Tombol hilang saat halaman dimuat ulang |
-| Admin mengubah titik atau radius kantor | Berlaku untuk clock in dan clock out berikutnya. Absensi yang sudah tercatat tidak berubah |
+| Izin hari ini masih Pending | Clock in tetap bisa. Hari itu dikeluarkan dari izin saat diproses **[Usulan]** |
+| Admin menambah libur hari ini | Tombol hilang saat halaman dimuat ulang |
+| Satu hari hanya satu kali clock in | Setelah berhasil, tombol Clock In hilang |
 
 ---
 
-## 6. Alur 4 - Daily Report
+## 6. Alur 4 - Mengisi Logbook Harian
 
-**Tujuan:** melaporkan apa yang dikerjakan hari itu.
-**Halaman:** Absensi, tab **Hari Ini**, di bawah kartu clock in.
+**Tujuan:** mencatat apa yang dikerjakan hari ini. Logbook menggantikan Daily Report dan Task. **[Keputusan]**
+
 **Aturan:**
-- Daily Report adalah laporan intern tentang apa yang dikerjakan hari itu. Ini **berbeda dari Task**. **[Keputusan]**
-- Wajib dikirim **sebelum clock out**. **[Keputusan]**
-- Dapat diedit **sampai clock out**. **[Keputusan]**
-- Tidak ada syarat bahwa pekerjaan harian harus selesai untuk clock out. **[Keputusan]**
+- Satu hari kerja = satu logbook. **[Keputusan]**
+- Bisa diisi dan diubah setelah clock in, sampai clock out. **[Keputusan]**
+- **Wajib terisi sebelum clock out.** Saat clock out, logbook otomatis terkirim ke mentor. **[Keputusan]**
 
-### 6.1 Langkah
-
-| No | Langkah Intern | Respons sistem |
-|---|---|---|
-| 1 | Setelah clock in, membuka bagian Daily Report (atau menekan tombol di banner Dashboard) | Formulir tampil |
-| 2 | Menulis apa yang dikerjakan hari ini | - |
-| 3 | Klik **Simpan Laporan** | Laporan tersimpan, status menjadi **Terkirim** |
-| 4 | (Jika perlu) klik **Ubah** dan simpan ulang | Laporan diperbarui |
-| 5 | Clock out | Laporan terkunci dan tidak bisa diubah lagi |
-
-### 6.2 Layar
+### 6.1 Layar (di kartu Hari Ini atau tab Hari Ini)
 
 ```
-+--------------------------------------------------------------+
-| Daily Report - Senin, 12 Okt 2026         Status: Belum dikirim |
-|                                                              |
-| Yang saya kerjakan hari ini *                                |
-| [__________________________________________________]        |
-| [__________________________________________________]        |
-|                                                              |
-| Kendala atau catatan (opsional)                              |
-| [__________________________________________________]        |
-|                                                              |
-| Dapat diubah sampai Anda clock out.                          |
-|                                         [ Simpan Laporan ]   |
-+--------------------------------------------------------------+
++--------------------------------------------------+
+| Logbook - Sen, 12 Okt 2026         Status: Draft |
+|                                                  |
+| Yang saya kerjakan hari ini *                    |
+| [______________________________________________] |
+| [______________________________________________] |
+| Kendala atau catatan (opsional)                  |
+| [______________________________________________] |
+|                                                  |
+| Terkirim otomatis ke mentor saat clock out.      |
+|                               [ Simpan Logbook ] |
++--------------------------------------------------+
 ```
 
-Dua kolom isian (pekerjaan dan kendala) adalah **[Usulan]**. Mentor dan admin hanya dapat membaca. **[Keputusan]** Mentor hanya melihat laporan, tidak menulis komentar pada Daily Report. **[Usulan]**
-
-### 6.3 Validasi
-
-| Kolom | Aturan | Pesan jika salah |
+| Kolom | Aturan | Pesan |
 |---|---|---|
 | Yang saya kerjakan | Wajib, tidak boleh kosong atau hanya spasi | "Isi apa yang Anda kerjakan hari ini." |
 
-### 6.4 Kondisi khusus
-
 | Kondisi | Perilaku |
 |---|---|
-| Belum clock in | Formulir tidak tersedia. "Clock in dulu untuk mengisi Daily Report." |
-| Sudah clock out | Hanya baca. Tombol Ubah hilang |
-| Lupa clock out hingga 23:59 | Status hari itu **Lupa Clock Out** dan laporan terkunci. Jika perlu, ajukan koreksi (Alur 7) |
-| Hari Izin atau libur | Tidak ada Daily Report |
-| Koneksi terputus saat menyimpan | "Laporan belum tersimpan. Isian Anda tidak hilang, coba simpan lagi." Isian tetap di layar |
+| Belum clock in | Kotak logbook tidak tampil |
+| Sudah clock out | Hanya baca, status Menunggu Review |
+| Koneksi terputus saat simpan | "Logbook belum tersimpan. Isian Anda tidak hilang, coba lagi." |
+| Hari Lupa Clock In | Logbook diisi saat menekan Clock Out (dialog muncul bila belum ada) |
 
 ---
 
 ## 7. Alur 5 - Clock Out
 
-**Tujuan:** menutup hari kerja dan mencatat jam pulang.
-**Pemicu:** intern menekan **Clock Out**.
-
 ### 7.1 Langkah
 
 | No | Langkah Intern | Respons sistem |
 |---|---|---|
-| 1 | Menekan **Clock Out** | Sistem memeriksa apakah Daily Report hari ini sudah terkirim |
-| 2a | Jika **belum** terkirim | Dialog: "Daily Report belum dikirim. Isi dulu sebelum clock out." dengan tombol **Isi Daily Report** |
-| 2b | Jika sudah terkirim dan sebelum jam pulang | Clock out ditolak: "Belum saatnya clock out, tunggu 45 menit lagi." Sisa waktu 60 menit atau lebih ditulis dalam jam, misalnya "tunggu 1 jam 1 menit lagi". **[Keputusan 17 Okt 2026]** |
-| 2c | Jika sudah terkirim dan sudah jam pulang | Lanjut ke pemeriksaan lokasi (langkah 3) |
-| 3 | Setelah langkah 2c | Sistem memeriksa lokasi terhadap **radius clock out** kantor aktif. Jika di dalam radius, clock out tercatat |
-| 4 | - | Tampil ringkasan: clock in, clock out, status **Hadir**. Daily Report terkunci |
+| 1 | Menekan **Clock Out** | Sistem memeriksa jam pulang |
+| 2a | Sebelum jam pulang | Ditolak: "Belum saatnya clock out, tunggu 45 menit lagi." **[Keputusan]** |
+| 2b | Logbook belum diisi | Dialog logbook terbuka. Setelah disimpan, proses clock out berlanjut **[Usulan: one touch point]** |
+| 3 | - | Lokasi diperiksa terhadap **radius clock out** kantor aktif mana pun |
+| 4 | - | Clock out tercatat. Logbook berubah menjadi **Menunggu Review** dan mentor diberi tahu |
 
-### 7.2 Layar dialog
+### 7.2 Clock out tanpa clock in (Lupa Clock In)
 
-```
-+--------------------------------------------------+
-| Daily Report belum dikirim                       |
-| Isi Daily Report dulu sebelum clock out.         |
-|                                                  |
-|            [ Nanti ]  [ Isi Daily Report ]       |
-+--------------------------------------------------+
-```
+- Jika intern belum clock in dan sudah lewat jam pulang, tombol Clock Out tetap tersedia. **[Keputusan]**
+- Sebelum menekan, tampil peringatan: "Anda belum clock in hari ini. Hari ini akan tercatat Lupa Clock In. Ajukan koreksi presensi jika perlu."
+- Hari itu berstatus **Lupa Clock In** dan **tetap dihitung hadir**. **[Keputusan]**
+- Logbook tetap wajib diisi.
 
-Pesan validasi lokasi saat clock out sama dengan 5.3, dengan kata "clock out":
+### 7.3 Aturan lain
+
+- Pulang lebih awal tidak bisa clock out. Hari itu menjadi Lupa Clock Out dan diperbaiki lewat koreksi presensi. **[Keputusan]**
+- Jika sampai 23:59 tidak clock out, muncul tanda **Lupa Clock Out**. Logbook hari itu tetap **Draft** dan tidak terkirim. Intern mengajukan koreksi presensi, lalu setelah disetujui logbook bisa dikirim (Alur 8). **[Usulan]**
+- Setelah clock out, tidak ada clock in kedua pada hari yang sama.
 
 | Situasi | Pesan |
 |---|---|
-| Sedang memeriksa | "Memeriksa lokasi..." |
-| Di luar radius clock out semua kantor aktif | "Lokasi Anda belum sesuai. Clock out belum bisa dilakukan." dan tombol **Coba lagi** |
-| Akses lokasi ditolak di browser | "Izinkan akses lokasi di browser untuk melakukan clock out." |
-| Gagal mengambil lokasi | "Lokasi tidak dapat dibaca. Coba lagi." |
-| Belum ada kantor aktif | "Belum ada kantor aktif. Clock out belum bisa dilakukan. Hubungi admin." |
-
-### 7.3 Aturan
-
-- Selain lokasi, clock out **hanya** mensyaratkan Daily Report terkirim. Tidak ada syarat menyelesaikan Task atau pekerjaan harian. **[Keputusan]**
-- Clock out sebelum **jam pulang** (Pengaturan Jam Kerja admin yang berlaku hari itu) **tidak diperbolehkan**. Tidak ada dialog konfirmasi. **[Keputusan 17 Okt 2026, menggantikan usulan konfirmasi]**
-- Jika intern harus pulang lebih awal (misalnya sakit di tengah hari), hari itu menjadi **Lupa Clock Out** setelah 23:59. Intern lalu mengajukan koreksi absensi ke admin dengan alasan (Alur 7). **[Keputusan 17 Okt 2026]**
-- Lokasi divalidasi juga saat clock out, memakai **radius clock out** kantor aktif. Radius clock out boleh berbeda dari radius clock in. **[Keputusan]**
-- Intern boleh clock out di kantor aktif mana pun, tidak harus sama dengan kantor saat clock in. **[Keputusan]**
-- Jika tidak bisa clock out karena lokasi sampai 23:59, status hari itu menjadi **Lupa Clock Out**. Perbaikan lewat koreksi absensi (Alur 7).
-- Jika sampai 23:59 ada clock in tanpa clock out, status hari itu menjadi **Lupa Clock Out**. **[Keputusan]**
-- Setelah clock out, tidak ada clock in kedua pada hari yang sama. **[Usulan]**
+| Di luar radius clock out | "Lokasi Anda belum sesuai. Clock out belum bisa dilakukan." |
+| Berhasil | "Clock out berhasil pukul 17:03. Logbook terkirim ke mentor." |
 
 ---
 
-## 8. Alur 6 - Riwayat Absensi dan Rekap Bulanan
+## 8. Alur 6 - Riwayat Presensi dan Rekap Bulanan
 
-**Tujuan:** intern melihat catatan kehadirannya sendiri.
-**Halaman:** Absensi, tab **Riwayat**.
-
-### 8.1 Layar
+**Halaman:** Presensi, tab **Riwayat**.
 
 ```
 +------------------------------------------------------------------------+
-| Absensi   [Hari Ini] [Riwayat] [Koreksi]                               |
-| Bulan: [< Oktober 2026 >]                                              |
+| Presensi   [Hari Ini] [Riwayat] [Koreksi]                              |
+| Bulan: [< Oktober 2026 >]   Status: [Semua v]                          |
 |                                                                        |
-| Hadir 8 | Izin 1 | Tidak Hadir 0 | Lupa Clock Out 1 | Hari kerja 10    |
+| Hadir 8 | Terlambat 1 | Lupa Clock In 0 | Izin 1 | Tidak Hadir 1       |
+| Lupa Clock Out: 1 kali | Hari kerja: 12                                |
 |                                                                        |
-| Tanggal      Clock In  Clock Out  Status          Daily Report  Aksi   |
-| Jum, 9 Okt   08:02     17:00      Hadir           Terkirim     [Koreksi]|
-|                                                    Dikoreksi admin     |
-| Kam, 8 Okt   08:10     17:05      Hadir           Terkirim     [Koreksi]|
-| Rab, 7 Okt   -         -          Izin            -                     |
-| Sel, 6 Okt   08:00     -          Lupa Clock Out  Terkirim     [Koreksi]|
-| Sen, 5 Okt   -         -          Tidak Hadir     -            [Koreksi]|
+| Tanggal      Masuk  Pulang  Status        Catatan          Aksi       |
+| Jum, 9 Okt   08:02  17:00   Hadir         Dikoreksi                   |
+| Kam, 8 Okt   08:20  17:05   Terlambat     20 menit         [Koreksi]  |
+| Rab, 7 Okt   -      -       Izin          Izin Sakit                  |
+| Sel, 6 Okt   08:00  -       Hadir         Lupa Clock Out   [Koreksi]  |
+| Sen, 5 Okt   -      -       Tidak Hadir                    [Koreksi]  |
 | Sab, 3 Okt   Libur                                                     |
 +------------------------------------------------------------------------+
 ```
 
-### 8.2 Aturan
-
-- Status ditentukan otomatis oleh sistem dengan batas 23:59. **[Keputusan]**
-- Baris yang sudah dikoreksi admin diberi label "Dikoreksi admin". **[Usulan, sama dengan sisi mentor dan admin]**
-- Tombol **Koreksi** muncul pada baris hari kerja yang sudah lewat. Klik membuka formulir koreksi dengan tanggal terisi (Alur 7). **[Usulan]**
-- Klik baris membuka detail hari itu: jam clock in dan clock out, status, dan Daily Report (hanya baca).
-- Sabtu, Minggu, dan hari libur ditampilkan sebagai Libur dan tidak dihitung hari kerja. **[Keputusan]**
-- Intern hanya melihat data miliknya sendiri.
-
-### 8.3 Kondisi khusus
-
-| Kondisi | Tampilan |
-|---|---|
-| Belum ada data pada bulan itu | "Belum ada data absensi pada bulan ini." |
-| Bulan di luar periode magang | Bulan tidak dapat dipilih |
+- Status dihitung otomatis dengan batas 23:59. **[Keputusan]**
+- Kolom Catatan menampilkan tanda **Lupa Clock Out**, lama Terlambat, jenis izin, dan label **Dikoreksi**. **[Keputusan]**
+- Tombol **Koreksi** muncul pada hari kerja yang sudah lewat dengan status Terlambat, Lupa Clock In, Tidak Hadir, atau tanda Lupa Clock Out. **[Keputusan: semua kasus bisa dikoreksi]**
+- Filter Status dipakai juga saat intern mengklik kotak rekap di Dashboard.
+- Hari libur menurut jadwal lokasi magang tampil sebagai Libur dan tidak dihitung hari kerja.
 
 ---
 
-## 9. Alur 7 - Koreksi Absensi
+## 9. Alur 7 - Koreksi Presensi
 
-**Tujuan:** meminta perbaikan data absensi yang salah, misalnya lupa clock out.
-**Halaman:** Absensi, tab **Koreksi**.
-**Aturan:** permintaan koreksi diajukan ke **admin**. Admin menanyakan dan memverifikasi dulu sebelum menyetujui. **[Keputusan]** Mentor tidak terlibat. **[Keputusan]** Pengajuan wajib lewat web. **[Keputusan]**
+**Tujuan:** memperbaiki presensi yang salah. **[Keputusan]**
+
+**Alur dua tahap:**
+1. Intern mengajukan: tanggal + alasan. **Tanpa bukti.**
+2. **Mentor** memvalidasi: ACC atau tolak. ACC mentor menjadi buktinya.
+3. Jika di-ACC, pengajuan masuk ke **admin**, yang mengeksekusi perubahan.
+4. Hasil disetujui: status hari itu menjadi **Hadir**, jam yang kosong diisi jam jadwal, ditandai **Dikoreksi**.
+
+Admin menunggu mentor, tidak ada eskalasi otomatis. **[Keputusan]**
 
 ### 9.1 Langkah
 
 | No | Langkah Intern | Respons sistem |
 |---|---|---|
-| 1 | Klik **Koreksi** pada baris riwayat, atau **Ajukan Koreksi** di tab Koreksi | Formulir terbuka |
-| 2 | Mengisi tanggal, jam yang benar, dan alasan | - |
-| 3 | Klik **Kirim** | Permintaan berstatus **Pending**. Admin menerima notifikasi |
-| 4 | (Jika diminta) menjawab pertanyaan admin lewat chat | Admin memverifikasi |
-| 5 | Menunggu keputusan | Intern menerima notifikasi **Disetujui** atau **Ditolak** beserta catatan admin |
-| 6 | Jika disetujui | Data absensi diperbarui, status dihitung ulang otomatis, baris diberi label "Dikoreksi admin" |
+| 1 | Klik **Koreksi** di baris Riwayat, atau **Ajukan Koreksi** | Formulir terbuka dengan tanggal dan kondisi terisi |
+| 2 | Mengisi alasan, klik **Kirim** | Status **Menunggu Mentor**. Mentor diberi tahu |
+| 3 | Mentor menolak | Status **Ditolak Mentor** + catatan. Selesai |
+| 4 | Mentor ACC | Status **Menunggu Admin**. Admin diberi tahu |
+| 5 | Admin menyetujui | Status **Disetujui**. Presensi menjadi Hadir (Dikoreksi). Jika hari itu belum punya logbook, muncul di daftar "Logbook belum diisi" |
+| 6 | Admin menolak | Status **Ditolak Admin** + catatan |
 
 ### 9.2 Layar
 
 ```
-+--------------------------------------------------------------+
-| Ajukan Koreksi Absensi                                       |
-|                                                              |
-| Tanggal absensi *   [09/10/2026]                             |
-| Data tercatat       Clock in 08:02 | Clock out -             |
-|                                                              |
-| Clock in yang benar   [08:02]                                |
-| Clock out yang benar  [17:00]                                |
-| Alasan *  [_______________________________________]          |
-| Bukti (opsional)  [ Pilih file ]                             |
-|                                                              |
-| Admin dapat menghubungi Anda lewat chat untuk verifikasi.    |
-|                                   [ Batal ]  [ Kirim ]       |
-+--------------------------------------------------------------+
++--------------------------------------------------+
+| Ajukan Koreksi Presensi                          |
+|                                                  |
+| Tanggal *     [Sel, 6 Okt 2026 v]                |
+| Kondisi       Hadir, Lupa Clock Out              |
+|               Clock in 08:00 | Clock out -       |
+| Alasan *      [________________________________] |
+|                                                  |
+| Pengajuan diperiksa mentor lebih dulu, lalu      |
+| diproses admin. Jika disetujui, status hari itu  |
+| menjadi Hadir.                                   |
+|                              [ Batal ] [ Kirim ] |
++--------------------------------------------------+
 ```
 
-Daftar permintaan:
-
-```
-+------------------------------------------------------------------------+
-| Koreksi Absensi                                   [ + Ajukan Koreksi ] |
-|                                                                        |
-| Tanggal absensi  Diajukan        Status      Catatan admin    Aksi     |
-| 9 Okt 2026       10 Okt 09:12    Pending     -                [Batalkan]|
-| 2 Okt 2026       3 Okt 08:05     Disetujui   "Sesuai bukti."  [Lihat]  |
-| 25 Sep 2026      26 Sep 14:30    Ditolak     "Tidak ada bukti." [Lihat]|
-+------------------------------------------------------------------------+
-```
-
-### 9.3 Validasi dan aturan
+### 9.3 Aturan
 
 | Hal | Aturan |
 |---|---|
-| Tanggal | Hanya hari kerja yang sudah lewat atau hari ini, dan berada dalam periode magang |
-| Satu tanggal | Hanya boleh ada satu permintaan **Pending** untuk satu tanggal. Pesan: "Sudah ada permintaan koreksi untuk tanggal ini." **[Usulan]** |
-| Jam | Clock out harus setelah clock in. Pesan: "Jam clock out harus setelah jam clock in." |
+| Kasus yang bisa dikoreksi | Terlambat, Lupa Clock In, Lupa Clock Out, Tidak Hadir **[Keputusan]** |
+| Tanggal | Hari kerja yang sudah lewat, dalam periode magang |
+| Satu tanggal | Hanya satu pengajuan aktif per tanggal. Pesan: "Sudah ada pengajuan koreksi untuk tanggal ini." |
 | Alasan | Wajib. Pesan: "Alasan wajib diisi." |
-| Batas waktu | Sistem tidak membatasi berapa hari ke belakang. Kebijakan diserahkan ke perusahaan. **[Keputusan]** |
-| Membatalkan | Intern dapat membatalkan permintaan yang masih **Pending**. **[Usulan, sama dengan aturan izin]** |
-| Setelah diproses | Tidak bisa dibuka ulang. Jika masih salah, ajukan permintaan baru. **[Usulan, sama dengan sisi admin]** |
-| Catatan admin | Selalu tampil pada status Disetujui maupun Ditolak. **[Keputusan]** soal status dan catatan alasan |
-| Bukti | Opsional, maksimal **2 MB**, hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Pesan: "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." |
+| Batas waktu | Tidak dibatasi sistem, kebijakan perusahaan **[Keputusan]** |
+| Membatalkan | Boleh selama Menunggu Mentor atau Menunggu Admin **[Usulan]** |
+| Hasil | Status Hadir, jam kosong diisi jam jadwal, jam asli tetap, label **Dikoreksi** **[Keputusan]** |
+| Setelah diputuskan | Tidak bisa dibuka ulang. Jika perlu, ajukan baru |
 
 ---
 
-## 10. Alur 8 - Task (Daftar, Kanban, Detail)
+## 10. Alur 8 - Logbook: Riwayat dan Revisi
 
-**Tujuan:** intern melihat pekerjaan yang diberikan mentor dan memajukan statusnya.
-**Halaman:** Task.
-**Aturan:**
-- Task adalah pekerjaan yang diberikan mentor (konsep seperti Jira), **tidak harian**. **[Keputusan]** Intern tidak membuat atau menghapus Task.
-- Status: **To Do, In Progress, In Review, Done**. **[Keputusan]**
-- Task yang lewat tenggat diberi tanda **Terlambat**, tetapi tetap bisa dikumpulkan dan keputusan akhir ada pada mentor, seperti di LMS. **[Keputusan]**
+**Halaman:** Logbook.
 
-### 10.1 Tampilan Kanban
+**Status logbook:** **[Keputusan]**
+
+| Status | Arti |
+|---|---|
+| Draft | Sedang diisi, belum clock out |
+| Menunggu Review | Terkirim ke mentor |
+| Revisi | Mentor meminta perbaikan, ada komentar |
+| Disetujui | Final, terkunci |
+
+Tidak ada status Ditolak, supaya setiap logbook tetap bisa disetujui. **[Keputusan]**
+
+### 10.1 Layar daftar
 
 ```
 +------------------------------------------------------------------------+
-| Task                [Kanban | Daftar]                                   |
-| Status tanda: [Semua v]  Urutkan: [Tenggat terdekat v]                 |
+| Logbook                         Tampilan: [Daftar | Minggu]            |
+| Status: [Semua v]    Bulan: [< Oktober 2026 >]                         |
 |                                                                        |
-| To Do (2)     | In Progress (3) | In Review (1)    | Done (8)          |
-| ------------- | --------------- | ---------------- | ----------------- |
-| +-----------+ | +-------------+ | +--------------+ | +---------------+ |
-| |Uji login  | | |Desain ERD   | | |Laporan API   | | |Dokumen SRS    | |
-| |Bu Sari    | | |Bu Sari      | | |Bu Sari       | | |Bu Sari        | |
-| |Tenggat 15 | | |Tenggat 14   | | |Tenggat 11    | | |Selesai 8 Okt  | |
-| |Okt        | | |Okt   (1)*   | | |Okt [Terlambat]| |               | |
-| +-----------+ | +-------------+ | +--------------+ | +---------------+ |
+| PERLU DITINDAK                                                         |
+| Kam, 8 Okt   Revisi          "Tambahkan hasil rapat..."   [Perbaiki]   |
+| Sel, 6 Okt   Belum diisi     Koreksi disetujui            [Isi]        |
 |                                                                        |
-| * angka kecil = komentar baru dari mentor                              |
+| Tanggal      Ringkasan                          Status                 |
+| Jum, 9 Okt   "Menyusun ERD tahap 1..."          Menunggu Review        |
+| Rab, 7 Okt   Izin                               -                      |
+| Sen, 5 Okt   "Rapat kebutuhan dengan unit..."   Disetujui              |
 +------------------------------------------------------------------------+
 ```
 
-Kartu Task menampilkan: judul, mentor, tenggat, tanda **Terlambat** bila berlaku, dan indikator komentar baru. **[Keputusan]** Komentar mentor ditandai indikator pada Task, klik membuka komentarnya.
+- Tampilan **Minggu** menampilkan Senin-Minggu dalam satu layar untuk melihat pola mingguan. **[Usulan berdasar masukan mitra]**
+- Bagian "Perlu ditindak" selalu di atas.
 
-### 10.2 Drag and drop pada Kanban
+### 10.2 Memperbaiki logbook (Revisi)
 
-Kartu dapat dipindah dengan **drag and drop**. **[Keputusan]** Aturan perpindahan untuk Intern:
-
-| Dari | Ke | Boleh | Efek |
-|---|---|---|---|
-| To Do | In Progress | Ya | Task mulai dikerjakan. Tidak ada notifikasi ke mentor |
-| In Progress | To Do | Ya, hanya jika Task belum pernah dikumpulkan | Task kembali ke antrean |
-| In Progress | In Review | Ya | Membuka dialog **Kumpulkan Hasil**. Kartu pindah setelah hasil terkirim. Jika dialog dibatalkan, kartu kembali ke In Progress |
-| To Do | In Review | Tidak | Pesan: "Mulai kerjakan Task dulu sebelum mengumpulkan." |
-| In Review | kolom mana pun | Tidak | Kartu terkunci karena menunggu mentor. Pesan: "Task sedang diperiksa mentor." Intern masih dapat mengganti hasil lewat tombol **Ganti Hasil** (Alur 9) |
-| Done | kolom mana pun | Tidak | Kartu terkunci |
-| kolom mana pun | Done | Tidak | Hanya mentor yang bisa menandai Done lewat Accept |
-
-Aturan tambahan:
-- Perpindahan yang tidak diizinkan membuat kartu **kembali ke kolom asal** dengan pesan singkat. **[Usulan]**
-- Kartu yang terkunci diberi ikon kunci dan penunjuk kursor "tidak boleh". **[Usulan]**
-- Semua perpindahan juga dapat dilakukan dengan tombol di detail Task (**Mulai Kerjakan**, **Kumpulkan Hasil**). Ini perlu untuk layar sentuh dan pengguna keyboard. Di layar sentuh, kartu diseret dengan tekan lama. **[Usulan]**
-- Jika status Task berubah oleh pihak lain saat kartu diseret (misalnya mentor memberi Revise), kartu kembali dan muncul pesan "Status Task sudah berubah. Muat ulang." **[Usulan]**
-- Kolom Done menampilkan 30 hari terakhir secara default, sisanya lewat filter. **[Usulan]**
-
-### 10.3 Tampilan Daftar
+| No | Langkah Intern | Respons sistem |
+|---|---|---|
+| 1 | Membuka logbook berstatus Revisi | Komentar mentor tampil di atas isian |
+| 2 | Memperbaiki isian, klik **Kirim Ulang** | Status kembali **Menunggu Review**. Mentor diberi tahu |
 
 ```
-+------------------------------------------------------------------------+
-| Judul          Mentor   Status       Tenggat       Tanda      Aksi     |
-| Laporan API    Bu Sari  In Review    11 Okt 17:00  Terlambat  [Buka]    |
-| Desain ERD     Bu Sari  In Progress  14 Okt 17:00  (1) baru   [Buka]    |
-| Uji login      Bu Sari  To Do        15 Okt 17:00             [Buka]    |
-| Dokumen SRS    Bu Sari  Done         8 Okt 17:00              [Lihat]   |
-+------------------------------------------------------------------------+
++--------------------------------------------------+
+| Logbook - Kam, 8 Okt 2026          Status: Revisi|
+|                                                  |
+| Komentar mentor (Bu Sari, 9 Okt 10:00):          |
+| "Tambahkan hasil rapat dengan unit keuangan."    |
+|                                                  |
+| Yang saya kerjakan *                             |
+| [______________________________________________] |
+| Kendala (opsional) [___________________________] |
+|                                                  |
+| Riwayat review: 1 kali revisi        [Lihat]     |
+|                                    [ Kirim Ulang ] |
++--------------------------------------------------+
 ```
 
-Filter dan sort untuk Intern: filter status, filter **Terlambat**, pencarian judul, sort tenggat terdekat (default), terbaru dibuat. **[Usulan]**
+Riwayat komentar revisi tetap tersimpan dan bisa dilihat. **[Usulan]**
 
-### 10.4 Detail Task
+### 10.3 Logbook untuk hari yang dikoreksi
 
-```
-+--------------------------------------------------------------+
-| Task: Desain ERD                           Status: In Progress |
-| Mentor: Bu Sari            Tenggat: 14 Okt 2026 17:00        |
-|                                                              |
-| DESKRIPSI                                                    |
-| Rancang ERD untuk modul absensi dan izin.                    |
-|                                                              |
-| ! Mentor meminta revisi. Lihat komentar di bawah.            |
-|                                                              |
-| HASIL KUMPULAN                                               |
-| Belum ada hasil.                  [ Kumpulkan Hasil ]        |
-|                                                              |
-| KOMENTAR                                                     |
-| Bu Sari (12 Okt 10:00)                                       |
-|   Relasi izin ke intern belum ada, tolong tambahkan.         |
-| [ Tulis komentar...                              ] [Kirim]   |
-+--------------------------------------------------------------+
-```
+Jika koreksi presensi disetujui dan hari itu belum punya logbook terkirim (misalnya Tidak Hadir atau Lupa Clock Out), hari itu muncul sebagai **Belum diisi**. Intern mengisi dan menekan **Kirim**, logbook langsung Menunggu Review. **[Keputusan]**
 
-Tombol di detail menyesuaikan status:
+### 10.4 Kaitan dengan penilaian
 
-| Status | Tombol yang tampil |
-|---|---|
-| To Do | **Mulai Kerjakan** |
-| In Progress | **Kumpulkan Hasil** |
-| In Review | **Ganti Hasil** |
-| Done | Tidak ada. Layar hanya baca |
-
-### 10.5 Kondisi khusus
-
-| Kondisi | Tampilan |
-|---|---|
-| Belum ada Task | "Belum ada Task dari mentor." |
-| Task lewat tenggat | Tanda **Terlambat** merah dan keterangan "Lewat 2 hari". Task tetap bisa dikumpulkan |
-| Mentor mengubah judul, deskripsi, atau tenggat | Notifikasi masuk. Detail menampilkan nilai terbaru |
-| Mentor menghapus Task (hanya jika masih To Do dan tanpa komentar) | Kartu hilang dari Kanban. Notifikasi "Task [judul] dibatalkan mentor." **[Usulan]** |
+Penilaian akhir oleh mentor hanya bisa dilakukan jika **semua logbook Disetujui**. Karena itu intern perlu segera menindaklanjuti revisi. Dashboard menampilkan pengingat jika masih ada logbook Revisi atau Belum diisi menjelang akhir magang. **[Keputusan, tampilan usulan]**
 
 ---
 
-## 11. Alur 9 - Mengumpulkan Hasil dan Menindaklanjuti Revisi
+## 11. Alur 9 - Izin
 
-**Tujuan:** menyerahkan hasil Task ke mentor dan memperbaikinya bila diminta.
 **Aturan:**
-- Pengumpulan lewat **link** dan **unggah file**. **[Keputusan]** Ukuran file maksimal **2 MB**. **[Keputusan]**
-- File yang boleh diunggah hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx). Hasil berjenis lain (gambar, ZIP, video, kode, dan sebagainya) dikumpulkan lewat **link**. **[Keputusan]**
-- Pengumpulan ulang **menggantikan** hasil sebelumnya. File lama dihapus, **tanpa riwayat versi**. **[Keputusan]**
-- Mentor menekan **Accept** (Task menjadi Done) atau **Revise** (Task kembali ke In Progress dengan komentar). Intern mendapat notifikasi pada kedua kasus. **[Keputusan]**
-- Pengumpulan wajib lewat web. **[Keputusan]**
+- Jenis hanya **Izin Sakit** dan **Izin Urgent**. Tidak ada cuti. **[Keputusan]**
+- **Kuota maksimal 3 kali per masa magang.** 1 pengajuan = 1 kali, berapa pun jumlah harinya. Yang dihitung: Menunggu dan Disetujui. **[Keputusan]**
+- Setelah kuota habis, **tombol Ajukan Izin nonaktif**. Kuota direset saat magang diperpanjang. **[Keputusan]**
+- Bukti berupa **link Google Drive atau Google Docs**, opsional. Admin hanya menyetujui jika ada bukti. **[Keputusan]**
+- Mentor memproses. Jika tidak diproses dalam 24 jam, **admin memberi keputusan final**. **[Keputusan]**
+- Izin disetujui otomatis mengubah status hari kerja terkait menjadi Izin. **[Keputusan]**
 
-### 11.1 Langkah mengumpulkan
-
-| No | Langkah Intern | Respons sistem |
-|---|---|---|
-| 1 | Membuka Task berstatus In Progress | Detail tampil |
-| 2 | Klik **Kumpulkan Hasil** (atau menyeret kartu ke In Review) | Dialog pengumpulan terbuka |
-| 3 | Mengisi link dan atau memilih file | - |
-| 4 | Klik **Kumpulkan** | Sistem memeriksa isian |
-| 5 | - | Status menjadi **In Review**. Mentor menerima notifikasi |
-
-### 11.2 Layar dialog
+### 11.1 Layar formulir
 
 ```
-+--------------------------------------------------------------+
-| Kumpulkan Hasil - Desain ERD                                 |
-|                                                              |
-| Link hasil   [https://__________________________________]    |
-| File hasil   [ Pilih file ]  (belum ada file)                |
-|                                                              |
-| Isi link, file, atau keduanya.                               |
-|                                                              |
-| ! Tenggat sudah lewat. Hasil tetap dapat dikumpulkan,        |
-|   mentor yang memutuskan.             (hanya jika terlambat) |
-|                                                              |
-|                       [ Batal ]  [ Kumpulkan ]               |
-+--------------------------------------------------------------+
++--------------------------------------------------+
+| Ajukan Izin                  Sisa kuota: 2 dari 3|
+|                                                  |
+| Jenis izin *      ( ) Sakit   ( ) Urgent         |
+| Tanggal mulai *   [__/__/____]                   |
+| Tanggal selesai * [__/__/____]                   |
+| Total: 2 hari kerja                              |
+| Alasan *          [______________________________]|
+| Link bukti        [https://drive.google.com/...] |
+|  Hanya link Google Drive atau Google Docs.       |
+|  Pastikan akses link "Siapa saja yang memiliki   |
+|  link dapat melihat".                            |
+|                                                  |
+| Satu pengajuan dihitung 1 kali dari kuota.       |
+|                              [ Batal ] [ Kirim ] |
++--------------------------------------------------+
 ```
 
-### 11.3 Validasi
-
-| Kolom | Aturan | Pesan jika salah |
-|---|---|---|
-| Link dan file | Minimal salah satu terisi | "Isi link atau pilih file." |
-| Link | Harus diawali http:// atau https:// | "Format link tidak valid." |
-| File | Maksimal 2 MB, hanya PDF, Word, Excel, atau PowerPoint | "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint, atau kirim lewat link." |
-
-### 11.4 Mengganti hasil (pengumpulan ulang)
-
-Intern dapat mengganti hasil pada dua kondisi: Task **In Review** (mentor belum memeriksa) dan Task **In Progress** setelah **Revise**. **[Usulan]**
-
-| No | Langkah Intern | Respons sistem |
-|---|---|---|
-| 1 | Klik **Ganti Hasil** (atau **Kumpulkan Hasil** setelah Revise) | Dialog pengumpulan terbuka |
-| 2 | Mengisi hasil baru | Peringatan: "Hasil sebelumnya akan diganti dan file lama dihapus permanen." |
-| 3 | Klik **Kumpulkan** | Hasil lama dihapus, hasil baru tersimpan |
-| 4 | - | Status menjadi **In Review**. Mentor menerima notifikasi |
-
-Tidak ada riwayat versi, sehingga intern tidak dapat mengembalikan hasil lama.
-
-### 11.5 Menindaklanjuti Revise
-
-| No | Kejadian | Tampilan untuk Intern |
-|---|---|---|
-| 1 | Mentor menekan **Revise** dengan komentar | Task kembali ke **In Progress**. Notifikasi masuk. Kartu menampilkan indikator komentar baru |
-| 2 | Intern membuka Task | Banner "Mentor meminta revisi. Lihat komentar di bawah." Komentar revisi disorot |
-| 3 | Intern memperbaiki dan mengumpulkan ulang (11.4) | Task kembali ke **In Review** |
-
-### 11.6 Setelah Accept
-
-Task menjadi **Done** dan terkunci. Intern menerima notifikasi. Hasil dan komentar tetap dapat dilihat. **[Keputusan]** soal Accept menjadi Done.
-
-### 11.7 Kondisi khusus
-
-| Kondisi | Perilaku |
-|---|---|
-| Koneksi terputus saat mengunggah | "Hasil belum terkumpul. Coba lagi." Status Task tidak berubah |
-| Link tidak dapat dibuka mentor | Mentor menekan Revise dengan komentar. Sistem tidak memeriksa tautan otomatis |
-| Task sudah Done saat dialog dibuka | "Task ini sudah selesai." Pengumpulan ditolak |
-| Mentor memberi Accept saat intern mengganti hasil | Pesan "Task sudah diterima mentor." Penggantian dibatalkan, hasil yang diterima tetap |
-
----
-
-## 12. Alur 10 - Komentar Task
-
-**Tujuan:** berdiskusi dengan mentor pada Task yang sama.
-**Aturan:**
-- Komentar berupa **thread dua arah seperti GitHub**: intern dan mentor saling membalas. **[Keputusan]**
-- Komentar mentor ditandai **indikator atau popup** pada Task. Klik membuka komentar. **[Keputusan]**
-
-### 12.1 Langkah
-
-| No | Langkah Intern | Respons sistem |
-|---|---|---|
-| 1 | Melihat indikator komentar baru pada kartu Task, atau notifikasi di bell | - |
-| 2 | Klik kartu atau notifikasi | Detail Task terbuka langsung di bagian komentar |
-| 3 | Membaca komentar mentor | Indikator hilang setelah dibaca |
-| 4 | Menulis balasan, klik **Kirim** | Balasan muncul di thread. Mentor menerima notifikasi |
-
-### 12.2 Aturan
-
-- Komentar yang sudah terkirim **tidak dapat diedit atau dihapus** oleh siapa pun, agar jejak diskusi utuh. **[Usulan]**
-- Pada Task **Done**, thread terkunci (hanya baca). **[Usulan]**
-- Komentar hanya ada pada Task. Daily Report tidak punya thread komentar. **[Usulan]**
-- Komentar tidak boleh kosong. Pesan: "Tulis komentar dulu."
-- Tidak ada penerima lain selain mentor Task tersebut. Admin tidak ikut dalam thread. **[Usulan]**
-
----
-
-## 13. Alur 11 - Izin
-
-**Tujuan:** mengajukan ketidakhadiran yang sah.
-**Halaman:** Izin.
-**Aturan:**
-- Jenis izin hanya **Izin Sakit** dan **Izin Urgent**. **Intern tidak memiliki cuti.** **[Keputusan]**
-- Pengajuan wajib lewat web dan dapat disertai **lampiran bukti** (misalnya surat dokter). **[Keputusan]**
-- Izin lebih dari 2 hari dihitung berdasarkan hari kerja sesuai kalender kerja. **[Keputusan]**
-- Izin yang disetujui otomatis mengubah status absensi pada hari terkait. **[Keputusan]**
-- Intern dapat **membatalkan** pengajuan yang masih Pending. **[Keputusan]**
-- Mentor memproses lebih dulu. Izin yang tidak diproses mentor dalam 24 jam muncul sebagai pengingat di dashboard admin, yang dapat memprosesnya hanya bila ada surat resmi atau bukti. **[Keputusan]**
-
-### 13.1 Langkah mengajukan
-
-| No | Langkah Intern | Respons sistem |
-|---|---|---|
-| 1 | Membuka menu Izin, klik **Ajukan Izin** | Formulir terbuka |
-| 2 | Memilih jenis, tanggal, mengisi alasan, melampirkan bukti | Sistem menghitung jumlah hari kerja |
-| 3 | Klik **Kirim** | Pengajuan berstatus **Pending**. Mentor menerima notifikasi |
-| 4 | Menunggu keputusan | Status berubah menjadi **Disetujui** atau **Ditolak** disertai catatan |
-| 5 | Jika disetujui | Status absensi pada hari kerja yang tercakup menjadi **Izin** otomatis. Intern menerima notifikasi |
-
-### 13.2 Layar formulir
+Kuota habis:
 
 ```
-+--------------------------------------------------------------+
-| Ajukan Izin                                                  |
-|                                                              |
-| Jenis izin *        ( ) Izin Sakit    ( ) Izin Urgent        |
-| Tanggal mulai *     [__/__/____]                             |
-| Tanggal selesai *   [__/__/____]                             |
-| Total: 2 hari kerja (Sabtu, Minggu, dan libur tidak dihitung)|
-| Alasan *            [_____________________________________] |
-| Lampiran bukti      [ Pilih file ]  (misalnya surat dokter)  |
-|                                                              |
-| Tanpa lampiran, izin hanya dapat diproses mentor. Admin      |
-| hanya membantu bila ada surat resmi atau bukti.              |
-|                                                              |
-|                         [ Batal ]  [ Kirim ]                 |
-+--------------------------------------------------------------+
++--------------------------------------------------+
+| Izin                         Sisa kuota: 0 dari 3|
+| Kuota izin Anda sudah habis (3 kali).            |
+| Silakan hubungi mentor.      [ Ajukan Izin ] (nonaktif) |
++--------------------------------------------------+
 ```
 
-### 13.3 Validasi
+### 11.2 Validasi
 
-| Kolom | Aturan | Pesan jika salah |
+| Kolom | Aturan | Pesan |
 |---|---|---|
 | Jenis | Wajib | "Pilih jenis izin." |
-| Tanggal | Selesai tidak boleh sebelum mulai | "Tanggal selesai harus sesudah tanggal mulai." |
-| Tanggal | Harus berada dalam periode magang | "Tanggal di luar periode magang." |
-| Tanggal | Harus mengandung minimal satu hari kerja | "Tanggal yang dipilih tidak mengandung hari kerja." |
-| Tanggal | Tidak tumpang tindih dengan izin lain yang Pending atau Disetujui | "Sudah ada izin pada tanggal ini." |
+| Tanggal | Selesai tidak sebelum mulai, dalam periode magang, minimal satu hari kerja, tidak tumpang tindih izin lain | Pesan sesuai kasus |
 | Alasan | Wajib | "Alasan wajib diisi." |
-| Lampiran | Opsional, maksimal 2 MB, hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx) | "Ukuran file maksimal 2 MB." atau "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." |
+| Link bukti | Jika diisi: harus `https://drive.google.com/...` atau `https://docs.google.com/...` | "Link harus berupa link Google Drive atau Google Docs, contoh: https://drive.google.com/..." |
+| Kuota | Belum mencapai 3 | "Kuota izin Anda (3 kali) sudah habis. Silakan hubungi mentor." |
 
-### 13.4 Aturan tanggal
-
-- Izin dapat diajukan untuk **hari ini, tanggal mendatang, dan tanggal yang sudah lewat**. Sistem tidak membatasi berapa hari ke belakang, karena kebijakan diserahkan ke perusahaan. **[Usulan, sejalan dengan keputusan koreksi absensi]**
-- Pengajuan untuk tanggal lampau diberi label "Diajukan setelah tanggal izin" agar mentor dan admin tahu. **[Usulan]**
-- Jika izin untuk tanggal lampau disetujui, status absensi tanggal itu yang tadinya **Tidak Hadir** menjadi **Izin** secara otomatis. **[Keputusan]** soal pembaruan otomatis
-- Jika intern sudah clock in pada hari itu, hari tersebut dikecualikan dari izin dan tetap **Hadir**. **[Usulan]**
-- Izin tidak dapat diubah setelah dikirim. Untuk mengubah, batalkan lalu ajukan ulang (hanya saat Pending). **[Usulan]**
-
-### 13.5 Riwayat izin
+### 11.3 Riwayat dan pembatalan
 
 ```
 +------------------------------------------------------------------------+
-| Izin                                              [ + Ajukan Izin ]    |
-| Status: [Semua v]                                                      |
+| Izin                                             [ + Ajukan Izin ]     |
+| Sisa kuota: 2 dari 3                                                   |
 |                                                                        |
-| Jenis   Tanggal       Hari kerja  Status     Diproses oleh  Aksi       |
-| Sakit   13-14 Okt     2           Pending    -              [Batalkan] |
-| Urgent  5 Okt         1           Disetujui  Bu Sari        [Lihat]    |
-| Sakit   28-29 Sep     2           Ditolak    Bu Sari        [Lihat]    |
-| Urgent  20 Sep        1           Dibatalkan -              [Lihat]    |
+| Jenis   Tanggal     Hari  Status      Diproses oleh   Aksi             |
+| Sakit   13-14 Okt   2     Menunggu    -               [Batalkan]       |
+| Urgent  5 Okt       1     Disetujui   Bu Sari         [Lihat]          |
+| Sakit   28 Sep      1     Ditolak     Admin Sinta     [Lihat]          |
 +------------------------------------------------------------------------+
 ```
 
-Detail izin menampilkan alasan, lampiran, pemroses (mentor atau admin), waktu, dan **catatan** pemroses. Status dan catatan alasan selalu tampil. **[Keputusan]**
+- Intern dapat membatalkan izin yang masih **Menunggu**. Izin dibatalkan **mengembalikan kuota**. **[Keputusan: dibatalkan tidak dihitung]**
+- Izin ditolak juga tidak dihitung dari kuota.
+- Detail izin menampilkan alasan, link bukti, pemroses (mentor atau admin), dan catatan.
 
-### 13.6 Membatalkan izin
-
-```
-+--------------------------------------------------+
-| Batalkan pengajuan izin?                         |
-| Izin Sakit 13-14 Okt akan dibatalkan dan tidak   |
-| diproses lagi.                                   |
-|                                                  |
-|             [ Kembali ]  [ Ya, batalkan ]        |
-+--------------------------------------------------+
-```
-
-- Pembatalan hanya untuk status **Pending**. Izin yang sudah Disetujui atau Ditolak tidak dapat dibatalkan. **[Keputusan]** soal hanya saat Pending
-- Setelah dibatalkan, mentor menerima notifikasi dan izin hilang dari kalender izin mentor. **[Keputusan]** soal kalender izin
-- Jika mentor atau admin memproses saat intern menekan batalkan, pesan: "Izin ini sudah diproses oleh [nama]." Pembatalan tidak dilakukan. **[Usulan]**
-
-### 13.7 Kondisi khusus
+### 11.4 Kondisi khusus
 
 | Kondisi | Perilaku |
 |---|---|
-| Izin diproses admin karena mentor tidak merespons | Detail menampilkan "Diproses oleh admin" dan catatan admin |
-| Izin disetujui untuk hari ini | Kartu Dashboard menjadi "Izin hari ini". Tombol Clock In hilang |
-| Izin mencakup Sabtu, Minggu, atau libur | Hari itu tidak dihitung dan statusnya tidak berubah menjadi Izin |
-| Admin menambah libur di tengah rentang izin | Jumlah hari kerja dihitung ulang otomatis |
+| Mentor atau admin meminta perbaikan link | Ditolak dengan catatan, misalnya "Link tidak bisa dibuka." Intern mengajukan ulang (kuota tidak terpakai karena ditolak) |
+| Izin tanggal lampau | Boleh, diberi label "Diajukan setelah tanggal izin" |
+| Izin mencakup hari libur | Hari libur tidak dihitung |
+
+---
+
+## 12. Alur 10 - Presentasi Akhir
+
+**Tujuan:** membuktikan intern sudah presentasi (paparan) di unit sebelum magang selesai. **[Keputusan]**
+
+**Aturan:**
+- Mulai **H-7** sebelum tanggal selesai, intern menerima notifikasi dan banner di Dashboard. **[Keputusan]**
+- Intern mengirim **link Google Drive/Docs** berisi bukti, misalnya foto bersama mentor saat presentasi. **[Keputusan]**
+- **Admin** yang memverifikasi: Disetujui atau Revisi (misalnya link tidak bisa dibuka). **[Keputusan]**
+- Presentasi disetujui adalah salah satu syarat mentor bisa memberi penilaian. **[Keputusan]**
+
+### 12.1 Layar
+
+```
++--------------------------------------------------+
+| Presentasi Akhir               Status: Belum dikirim |
+| Magang berakhir: Kam, 31 Des 2026 (7 hari lagi)  |
+|                                                  |
+| Lakukan presentasi di unit Anda, lalu kirim link |
+| bukti (foto bersama mentor, materi, dll).        |
+|                                                  |
+| Link bukti *  [https://drive.google.com/...]     |
+|  Pastikan akses link dapat dilihat admin.        |
+|                                     [ Kirim ]    |
++--------------------------------------------------+
+```
+
+| Status | Tampilan |
+|---|---|
+| Belum dibuka (sebelum H-7) | "Presentasi akhir dapat dikirim mulai [tanggal]." Formulir nonaktif |
+| Belum dikirim | Formulir aktif |
+| Menunggu | Link tampil, "Menunggu verifikasi admin." Intern masih bisa mengganti link **[Usulan]** |
+| Revisi | Catatan admin tampil, formulir aktif untuk mengganti link |
+| Disetujui | "Presentasi akhir sudah disetujui." Terkunci |
+
+Validasi link sama dengan link izin (Bagian 11.2).
+
+---
+
+## 13. Alur 11 - Catatan Warning dan Nilai Akhir
+
+**Halaman:** Catatan.
+
+### 13.1 Catatan warning
+
+- Warning dibuat admin berdasarkan diskusi admin dan mentor. **[Keputusan]**
+- Intern **hanya membaca**, tidak bisa membalas. Intern menerima notifikasi saat ada warning baru. **[Keputusan]**
+
+```
++--------------------------------------------------+
+| Catatan dari Admin                               |
+|                                                  |
+| 10 Okt 2026 - Admin Sinta                        |
+|   Terlambat 3 kali dalam seminggu. Mohon         |
+|   diperhatikan.                                  |
+| -------------------------------------------------|
+| 2 Okt 2026 - Admin Sinta                         |
+|   Logbook dua hari belum diisi.                  |
++--------------------------------------------------+
+```
+
+Kondisi kosong: "Tidak ada catatan untuk Anda."
+
+### 13.2 Nilai akhir
+
+- Setelah mentor menyubmit penilaian, intern dapat melihat nilai per indikator dan nilai akhir di halaman ini. **[Usulan, lihat Bagian 20]**
+- Sebelum dinilai: "Penilaian akan tersedia setelah presentasi disetujui, semua logbook disetujui, dan mentor menyelesaikan penilaian."
 
 ---
 
 ## 14. Alur 12 - Chat dan Notifikasi
 
-### 14.1 Chat
-
-- Semua pengguna dapat saling chat. **[Keputusan]** Intern bisa chat dengan mentor, intern lain, dan admin.
-- Admin **tidak** dapat membaca chat orang lain. **[Keputusan]** Chat intern hanya dilihat pihak di dalam percakapan.
-- Ada notifikasi untuk pesan baru. **[Keputusan]**
-- Chat dipakai juga ketika admin memverifikasi koreksi absensi (Alur 7).
-
-```
-+--------------------------------------------------------------+
-| Chat                                                         |
-| Cari kontak: [__________]                                    |
-|                                                              |
-| Admin Sinta        Bisa jelaskan kenapa lupa clock out? (1)  |
-| Bu Sari            Silakan dicek komentar di Task ERD.        |
-| Doni A.            Ok, nanti saya kirim filenya.              |
-+--------------------------------------------------------------+
-```
-
-### 14.2 Notifikasi
-
-Cukup **bell icon** di navbar. Tidak ada halaman notifikasi terpisah. **[Keputusan]** Klik item membawa langsung ke layar terkait. Daftar kejadian ada di Bagian 16.
+- Semua pengguna dapat saling chat, termasuk intern dengan mentor dan admin. **[Keputusan]**
+- Admin tidak dapat membaca chat orang lain. **[Keputusan]**
+- Notifikasi cukup lewat bell icon di navbar, tanpa halaman terpisah. **[Keputusan]**
 
 ---
 
 ## 15. Situasi Khusus
 
-### 15.1 Ganti mentor oleh admin
+### 15.1 Ganti mentor
 
-Task, komentar, dan izin pending ikut pindah ke mentor baru, dan riwayat lama tetap tersimpan. **[Keputusan]** Dari sisi Intern:
-- Intern menerima notifikasi "Mentor Anda sekarang Bu Sari."
-- Nama mentor pada kartu Task, detail Task, dan Dashboard berubah ke mentor baru.
-- Tidak ada Task yang hilang atau berubah status. Thread komentar lama tetap bisa dibaca.
-- Izin yang masih Pending diproses mentor baru.
+Logbook yang Menunggu Review, izin Menunggu, dan koreksi Menunggu Mentor pindah ke mentor baru. Intern menerima notifikasi "Mentor Anda sekarang [nama]." **[Keputusan]**
 
-### 15.2 Akhir periode magang
+### 15.2 Perpanjangan magang
 
-- Admin menampilkan pengingat 7 hari sebelum berakhir, menanyakan perpanjangan ke mentor lewat chat, lalu memperpanjang atau membiarkan akun nonaktif. **[Keputusan]** Intern tidak melakukan apa pun dalam proses ini.
-- Intern dapat clock in dan clock out sampai **hari terakhir** magang. Status Nonaktif berlaku mulai hari berikutnya. **[Usulan, sama dengan design-admin.md]**
-- Setelah nonaktif: tidak bisa login atau clock in. Datanya tetap tersimpan dan dapat dilihat mentor dan admin. Mentor tetap bisa memeriksa Task yang sudah dikumpulkan. **[Keputusan]**
-- Task yang direvisi mentor setelah intern nonaktif tidak bisa ditindaklanjuti karena intern tidak bisa login. Ini sudah disepakati sebagai konsekuensi alur. **[Keputusan]**
-- Disarankan intern mengumpulkan semua Task sebelum hari terakhir. Tidak ada fitur khusus. **[Usulan, saran proses]**
+- Tanggal selesai berubah, kuota izin **direset** menjadi 3 (dihitung sejak tanggal mulai perpanjangan). **[Keputusan]**
+- Pengingat presentasi H-7 dihitung ulang dari tanggal selesai baru.
+- Riwayat izin lama tetap tampil, hanya tidak dihitung ke kuota baru.
 
-### 15.3 Cut-off 23:59
+### 15.3 Akhir magang
 
-- Status hari berjalan belum final sampai lewat 23:59. Di Riwayat, hari ini tampil sebagai "Berjalan". **[Usulan]**
-- Setelah 23:59, Daily Report dan data hari itu terkunci. Perbaikan hanya lewat koreksi absensi. **[Usulan]**
+- Intern bisa presensi sampai hari terakhir. Akun nonaktif mulai hari berikutnya. **[Keputusan]**
+- Setelah nonaktif intern tidak bisa login. Logbook yang masih Revisi tidak bisa diperbaiki, jadi perbaiki sebelum hari terakhir. **[Usulan, saran proses]**
 
-### 15.4 Hari libur ditambahkan admin
+### 15.4 Cut-off 23:59
 
-Jika admin menambah libur untuk tanggal yang sudah lewat, status absensi tanggal itu dihitung ulang otomatis (misalnya Tidak Hadir menjadi Libur). **[Keputusan]** Intern tidak perlu mengajukan apa pun.
-
-### 15.5 Sesi dan koneksi
-
-| Kondisi | Perilaku |
-|---|---|
-| Sesi login habis | Diarahkan ke layar Login. Isian formulir yang belum terkirim tidak dijanjikan tersimpan. **[Usulan]** |
-| Koneksi terputus | Pesan "Koneksi terputus. Coba lagi." Tidak ada perubahan data tanpa konfirmasi server |
+Status hari berjalan belum final sampai lewat 23:59. Setelah itu data hari tersebut hanya bisa diubah lewat koreksi presensi.
 
 ---
 
-## 16. Notifikasi Intern (Bell Icon)
-
-Tidak ada halaman notifikasi terpisah, cukup bell icon di navbar. **[Keputusan]** Klik item membawa langsung ke layar terkait. Deteksi anomali tidak dibuat. **[Keputusan]**
+## 16. Notifikasi Intern
 
 | Kejadian | Isi notifikasi | Tujuan klik |
 |---|---|---|
-| Mentor membuat Task baru | "Task baru dari Bu Sari: Desain ERD." | Detail Task |
-| Mentor mengubah Task | "Task 'Desain ERD' diubah mentor." | Detail Task |
-| Mentor membatalkan Task | "Task 'Uji login' dibatalkan mentor." | Daftar Task |
-| Mentor membalas komentar | "Bu Sari berkomentar di 'Desain ERD'." | Thread komentar |
-| Mentor menekan Accept | "Task 'Laporan API' diterima." | Detail Task |
-| Mentor menekan Revise | "Task 'Laporan API' perlu direvisi." | Detail Task, komentar |
-| Izin disetujui atau ditolak (mentor atau admin) | "Izin Sakit 13-14 Okt disetujui." | Detail izin |
-| Koreksi absensi disetujui atau ditolak | "Koreksi absensi 9 Okt disetujui." | Detail koreksi |
-| Pesan chat baru | "Pesan baru dari Admin Sinta." | Chat |
-| Pengumuman admin untuk role Intern | Judul pengumuman | Isi pengumuman |
-| Pergantian mentor | "Mentor Anda sekarang Bu Sari." | Dashboard |
+| Mentor meminta revisi logbook | "Logbook 8 Okt perlu direvisi." | Logbook |
+| Mentor menyetujui logbook | Tidak dikirim satu per satu, cukup status di Logbook **[Usulan, mengurangi notifikasi]** | - |
+| Koreksi ditolak mentor | "Koreksi presensi 6 Okt ditolak mentor." | Koreksi |
+| Koreksi diteruskan ke admin | "Koreksi presensi 6 Okt disetujui mentor, menunggu admin." | Koreksi |
+| Koreksi disetujui/ditolak admin | "Koreksi presensi 6 Okt disetujui." | Koreksi |
+| Izin disetujui/ditolak | "Izin Sakit 13-14 Okt disetujui." | Detail izin |
+| Pengingat presentasi H-7 | "Magang Anda berakhir 7 hari lagi. Lakukan presentasi dan kirim buktinya." | Presentasi Akhir |
+| Presentasi disetujui/revisi | "Bukti presentasi perlu diperbaiki." | Presentasi Akhir |
+| Warning baru | "Ada catatan baru dari admin." | Catatan |
+| Penilaian selesai | "Penilaian akhir Anda sudah tersedia." | Catatan |
+| Pengumuman | Judul pengumuman | Isi |
+| Pesan chat | "Pesan baru dari [nama]." | Chat |
+| Ganti mentor | "Mentor Anda sekarang [nama]." | Dashboard |
 
-Aturan:
-- Intern **tidak** menerima notifikasi untuk warning (hanya admin) dan tidak menerima pengingat clock in. **[Keputusan]** soal warning, **[Usulan]** soal pengingat clock in
-- Intern tidak menerima notifikasi saat dirinya sendiri mengumpulkan atau mengajukan sesuatu. Konfirmasi tampil di layar. **[Usulan]**
+Tidak ada pengingat clock in. **[Usulan]**
 
 ---
 
@@ -882,64 +703,45 @@ Aturan:
 
 ### 17.1 Status dan warna
 
-Warna tidak boleh menjadi satu-satunya penanda. Selalu sertakan teks pada badge. Warna sama dengan Admin dan Mentor.
+Warna tidak boleh menjadi satu-satunya penanda, badge selalu berisi teks. Sama di semua role.
 
-| Status | Dipakai untuk | Warna (usulan) |
+| Status | Dipakai untuk | Warna |
 |---|---|---|
-| Hadir | Absensi | Hijau (#2E7D32) |
-| Izin | Absensi | Biru (#1565C0) |
-| Tidak Hadir | Absensi | Merah (#C62828) |
-| Lupa Clock Out | Absensi | Oranye (#EF6C00) |
-| Libur | Absensi | Abu-abu (#757575) |
-| Berjalan | Absensi hari ini | Abu-abu muda |
-| Dikoreksi admin | Label kecil pada absensi | Abu-abu gelap |
-| To Do | Task | Abu-abu (#757575) |
-| In Progress | Task | Biru (#1565C0) |
-| In Review | Task | Kuning (#F9A825) |
-| Done | Task | Hijau (#2E7D32) |
-| Terlambat | Tanda pada Task | Merah (#C62828) |
-| Terkirim | Daily Report | Hijau |
-| Belum dikirim | Daily Report | Oranye |
-| Pending | Izin, koreksi | Kuning (#F9A825) |
-| Disetujui | Izin, koreksi | Hijau (#2E7D32) |
-| Ditolak | Izin, koreksi | Merah (#C62828) |
-| Dibatalkan | Izin, koreksi | Abu-abu (#757575) |
+| Hadir | Presensi | Hijau #2E7D32 |
+| Terlambat | Presensi | Merah gelap #AD1457 |
+| Lupa Clock In | Presensi | Oranye tua #E65100 |
+| Izin | Presensi | Biru #1565C0 |
+| Tidak Hadir | Presensi | Merah #C62828 |
+| Libur | Presensi | Abu-abu #757575 |
+| Lupa Clock Out | Label kecil presensi | Oranye #EF6C00 |
+| Dikoreksi | Label kecil presensi | Abu-abu gelap |
+| Draft | Logbook | Abu-abu |
+| Menunggu Review | Logbook | Kuning #F9A825 |
+| Revisi | Logbook, presentasi | Oranye #EF6C00 |
+| Disetujui | Logbook, izin, koreksi, presentasi | Hijau |
+| Menunggu / Menunggu Mentor / Menunggu Admin | Izin, koreksi, presentasi | Kuning |
+| Ditolak / Ditolak Mentor / Ditolak Admin | Izin, koreksi | Merah |
+| Dibatalkan | Izin, koreksi | Abu-abu |
 
-### 17.2 Format
+### 17.2 Format dan tata letak
 
-- Tanggal: "Sen, 12 Okt 2026". Waktu: 24 jam, misalnya 17:00. Zona waktu mengikuti perusahaan.
-- Keterlambatan Task ditulis dalam hari, misalnya "Lewat 2 hari".
-- Tombol utama (Simpan, Kirim, Kumpulkan, Clock In) di kanan bawah. Tombol batal di sebelah kirinya. Tombol Clock In dan Clock Out dibuat besar agar mudah ditekan di ponsel. **[Usulan]**
-- Bahasa tombol dan status konsisten dengan role lain (Accept, Revise, Setujui, Tolak). **[Usulan]**
+- Tanggal "Sen, 12 Okt 2026", waktu 24 jam.
+- Tombol Clock In dan Clock Out besar, mudah ditekan di ponsel.
+- Tombol utama di kanan bawah (desktop) atau penuh lebar (ponsel).
+- Kondisi memuat, kosong, dan gagal selalu disediakan.
+- Link bukti dibuka di tab baru.
 
-### 17.3 Kondisi layar
-
-| Kondisi | Tampilan |
-|---|---|
-| Memuat | Kerangka abu-abu atau indikator loading |
-| Kosong | Teks penjelas singkat, misalnya "Belum ada pengajuan izin." |
-| Gagal | "Terjadi kesalahan. Coba lagi." dengan tombol **Coba lagi** |
-| Tidak punya akses | "Anda tidak memiliki akses ke halaman ini." |
-
-### 17.4 Dialog konfirmasi
-
-Dipakai untuk tindakan yang berdampak: mengganti hasil Task, membatalkan izin, membatalkan koreksi. Isinya menjelaskan **dampaknya** dalam kalimat biasa, dan tombol konfirmasi memakai kata kerja jelas (contoh: "Ya, batalkan", bukan "OK").
-
-### 17.5 Pesan sistem penting
+### 17.3 Pesan penting
 
 | Situasi | Pesan |
 |---|---|
-| Berhasil disimpan | "Perubahan tersimpan." |
-| Clock in berhasil | "Clock in berhasil pukul 08:02." |
-| Clock in terlambat | "Clock in berhasil pukul 08:15. Anda terlambat 15 menit." |
-| Clock out berhasil | "Clock out berhasil pukul 17:03. Terima kasih." |
-| Clock out sebelum jam pulang | "Belum saatnya clock out, tunggu 1 jam 1 menit lagi." |
-| Daily Report terkirim | "Daily Report terkirim." |
-| Hasil Task terkumpul | "Hasil terkumpul. Menunggu pemeriksaan mentor." |
-| Izin terkirim | "Izin diajukan. Menunggu mentor." |
-| Koreksi terkirim | "Permintaan koreksi terkirim. Menunggu admin." |
+| Clock in terlambat | "Clock in berhasil pukul 08:20. Anda tercatat Terlambat 20 menit." |
+| Clock out sebelum jam pulang | "Belum saatnya clock out, tunggu 45 menit lagi." |
+| Clock out tanpa clock in | "Anda belum clock in hari ini. Hari ini akan tercatat Lupa Clock In." |
+| Logbook kosong saat clock out | "Isi logbook dulu sebelum clock out." |
+| Kuota izin habis | "Kuota izin Anda (3 kali) sudah habis. Silakan hubungi mentor." |
+| Link bukan Google Drive/Docs | "Link harus berupa link Google Drive atau Google Docs, contoh: https://drive.google.com/..." |
 | Data sudah diproses pihak lain | "Data ini sudah diproses oleh [nama]." |
-| Perpindahan Kanban tidak diizinkan | "Perpindahan ini tidak diizinkan." |
 
 ---
 
@@ -947,54 +749,47 @@ Dipakai untuk tindakan yang berdampak: mengganti hasil Task, membatalkan izin, m
 
 | Area | Intern bisa | Intern tidak bisa |
 |---|---|---|
-| Akun | Mengedit profil sendiri | Mengubah email internal, mentor, periode magang, atau role. Mengganti password sendiri (hanya saat login pertama dan lewat reset admin) |
-| Absensi | Clock in, clock out, melihat riwayat dan rekap sendiri | Mengubah absensi langsung. Melihat absensi intern lain |
-| Daily Report | Menulis dan mengubah sampai clock out, melihat riwayat sendiri | Mengubah setelah clock out. Menulis untuk hari lain |
-| Koreksi | Mengajukan, melihat, dan membatalkan yang Pending | Menyetujui koreksi |
-| Task | Melihat Task sendiri, menggeser kartu sesuai aturan, mengumpulkan dan mengganti hasil, berkomentar | Membuat, mengubah, atau menghapus Task. Menandai Done. Melihat Task intern lain |
-| Izin | Mengajukan dengan bukti, melihat, dan membatalkan yang Pending | Menyetujui izin. Mengubah izin yang sudah dikirim. Mengajukan cuti (tidak ada) |
-| Warning | - | Melihat atau membuat (hanya admin) |
-| Performa | - | Melihat dashboard performa dan KPI (milik mentor) |
-| Pengumuman | Menerima sesuai pilihan admin | Membuat |
-| Laporan | - | Export (hanya admin) |
+| Akun | Melihat profil, mengubah nomor telepon | Mengubah email, unit, lokasi, kampus, mentor, periode. Ganti password sendiri |
+| Presensi | Clock in, clock out, melihat riwayat sendiri | Mengubah presensi langsung, melihat intern lain |
+| Logbook | Mengisi sampai clock out, memperbaiki saat Revisi, mengisi hari yang dikoreksi | Mengubah logbook Disetujui atau Menunggu Review |
+| Koreksi | Mengajukan dan membatalkan saat menunggu | Menyetujui |
+| Izin | Mengajukan selama kuota ada, membatalkan saat Menunggu | Mengajukan setelah kuota habis, menyetujui |
+| Presentasi | Mengirim dan mengganti link sampai disetujui | Menyetujui |
+| Warning | Membaca catatan tentang dirinya | Membalas, membuat |
+| Penilaian | Melihat nilai setelah disubmit (usulan) | Mengubah nilai |
+| Laporan, Pengaturan | - | Semua |
 | Chat | Chat dengan semua pengguna | Membaca chat orang lain |
 
 ---
 
-## 19. Keputusan Tambahan (Mengikuti Usulan)
-
-Per 10 Oktober 2026, hal berikut dianggap disepakati. Nomor 1 sampai 15 mengikuti usulan, nomor 16 dan 17 adalah keputusan Draft 2, dan nomor 18 sampai 20 diputuskan 13 Oktober 2026. Nomor 4 dan 5 diubah 17 Oktober 2026. Hal yang masih terbuka ada di Bagian 20.
+## 19. Ringkasan Keputusan
 
 | No | Topik | Keputusan |
 |---|---|---|
-| 1 | Login | Email internal, akun dibuat admin, tanpa Google OAuth |
-| 2 | Ganti password | Tidak ada ganti password mandiri. Hanya saat login pertama dan reset oleh admin |
-| 3 | Kanban | Drag and drop didukung dengan aturan perpindahan di 10.2. Tombol di detail Task tetap tersedia |
-| 4 | Keterlambatan clock in | Tanda Terlambat (bukan status) jika clock in lewat jam masuk, dihitung per menit. Terlihat oleh intern dan admin, tidak oleh mentor. **Diubah 17 Okt 2026** |
-| 5 | Clock out sebelum jam pulang | Tidak boleh. Pesan "Belum saatnya clock out, tunggu ... lagi." Pulang lebih awal menjadi Lupa Clock Out lalu koreksi. **Diubah 17 Okt 2026** |
-| 6 | Validasi lokasi | Pada clock in dan clock out, memakai radius kantor aktif (diubah di Draft 2, lihat nomor 16) |
-| 7 | Daily Report | Dua kolom: pekerjaan (wajib) dan kendala (opsional) |
-| 8 | Mengganti hasil Task | Boleh saat In Review dan setelah Revise. Hasil lama dihapus, tanpa versi |
-| 9 | Komentar | Tidak bisa diedit atau dihapus. Thread terkunci saat Done |
-| 10 | Izin tanggal lampau | Boleh, tanpa batas hari dari sistem, diberi label khusus |
-| 11 | Izin tanpa lampiran | Boleh dikirim. Lampiran opsional, tetapi dianjurkan karena admin hanya membantu bila ada bukti |
-| 12 | Clock in saat izin Pending | Boleh. Hari yang sudah clock in dikecualikan dari izin dan tetap Hadir |
-| 13 | Membatalkan koreksi | Boleh saat Pending |
-| 14 | Satu koreksi Pending per tanggal | Ya |
-| 15 | Nonaktif akun | Berlaku mulai hari setelah tanggal selesai magang |
-| 16 | Lokasi kantor | Admin membuat kantor lewat peta dengan radius clock in dan radius clock out. Clock in memakai radius clock in, clock out memakai radius clock out |
-| 17 | Batas ukuran file | Maksimal 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi |
-| 18 | Jenis file | Hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx) untuk hasil Task, lampiran izin, dan bukti koreksi. Jenis lain dikirim lewat link |
-| 19 | Intern dan kantor | Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out |
-| 20 | Batas radius | Ditentukan admin per kantor, tanpa rentang tetap dari sistem |
+| 1 | Istilah | Absensi menjadi Presensi |
+| 2 | Status presensi | Hadir, Terlambat, Lupa Clock In, Izin, Tidak Hadir, Libur + tanda Lupa Clock Out |
+| 3 | Terlambat | Lewat jam masuk + toleransi 15 menit. Terlihat semua role. Dihitung hadir |
+| 4 | Lupa Clock In | Clock out tanpa clock in. Dihitung hadir |
+| 5 | Jadwal | Mengikuti lokasi magang: jadwal mingguan per hari + jadwal khusus |
+| 6 | Clock in | Hanya sebelum jam pulang |
+| 7 | Clock out | Tidak sebelum jam pulang, logbook wajib terisi |
+| 8 | Logbook | Pengganti Daily Report dan Task. 1 per hari. Disetujui atau Revisi (tanpa Ditolak) |
+| 9 | Task dan Kanban | Dihapus |
+| 10 | Koreksi presensi | Tanpa bukti. Mentor ACC, admin mengeksekusi. Hasil Hadir + Dikoreksi |
+| 11 | Logbook hari dikoreksi | Bisa diisi setelah koreksi disetujui |
+| 12 | Upload file | Dihapus. Bukti lewat link Google Drive/Docs |
+| 13 | Kuota izin | 3 kali per masa magang, diblokir setelah habis, reset saat perpanjangan |
+| 14 | Presentasi akhir | Mulai H-7, link bukti, diverifikasi admin |
+| 15 | Warning | Terlihat intern (baca saja) dengan notifikasi |
+| 16 | Dashboard | Kartu bisa diklik, aksi harian dari satu layar |
+| 17 | Profil | Tanpa foto, avatar inisial |
 
 ---
 
 ## 20. Hal yang Masih Terbuka
 
-Batas ukuran file (2 MB) dan validasi lokasi (radius kantor aktif) sudah diputuskan di Draft 2. Jenis file, pilihan kantor, dan batas radius sudah diputuskan 13 Oktober 2026 (Bagian 19 nomor 18 sampai 20). Hal berikut masih terbuka.
-
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Kasus khusus lokasi | Penanganan GPS kurang akurat dan VPN, ditentukan tim teknis |
-| 2 | Penyimpanan dan penghapusan file lama | Saat hasil diganti, file lama dihapus permanen. Cara dan waktu penghapusan ditentukan tim teknis |
+| 1 | Toleransi terlambat | 15 menit, menunggu konfirmasi mitra. Disimpan sebagai pengaturan sehingga mudah diubah |
+| 2 | Intern melihat nilai akhir | Usulan saya intern bisa melihat. Perlu konfirmasi |
+| 3 | Kasus khusus lokasi | GPS kurang akurat dan lokasi palsu, ditangani tim teknis |

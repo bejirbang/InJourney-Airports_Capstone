@@ -19,14 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Absensi milik intern yang login.
- */
 class AttendanceController extends Controller
 {
-    /**
-     * Clock in tetap diterima walau lewat jam masuk; keterlambatan hanya ditandai.
-     */
     public function clockIn(ClockRequest $request, AttendanceClock $clock): JsonResponse
     {
         /** @var User $intern */
@@ -70,9 +64,6 @@ class AttendanceController extends Controller
         ]);
     }
 
-    /**
-     * Riwayat absensi dan rekap satu bulan.
-     */
     public function history(AttendanceHistoryRequest $request, AttendanceHistory $history): JsonResponse
     {
         /** @var User $intern */
@@ -83,9 +74,6 @@ class AttendanceController extends Controller
         return response()->json(['data' => $history->month($intern, $month, Date::now())]);
     }
 
-    /**
-     * Detail satu hari, hanya baca.
-     */
     public function day(Request $request, string $date, AttendanceHistory $history): JsonResponse
     {
         /** @var User $intern */
@@ -94,9 +82,6 @@ class AttendanceController extends Controller
         return response()->json(['data' => $history->day($intern, $date, Date::now())]);
     }
 
-    /**
-     * Daily Report hari ini. `data` null jika belum dikirim atau belum clock in.
-     */
     public function showDailyReport(Request $request, DailyReports $reports): JsonResponse
     {
         /** @var User $intern */
@@ -107,9 +92,6 @@ class AttendanceController extends Controller
         return response()->json(['data' => $report === null ? null : new DailyReportResource($report)]);
     }
 
-    /**
-     * Kirim atau ubah Daily Report hari ini.
-     */
     public function saveDailyReport(DailyReportRequest $request, DailyReports $reports): JsonResponse
     {
         /** @var User $intern */

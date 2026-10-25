@@ -16,10 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Daftar Task mentor (docs/design-mentor.md, Alur 5) serta buat, ubah, dan hapus Task (Alur 4).
- * Notifikasi intern sesuai design-intern.md 16.
- */
 class MentorTasks
 {
     public const DUE_ON_HOLIDAY = 'Tenggat jatuh pada hari libur.';
@@ -31,9 +27,6 @@ class MentorTasks
     public function __construct(private AccountAccess $access, private Notifier $notifier) {}
 
     /**
-     * Halaman Task mentor, Kanban dan Daftar (docs/design-mentor.md, Alur 5).
-     * Semua Task yang dipegang mentor ini (`tasks.mentor_id`), dengan jumlah komentar belum dibaca mentor.
-     *
      * @param  array{intern_id?: int|string|null, status?: string|null, late?: bool, due_from?: string|null, due_to?: string|null, q?: string|null, sort?: string|null, include_older_done?: bool}  $filters
      * @return array{tasks: Collection<int, Task>, hidden_done: int}
      */
@@ -72,8 +65,6 @@ class MentorTasks
     }
 
     /**
-     * Task baru berstatus To Do untuk satu intern aktif bimbingan mentor ini.
-     *
      * @param  array{intern_id: int|string, title: string, description: string, due_at: string}  $input
      *
      * @throws ValidationException
@@ -82,7 +73,6 @@ class MentorTasks
     {
         $intern = User::query()->with('internProfile')->find((int) $input['intern_id']);
 
-        // Hanya intern aktif bimbingan sendiri; Task baru tidak bisa dibuat untuk intern nonaktif (13.2).
         if ($intern === null
             || $intern->internProfile?->mentor_id !== $mentor->id
             || $this->access->denialReason($intern, $now) !== null) {
@@ -93,7 +83,7 @@ class MentorTasks
 
         $task = DB::transaction(function () use ($mentor, $intern, $input, $due): Task {
             $task = Task::query()->create([
-                // Kode sementara agar unik, lalu diganti TSK-<id> (sama dengan format prototipe "TSK-024").
+                // Kode sementara agar unik, lalu diganti TSK-<id>.
                 'code' => 'TMP-'.Str::uuid(),
                 'title' => $input['title'],
                 'description' => $input['description'],
@@ -114,7 +104,6 @@ class MentorTasks
     }
 
     /**
-     * Ubah judul, deskripsi, dan tenggat selama belum Done (6.4). Intern tidak bisa diganti.
      * Tenggat yang tidak diubah boleh tetap lewat, agar Task terlambat tetap bisa diperbaiki teksnya.
      *
      * @param  array{title: string, description: string, due_at: string}  $input
@@ -144,7 +133,7 @@ class MentorTasks
             $task->fill([
                 'title' => $input['title'],
                 'description' => $input['description'],
-                // Tenggat baru membuka lagi pengingat "lewat tenggat lebih dari 2 hari kerja" (7.6).
+                // Tenggat baru membuka lagi pengingat "lewat tenggat lebih dari 2 hari kerja".
                 ...$dueChanged ? ['due_at' => $due, 'overdue_reminded_at' => null] : [],
             ]);
 
@@ -162,8 +151,6 @@ class MentorTasks
     }
 
     /**
-     * Hapus hanya Task To Do yang belum punya komentar (6.4). Intern menerima notifikasi pembatalan.
-     *
      * @throws ActionRejected
      */
     public function delete(Task $task): void
@@ -189,8 +176,6 @@ class MentorTasks
     }
 
     /**
-     * Peringatan (bukan penolakan) jika tenggat jatuh pada Sabtu, Minggu, atau libur admin (6.3).
-     *
      * @return array{due_on_holiday: bool, holiday_name: string|null, warning: string|null}
      */
     public function dueCheck(CarbonInterface $due): array
@@ -205,9 +190,6 @@ class MentorTasks
         ];
     }
 
-    /**
-     * Waktu lokal dari formulir, tanpa detik.
-     */
     public static function parseDue(string $value): Carbon
     {
         return Carbon::parse($value)->setTimezone(config('app.timezone'))->startOfMinute();

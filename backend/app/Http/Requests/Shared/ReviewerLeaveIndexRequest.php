@@ -1,16 +1,12 @@
 <?php
 
-namespace App\Http\Requests\Mentor;
+namespace App\Http\Requests\Shared;
 
 use App\Enums\LeaveType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-/**
- * Tab dan filter halaman Izin mentor (docs/design-mentor.md 9.2): `tab` pending (default) atau all,
- * `type` sick atau urgent, `intern_id`.
- */
-class LeaveIndexRequest extends FormRequest
+class ReviewerLeaveIndexRequest extends FormRequest
 {
     public function authorize(): bool
     {
