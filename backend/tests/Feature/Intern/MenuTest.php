@@ -31,6 +31,8 @@ it('returns the intern menu for a logged-in intern', function () {
             ['key' => 'attendance', 'path' => '/intern/attendance', 'badge' => null],
             ['key' => 'logbooks', 'path' => '/intern/logbooks', 'badge' => 0],
             ['key' => 'leaves', 'path' => '/intern/leaves', 'badge' => null],
+            ['key' => 'presentation', 'path' => '/intern/presentation', 'badge' => null],
+            ['key' => 'notes', 'path' => '/intern/notes', 'badge' => null],
         ]]);
 });
 

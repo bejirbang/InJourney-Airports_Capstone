@@ -36,7 +36,7 @@ class MentorLogbooks
 
     public const INTERN_INACTIVE = 'Intern sudah nonaktif dan tidak dapat memperbaiki logbook.';
 
-    public function __construct(private AccountAccess $access, private Notifier $notifier) {}
+    public function __construct(private AccountAccess $access, private Notifier $notifier, private Assessments $assessments) {}
 
     /**
      * Menunggu Review dan Revisi diurutkan dari tanggal paling lama; Semua dari yang terbaru.
@@ -112,7 +112,7 @@ class MentorLogbooks
      */
     public function approve(User $mentor, Logbook $logbook, ?string $comment, CarbonInterface $now): Logbook
     {
-        return DB::transaction(function () use ($mentor, $logbook, $comment, $now): Logbook {
+        $logbook = DB::transaction(function () use ($mentor, $logbook, $comment, $now): Logbook {
             $logbook = $this->lock($logbook);
 
             if (! $this->canApprove($logbook, $now)) {
@@ -123,6 +123,10 @@ class MentorLogbooks
 
             return $logbook;
         });
+
+        $this->assessments->notifyIfReady($logbook->attendance->intern);
+
+        return $logbook;
     }
 
     /**
@@ -134,8 +138,9 @@ class MentorLogbooks
      */
     public function approveMany(User $mentor, array $ids, CarbonInterface $now): array
     {
-        return DB::transaction(function () use ($mentor, $ids, $now): array {
+        [$result, $internIds] = DB::transaction(function () use ($mentor, $ids, $now): array {
             $logbooks = $this->query($mentor)
+                ->addSelect('attendances.intern_id')
                 ->whereIn('logbooks.id', $ids)
                 ->where('logbooks.status', LogbookStatus::PendingReview)
                 ->orderBy('logbooks.id')
@@ -149,10 +154,16 @@ class MentorLogbooks
             $approved = array_values($logbooks->pluck('id')->all());
 
             return [
-                'approved' => $approved,
-                'skipped' => array_values(array_diff($ids, $approved)),
+                ['approved' => $approved, 'skipped' => array_values(array_diff($ids, $approved))],
+                $logbooks->pluck('intern_id')->unique()->all(),
             ];
         });
+
+        foreach (User::query()->with('internProfile')->whereIn('id', $internIds)->get() as $intern) {
+            $this->assessments->notifyIfReady($intern);
+        }
+
+        return $result;
     }
 
     /**

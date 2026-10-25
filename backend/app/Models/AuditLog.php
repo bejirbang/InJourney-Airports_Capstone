@@ -30,9 +30,13 @@ class AuditLog extends Model
 
     public const ACTION_LEAVE = 'Izin';
 
+    public const ACTION_PRESENTATION = 'Presentasi';
+
     public const ACTION_CALENDAR = 'Kalender dan jam kerja';
 
     public const ACTION_OFFICE = 'Lokasi kantor';
+
+    public const ACTION_UNIT = 'Unit';
 
     public const ACTION_ANNOUNCEMENT = 'Pengumuman';
 
@@ -43,8 +47,10 @@ class AuditLog extends Model
         self::ACTION_ATTENDANCE,
         self::ACTION_CORRECTION,
         self::ACTION_LEAVE,
+        self::ACTION_PRESENTATION,
         self::ACTION_CALENDAR,
         self::ACTION_OFFICE,
+        self::ACTION_UNIT,
         self::ACTION_WARNING,
         self::ACTION_ANNOUNCEMENT,
         self::ACTION_REPORT,

@@ -15,6 +15,8 @@ class MenuController extends Controller
         ['key' => 'attendance', 'path' => '/intern/attendance'],
         ['key' => 'logbooks', 'path' => '/intern/logbooks'],
         ['key' => 'leaves', 'path' => '/intern/leaves'],
+        ['key' => 'presentation', 'path' => '/intern/presentation'],
+        ['key' => 'notes', 'path' => '/intern/notes'],
     ];
 
     /**

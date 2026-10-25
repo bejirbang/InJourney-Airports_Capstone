@@ -11,7 +11,12 @@ class InternDashboard
 {
     public const ANNOUNCEMENT_LIMIT = 3;
 
-    public function __construct(private AttendanceCalendar $calendar, private InternLogbooks $logbooks, private LeaveQuotas $quotas) {}
+    public function __construct(
+        private AttendanceCalendar $calendar,
+        private InternLogbooks $logbooks,
+        private LeaveQuotas $quotas,
+        private FinalPresentations $presentations,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -24,6 +29,7 @@ class InternDashboard
 
         return [
             'date' => $now->toDateString(),
+            'presentation_banner' => $this->presentations->banner($intern, $now),
             'today' => [...$today, 'state' => $today['state']->value],
             'logbook_reminder' => $today['state'] === TodayState::ClockedIn && $today['logbook'] === null,
             'action_needed' => ['logbooks' => $this->logbooks->actionNeeded($intern)],

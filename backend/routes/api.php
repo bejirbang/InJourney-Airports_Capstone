@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
+use App\Http\Controllers\Admin\AssessmentController as AdminAssessmentController;
 use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
 use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -10,12 +11,15 @@ use App\Http\Controllers\Admin\InternRecordController as AdminInternRecordContro
 use App\Http\Controllers\Admin\LeaveController as AdminLeaveController;
 use App\Http\Controllers\Admin\MenuController as AdminMenuController;
 use App\Http\Controllers\Admin\OfficeController as AdminOfficeController;
+use App\Http\Controllers\Admin\PresentationController as AdminPresentationController;
 use App\Http\Controllers\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Admin\ResetPasswordController;
+use App\Http\Controllers\Admin\UnitController as AdminUnitController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WarningController as AdminWarningController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ProfileController;
+use App\Http\Controllers\Intern\AssessmentController as InternAssessmentController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
 use App\Http\Controllers\Intern\AttendanceCorrectionController as InternCorrectionController;
 use App\Http\Controllers\Intern\DashboardController as InternDashboardController;
@@ -23,6 +27,8 @@ use App\Http\Controllers\Intern\LeaveController as InternLeaveController;
 use App\Http\Controllers\Intern\LogbookController as InternLogbookController;
 use App\Http\Controllers\Intern\MenuController as InternMenuController;
 use App\Http\Controllers\Intern\OfficeController as InternOfficeController;
+use App\Http\Controllers\Intern\PresentationController as InternPresentationController;
+use App\Http\Controllers\Mentor\AssessmentController as MentorAssessmentController;
 use App\Http\Controllers\Mentor\CorrectionController as MentorCorrectionController;
 use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController;
 use App\Http\Controllers\Mentor\InternController as MentorInternController;
@@ -83,6 +89,10 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/leaves', [InternLeaveController::class, 'store'])->name('leaves.store');
             Route::get('/leaves/{leave}', [InternLeaveController::class, 'show'])->whereNumber('leave')->name('leaves.show');
             Route::post('/leaves/{leave}/cancel', [InternLeaveController::class, 'cancel'])->name('leaves.cancel');
+
+            Route::get('/presentation', [InternPresentationController::class, 'show'])->name('presentation.show');
+            Route::put('/presentation', [InternPresentationController::class, 'update'])->name('presentation.update');
+            Route::get('/assessment', InternAssessmentController::class)->name('assessment');
         });
 
         Route::middleware('role:mentor')->prefix('mentor')->name('mentor.')->group(function () {
@@ -115,6 +125,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
             Route::get('/leave-calendar', MentorLeaveCalendarController::class)->name('leave-calendar');
             Route::get('/performance', MentorPerformanceController::class)->name('performance');
+
+            Route::get('/assessments', [MentorAssessmentController::class, 'index'])->name('assessments.index');
+            Route::get('/assessments/{intern}', [MentorAssessmentController::class, 'show'])->whereNumber('intern')->name('assessments.show');
+            Route::put('/assessments/{intern}', [MentorAssessmentController::class, 'update'])->whereNumber('intern')->name('assessments.update');
+            Route::post('/assessments/{intern}/submit', [MentorAssessmentController::class, 'submit'])->whereNumber('intern')->name('assessments.submit');
         });
 
         Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
@@ -148,6 +163,14 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/leaves/{leave}/approve', [AdminLeaveController::class, 'approve'])->name('leaves.approve');
             Route::post('/leaves/{leave}/reject', [AdminLeaveController::class, 'reject'])->name('leaves.reject');
 
+            Route::get('/presentations', [AdminPresentationController::class, 'index'])->name('presentations.index');
+            Route::get('/presentations/{presentation}', [AdminPresentationController::class, 'show'])->whereNumber('presentation')->name('presentations.show');
+            Route::post('/presentations/{presentation}/approve', [AdminPresentationController::class, 'approve'])->whereNumber('presentation')->name('presentations.approve');
+            Route::post('/presentations/{presentation}/revise', [AdminPresentationController::class, 'revise'])->whereNumber('presentation')->name('presentations.revise');
+
+            Route::get('/assessments', [AdminAssessmentController::class, 'index'])->name('assessments.index');
+            Route::get('/assessments/{user}', [AdminAssessmentController::class, 'show'])->whereNumber('user')->name('assessments.show');
+
             Route::get('/warnings', [AdminWarningController::class, 'index'])->name('warnings.index');
             Route::get('/users/{user}/warnings', [AdminWarningController::class, 'forIntern'])->name('users.warnings.index');
             Route::post('/users/{user}/warnings', [AdminWarningController::class, 'store'])->name('users.warnings.store');
@@ -157,6 +180,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::post('/holidays', [AdminHolidayController::class, 'store'])->name('holidays.store');
             Route::put('/holidays/{holiday}', [AdminHolidayController::class, 'update'])->name('holidays.update');
             Route::delete('/holidays/{holiday}', [AdminHolidayController::class, 'destroy'])->name('holidays.destroy');
+
+            Route::get('/units', [AdminUnitController::class, 'index'])->name('units.index');
+            Route::post('/units', [AdminUnitController::class, 'store'])->name('units.store');
+            Route::put('/units/{unit}', [AdminUnitController::class, 'update'])->whereNumber('unit')->name('units.update');
+            Route::post('/units/{unit}/deactivate', [AdminUnitController::class, 'deactivate'])->whereNumber('unit')->name('units.deactivate');
+            Route::post('/units/{unit}/activate', [AdminUnitController::class, 'activate'])->whereNumber('unit')->name('units.activate');
 
             Route::get('/offices', [AdminOfficeController::class, 'index'])->name('offices.index');
             Route::post('/offices', [AdminOfficeController::class, 'store'])->name('offices.store');

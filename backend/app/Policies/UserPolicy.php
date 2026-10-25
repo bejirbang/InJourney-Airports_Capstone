@@ -32,4 +32,14 @@ class UserPolicy
             ? Response::deny(self::INTERN_FORBIDDEN)
             : Response::allow();
     }
+
+    /**
+     * Penilaian hanya oleh mentor saat ini, bukan mentor sebelumnya.
+     */
+    public function assess(User $mentor, User $intern): Response
+    {
+        return app(MentorInterns::class)->relation($mentor, $intern) === MentorInterns::CURRENT
+            ? Response::allow()
+            : Response::deny(self::INTERN_FORBIDDEN);
+    }
 }

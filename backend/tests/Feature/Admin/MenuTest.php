@@ -54,6 +54,8 @@ it('returns the admin menu for a logged-in admin', function () {
             ['key' => 'attendance', 'path' => '/admin/attendance', 'badge' => null],
             ['key' => 'corrections', 'path' => '/admin/corrections', 'badge' => 0],
             ['key' => 'leaves', 'path' => '/admin/leaves', 'badge' => 0],
+            ['key' => 'presentations', 'path' => '/admin/presentations', 'badge' => 0],
+            ['key' => 'assessments', 'path' => '/admin/assessments', 'badge' => null],
             ['key' => 'warnings', 'path' => '/admin/warnings', 'badge' => null],
             ['key' => 'announcements', 'path' => '/admin/announcements', 'badge' => null],
             ['key' => 'reports', 'path' => '/admin/reports', 'badge' => null],

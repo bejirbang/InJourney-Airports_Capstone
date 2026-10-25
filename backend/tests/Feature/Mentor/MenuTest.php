@@ -53,6 +53,7 @@ it('returns the mentor menu for a logged-in mentor', function () {
             ['key' => 'leaves', 'path' => '/mentor/leaves', 'badge' => 0],
             ['key' => 'leave_calendar', 'path' => '/mentor/leave-calendar', 'badge' => null],
             ['key' => 'performance', 'path' => '/mentor/performance', 'badge' => null],
+            ['key' => 'assessments', 'path' => '/mentor/assessments', 'badge' => 0],
         ]]);
 });
 
