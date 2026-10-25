@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
-use App\Enums\RequestStatus;
+use App\Enums\AttendanceStatus;
+use App\Enums\CorrectionStatus;
 use Database\Factories\AttendanceCorrectionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,27 +15,26 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $intern_id
+ * @property int|null $mentor_id
  * @property Carbon $date
- * @property string|null $recorded_clock_in
- * @property string|null $recorded_clock_out
- * @property string $requested_clock_in
- * @property string $requested_clock_out
+ * @property AttendanceStatus $recorded_status
+ * @property bool $recorded_missed_clock_out
  * @property string $reason
- * @property string|null $evidence_path
- * @property RequestStatus $status
- * @property int|null $decided_by
- * @property string|null $decision_note
- * @property string|null $final_clock_in
- * @property string|null $final_clock_out
- * @property Carbon|null $decided_at
+ * @property CorrectionStatus $status
+ * @property string|null $mentor_note
+ * @property Carbon|null $mentor_decided_at
+ * @property int|null $admin_id
+ * @property string|null $admin_note
+ * @property Carbon|null $admin_decided_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $intern
- * @property-read User|null $decider
+ * @property-read User|null $mentor
+ * @property-read User|null $admin
  */
 #[Fillable([
-    'intern_id', 'date', 'recorded_clock_in', 'recorded_clock_out', 'requested_clock_in', 'requested_clock_out',
-    'reason', 'evidence_path', 'status', 'decided_by', 'decision_note', 'final_clock_in', 'final_clock_out', 'decided_at',
+    'intern_id', 'mentor_id', 'date', 'recorded_status', 'recorded_missed_clock_out', 'reason', 'status',
+    'mentor_note', 'mentor_decided_at', 'admin_id', 'admin_note', 'admin_decided_at',
 ])]
 class AttendanceCorrection extends Model
 {
@@ -47,9 +48,21 @@ class AttendanceCorrection extends Model
     {
         return [
             'date' => 'date',
-            'status' => RequestStatus::class,
-            'decided_at' => 'datetime',
+            'recorded_status' => AttendanceStatus::class,
+            'recorded_missed_clock_out' => 'boolean',
+            'status' => CorrectionStatus::class,
+            'mentor_decided_at' => 'datetime',
+            'admin_decided_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @param  Builder<AttendanceCorrection>  $query
+     * @return Builder<AttendanceCorrection>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereIn('status', CorrectionStatus::active());
     }
 
     /**
@@ -63,13 +76,21 @@ class AttendanceCorrection extends Model
     /**
      * @return BelongsTo<User, $this>
      */
-    public function decider(): BelongsTo
+    public function mentor(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'decided_by');
+        return $this->belongsTo(User::class, 'mentor_id')->withTrashed();
     }
 
-    public function isPending(): bool
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function admin(): BelongsTo
     {
-        return $this->status === RequestStatus::Pending;
+        return $this->belongsTo(User::class, 'admin_id')->withTrashed();
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status->isActive();
     }
 }

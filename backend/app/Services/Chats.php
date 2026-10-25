@@ -41,7 +41,7 @@ class Chats
         $partners = User::query()
             ->whereIn('id', $latest->keys())
             ->when($search, fn (Builder $q, string $s) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%']))
-            ->with('internProfile')
+            ->with(['internProfile', 'unit'])
             ->get()
             ->keyBy('id');
 
@@ -77,7 +77,7 @@ class Chats
             ->whereKeyNot($me->id)
             ->reachable($now->toDateString())
             ->when($search, fn (Builder $q, string $s) => $q->whereRaw('LOWER(name) LIKE ?', ['%'.mb_strtolower($s).'%']))
-            ->with('internProfile')
+            ->with(['internProfile', 'unit'])
             ->orderBy('name')
             ->orderBy('id')
             ->limit(self::CONTACT_LIMIT)
@@ -103,7 +103,7 @@ class Chats
             ->get();
 
         return [
-            'partner' => $this->person($partner->loadMissing('internProfile'), $now),
+            'partner' => $this->person($partner->loadMissing(['internProfile', 'unit']), $now),
             'messages' => array_values($page->take(self::MESSAGES_PER_PAGE)->reverse()->map(fn (ChatMessage $m): array => $m->toItem())->all()),
             'has_more' => $page->count() > self::MESSAGES_PER_PAGE,
         ];
@@ -197,8 +197,7 @@ class Chats
             'id' => $user->id,
             'name' => $user->name,
             'role' => $user->role->value,
-            'title' => $user->title,
-            'photo_url' => $user->photoUrl(),
+            'unit' => $user->unit?->name,
             'can_send' => $user->isReachable($now->toDateString()),
         ];
     }

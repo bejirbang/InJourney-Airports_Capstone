@@ -21,6 +21,11 @@ class ReportController extends Controller
         return response()->json(['data' => $this->reports->options()]);
     }
 
+    public function preview(ReportRequest $request): JsonResponse
+    {
+        return response()->json(['data' => ['interns' => $this->reports->preview($request->filters())]]);
+    }
+
     public function export(ReportRequest $request): BinaryFileResponse
     {
         /** @var User $admin */

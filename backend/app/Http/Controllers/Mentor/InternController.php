@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Mentor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mentor\InternIndexRequest;
 use App\Http\Requests\Shared\AttendanceHistoryRequest;
+use App\Http\Resources\AttendanceCorrectionResource;
 use App\Models\User;
+use App\Services\AdminWarnings;
 use App\Services\AttendanceHistory;
 use App\Services\MentorInterns;
 use Illuminate\Http\JsonResponse;
@@ -46,35 +48,21 @@ class InternController extends Controller
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        $month = $request->filled('month') ? $request->string('month')->value() : null;
-
-        return response()->json(['data' => $history->monthForMentor($intern, $month, Date::now())]);
+        return response()->json(['data' => $history->monthForMentor($intern, $request->month(), $request->statusFilter(), Date::now())]);
     }
 
     public function day(User $intern, string $date, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        return response()->json(['data' => $history->dayForMentor($intern, $date, Date::now())]);
+        return response()->json(['data' => $history->day($intern, $date, Date::now())]);
     }
 
-    public function dailyReports(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
+    public function logbooks(AttendanceHistoryRequest $request, User $intern, AttendanceHistory $history): JsonResponse
     {
         Gate::authorize('viewAsMentor', $intern);
 
-        $month = $request->filled('month') ? $request->string('month')->value() : null;
-
-        return response()->json(['data' => $history->dailyReports($intern, $month, Date::now())]);
-    }
-
-    public function tasks(Request $request, User $intern): JsonResponse
-    {
-        Gate::authorize('viewAsMentor', $intern);
-
-        /** @var User $mentor */
-        $mentor = $request->user();
-
-        return response()->json(['data' => $this->interns->tasks($mentor, $intern, $this->relation($request, $intern), Date::now())]);
+        return response()->json(['data' => $history->logbooks($intern, $request->month(), Date::now())]);
     }
 
     public function leaves(Request $request, User $intern): JsonResponse
@@ -82,6 +70,24 @@ class InternController extends Controller
         Gate::authorize('viewAsMentor', $intern);
 
         return response()->json(['data' => $this->interns->leaves($intern, $this->relation($request, $intern))]);
+    }
+
+    public function corrections(User $intern): JsonResponse
+    {
+        Gate::authorize('viewAsMentor', $intern);
+
+        return response()->json(['data' => AttendanceCorrectionResource::collection($intern->attendanceCorrections()
+            ->with(['mentor:id,name', 'admin:id,name'])
+            ->latest()
+            ->latest('id')
+            ->get())]);
+    }
+
+    public function warnings(User $intern, AdminWarnings $warnings): JsonResponse
+    {
+        Gate::authorize('viewAsMentor', $intern);
+
+        return response()->json(['data' => $warnings->readOnly($intern)]);
     }
 
     private function relation(Request $request, User $intern): string

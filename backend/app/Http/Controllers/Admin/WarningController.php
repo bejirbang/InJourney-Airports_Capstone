@@ -39,7 +39,7 @@ class WarningController extends Controller
         $warning = $this->warnings->create($admin, InternRecordController::intern($user), $request->string('body')->value(), Date::now());
 
         return response()->json([
-            'message' => 'Catatan tersimpan. Tidak ada notifikasi ke intern atau mentor.',
+            'message' => 'Catatan tersimpan dan dikirim sebagai notifikasi ke intern dan mentor.',
             'data' => $warning,
         ], Response::HTTP_CREATED);
     }

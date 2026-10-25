@@ -19,18 +19,21 @@ class AdminOffices
 
     public const ALREADY_ACTIVE = 'Kantor ini sudah aktif.';
 
-    public const DELETE_ACTIVE = 'Nonaktifkan kantor lebih dulu sebelum menghapusnya.';
-
     /**
      * @return Collection<int, Office>
      */
-    public function all(): Collection
+    public function all(?int $airportId = null): Collection
     {
-        return Office::query()->orderBy('name')->orderBy('id')->get();
+        return Office::query()
+            ->with('airport:id,name')
+            ->when($airportId !== null, fn ($q) => $q->where('airport_id', $airportId))
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
     }
 
     /**
-     * @param  array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
+     * @param  array{airport_id?: int|string, name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
      *
      * @throws ValidationException
      */
@@ -51,7 +54,7 @@ class AdminOffices
     }
 
     /**
-     * @param  array{name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
+     * @param  array{airport_id?: int|string, name: string, latitude: float|string, longitude: float|string, clock_in_radius_meters: int|string, clock_out_radius_meters: int|string}  $data
      *
      * @throws ValidationException
      */
@@ -101,24 +104,6 @@ class AdminOffices
     public function activate(User $admin, Office $office): Office
     {
         return $this->setActive($admin, $office, true);
-    }
-
-    /**
-     * @throws ActionRejected
-     */
-    public function delete(User $admin, Office $office): void
-    {
-        DB::transaction(function () use ($admin, $office): void {
-            $office = Office::query()->lockForUpdate()->findOrFail($office->id);
-
-            if ($office->is_active) {
-                throw new ActionRejected(self::DELETE_ACTIVE, 'still_active');
-            }
-
-            $office->delete();
-
-            AuditLog::record($admin, AuditLog::ACTION_OFFICE, $office->name, 'Hapus kantor.');
-        });
     }
 
     /**

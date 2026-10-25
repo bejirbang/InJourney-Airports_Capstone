@@ -3,14 +3,10 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Carbon;
-use Illuminate\Validation\Validator;
 
 class HolidayRequest extends FormRequest
 {
     public const REQUIRED = 'Tanggal dan nama libur wajib diisi.';
-
-    public const WEEKEND = 'Sabtu dan Minggu sudah libur otomatis.';
 
     public function authorize(): bool
     {
@@ -33,22 +29,6 @@ class HolidayRequest extends FormRequest
             'date' => ['required', 'date_format:Y-m-d'],
             'name' => ['required', 'string', 'max:100'],
             'confirm' => ['sometimes', 'boolean'],
-        ];
-    }
-
-    /**
-     * @return array<int, callable(Validator): void>
-     */
-    public function after(): array
-    {
-        return [
-            function (Validator $validator): void {
-                $date = $this->input('date');
-
-                if (! $validator->errors()->has('date') && is_string($date) && Carbon::parse($date)->isWeekend()) {
-                    $validator->errors()->add('date', self::WEEKEND);
-                }
-            },
         ];
     }
 

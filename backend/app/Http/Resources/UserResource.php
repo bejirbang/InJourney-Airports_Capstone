@@ -13,29 +13,38 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class UserResource extends JsonResource
 {
     /**
+     * Relasi yang dipakai halaman Profil.
+     */
+    public static function withProfile(User $user): User
+    {
+        return $user->loadMissing(['unit', 'internProfile.mentor:id,name', 'internProfile.airport:id,name']);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
+        $profile = $this->role === Role::Intern && $this->relationLoaded('internProfile') ? $this->internProfile : null;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role->value,
-            'title' => $this->title,
+            'unit' => $this->unit === null ? null : ['id' => $this->unit->id, 'name' => $this->unit->name],
             'phone' => $this->phone,
-            'photo_url' => $this->photoUrl(),
             'is_active' => $this->is_active,
             'must_change_password' => $this->must_change_password,
             'home_path' => $this->role->homePath(),
-            'intern_profile' => $this->when(
-                $this->role === Role::Intern && $this->relationLoaded('internProfile') && $this->internProfile !== null,
-                fn (): array => [
-                    'mentor_id' => $this->internProfile?->mentor_id,
-                    'start_date' => $this->internProfile?->start_date->toDateString(),
-                    'end_date' => $this->internProfile?->end_date->toDateString(),
-                ],
-            ),
+            'intern_profile' => $this->when($profile !== null, fn (): array => [
+                'mentor' => ['id' => $profile->mentor->id, 'name' => $profile->mentor->name],
+                'airport' => ['id' => $profile->airport->id, 'name' => $profile->airport->name],
+                'university' => $profile->university,
+                'major' => $profile->major,
+                'start_date' => $profile->start_date->toDateString(),
+                'end_date' => $profile->end_date->toDateString(),
+            ]),
         ];
     }
 }

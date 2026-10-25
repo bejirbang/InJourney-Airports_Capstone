@@ -1,16 +1,16 @@
 <?php
 
+use App\Enums\CorrectionStatus;
 use App\Enums\LeaveType;
-use App\Enums\TaskStatus;
 use App\Enums\TodayState;
 use App\Models\Announcement;
 use App\Models\Attendance;
-use App\Models\DailyReport;
+use App\Models\AttendanceCorrection;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
-use App\Models\Task;
+use App\Models\Logbook;
 use App\Models\User;
-use App\Models\WorkHourSetting;
+use App\Models\Warning;
 use App\Services\AttendanceCalendar;
 use Illuminate\Support\Carbon;
 
@@ -69,27 +69,42 @@ it('counts only final statuses of this month in the recap', function () {
         ->assertOk()
         ->assertJsonPath('data.monthly_recap', [
             'month' => '2026-10',
-            'present' => 3,
+            'present' => 4,
+            'late' => 0,
+            'missed_clock_in' => 0,
             'leave' => 1,
             'absent' => 1,
             'missed_clock_out' => 1,
-            'late' => 0,
+            'corrected' => 0,
             'working_days' => 6,
         ]);
 });
 
-it('counts late clock-in days in the recap without changing the status', function () {
-    WorkHourSetting::factory()->create(['start_time' => '08:00:00', 'effective_from' => '2026-01-01']);
-    attend($this->intern, '2026-10-01');
+it('counts late and missed clock in days separately in the recap', function () {
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-01', 'clock_in_at' => '08:20:00']);
     Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-02', 'clock_in_at' => '07:55:00']);
-    attend($this->intern, '2026-10-05', null);
-    attend($this->intern, '2026-10-12', null);
+    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-05', 'clock_in_at' => '08:30:00']);
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => null]);
+    Attendance::factory()->for($this->intern, 'intern')->clockedIn()->create(['date' => '2026-10-12', 'clock_in_at' => '08:40:00']);
 
     dashboardFor($this->intern)
-        ->assertJsonPath('data.monthly_recap.present', 2)
-        ->assertJsonPath('data.monthly_recap.missed_clock_out', 1)
+        ->assertJsonPath('data.monthly_recap.present', 1)
         ->assertJsonPath('data.monthly_recap.late', 2)
-        ->assertJsonPath('data.today.late_minutes', 2);
+        ->assertJsonPath('data.monthly_recap.missed_clock_in', 1)
+        ->assertJsonPath('data.monthly_recap.missed_clock_out', 1)
+        ->assertJsonPath('data.today.status', 'late')
+        ->assertJsonPath('data.today.late_minutes', 40);
+});
+
+it('lists the logbooks that need action', function () {
+    $day = Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-08']);
+    Logbook::factory()->revision()->for($day)->create();
+    Attendance::factory()->for($this->intern, 'intern')->create(['date' => '2026-10-06', 'is_corrected' => true]);
+
+    dashboardFor($this->intern)->assertJsonPath('data.action_needed.logbooks', [
+        ['date' => '2026-10-06', 'logbook_state' => 'missing', 'comment' => null],
+        ['date' => '2026-10-08', 'logbook_state' => 'revision', 'comment' => null],
+    ]);
 });
 
 it('does not count days before the internship started', function () {
@@ -105,21 +120,21 @@ it('does not count days before the internship started', function () {
         ->assertJsonPath('data.monthly_recap.working_days', 2);
 });
 
-it('asks for the daily report after clock in until it is sent', function () {
+it('asks for the logbook after clock in until it is filled', function () {
     $attendance = attend($this->intern, '2026-10-12', null);
 
     dashboardFor($this->intern)
         ->assertJsonPath('data.today.state', 'clocked_in')
         ->assertJsonPath('data.today.clock_in_at', '08:02')
         ->assertJsonPath('data.today.clock_out_at', null)
-        ->assertJsonPath('data.today.daily_report_sent', false)
-        ->assertJsonPath('data.daily_report_reminder', true);
+        ->assertJsonPath('data.today.logbook', null)
+        ->assertJsonPath('data.logbook_reminder', true);
 
-    DailyReport::factory()->for($attendance)->create();
+    Logbook::factory()->for($attendance)->create(['work' => 'Isi.']);
 
     dashboardFor($this->intern)
-        ->assertJsonPath('data.today.daily_report_sent', true)
-        ->assertJsonPath('data.daily_report_reminder', false);
+        ->assertJsonPath('data.today.logbook', ['status' => 'draft', 'work' => 'Isi.', 'notes' => null])
+        ->assertJsonPath('data.logbook_reminder', false);
 });
 
 it('shows the clock out time once the day is done', function () {
@@ -128,7 +143,8 @@ it('shows the clock out time once the day is done', function () {
     dashboardFor($this->intern)
         ->assertJsonPath('data.today.state', 'clocked_out')
         ->assertJsonPath('data.today.clock_out_at', '17:03')
-        ->assertJsonPath('data.daily_report_reminder', false);
+        ->assertJsonPath('data.today.can_clock_out', false)
+        ->assertJsonPath('data.logbook_reminder', false);
 });
 
 it('shows not clocked in on a normal workday', function () {
@@ -178,50 +194,8 @@ it('reports outside the internship period', function () {
     expect($today['state'])->toBe(TodayState::OutsidePeriod);
 });
 
-it('summarizes active tasks with the late count and the nearest deadline', function () {
-    $task = fn (array $attributes) => Task::factory()->for($this->intern, 'intern')->create($attributes);
-
-    $nearest = $task(['title' => 'Desain ERD', 'due_at' => '2026-10-14 17:00:00']);
-    $task(['due_at' => '2026-10-20 17:00:00']);
-    $task(['status' => TaskStatus::InProgress, 'due_at' => '2026-10-10 17:00:00']);
-    $task([
-        'status' => TaskStatus::InReview,
-        'due_at' => '2026-10-10 17:00:00',
-        'submitted_at' => '2026-10-09 10:00:00',
-    ]);
-    $task([
-        'status' => TaskStatus::InReview,
-        'due_at' => '2026-10-08 17:00:00',
-        'submitted_at' => '2026-10-09 10:00:00',
-    ]);
-    $task(['status' => TaskStatus::Done, 'due_at' => '2026-10-01 17:00:00']);
-    Task::factory()->create();
-
-    dashboardFor($this->intern)
-        ->assertJsonPath('data.tasks.total', 6)
-        ->assertJsonPath('data.tasks.todo', 2)
-        ->assertJsonPath('data.tasks.in_progress', 1)
-        ->assertJsonPath('data.tasks.in_review', 2)
-        ->assertJsonPath('data.tasks.late', 2)
-        ->assertJsonPath('data.tasks.nearest.id', $nearest->id)
-        ->assertJsonPath('data.tasks.nearest.title', 'Desain ERD')
-        ->assertJsonPath('data.tasks.nearest.is_late', false)
-        ->assertJsonPath('data.tasks.nearest.due_at', '2026-10-14T17:00:00+07:00');
-});
-
-it('points to the most overdue task when every deadline has passed', function () {
-    $oldest = Task::factory()->for($this->intern, 'intern')->create(['due_at' => '2026-10-05 17:00:00']);
-    Task::factory()->for($this->intern, 'intern')->create(['due_at' => '2026-10-09 17:00:00']);
-
-    dashboardFor($this->intern)
-        ->assertJsonPath('data.tasks.nearest.id', $oldest->id)
-        ->assertJsonPath('data.tasks.nearest.is_late', true);
-});
-
-it('returns an empty task summary when the mentor has not given any task', function () {
-    dashboardFor($this->intern)
-        ->assertJsonPath('data.tasks.total', 0)
-        ->assertJsonPath('data.tasks.nearest', null);
+it('has no task summary', function () {
+    dashboardFor($this->intern)->assertOk()->assertJsonMissingPath('data.tasks');
 });
 
 it('lists the three latest announcements for interns', function () {
@@ -258,4 +232,22 @@ it('rejects an intern who has not changed the temporary password', function () {
 
 it('rejects requests without a token', function () {
     $this->getJson('/api/intern/dashboard')->assertUnauthorized();
+});
+
+it('lists new warnings and recently decided corrections and leaves under action needed', function () {
+    Warning::factory()->create(['intern_id' => $this->intern->id, 'created_at' => '2026-10-10 09:00:00']);
+    Warning::factory()->create(['intern_id' => $this->intern->id, 'created_at' => '2026-09-30 09:00:00']);
+    $correction = AttendanceCorrection::factory()->for($this->intern, 'intern')
+        ->decidedByAdmin(CorrectionStatus::Approved, User::factory()->admin()->create())->create(['date' => '2026-10-06', 'admin_decided_at' => '2026-10-11 10:00:00']);
+    AttendanceCorrection::factory()->for($this->intern, 'intern')->pendingAdmin()->create(['date' => '2026-10-07']);
+    $leave = LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => '2026-10-13', 'end_date' => '2026-10-13', 'decided_at' => '2026-10-12 08:00:00']);
+    LeaveRequest::factory()->for($this->intern, 'intern')->approved()->create(['start_date' => '2026-09-21', 'end_date' => '2026-09-21', 'decided_at' => '2026-09-20 08:00:00']);
+
+    dashboardFor($this->intern)
+        ->assertOk()
+        ->assertJsonCount(1, 'data.action_needed.warnings')
+        ->assertJsonPath('data.action_needed.corrections', [[
+            'id' => $correction->id, 'date' => '2026-10-06', 'status' => 'approved', 'decided_at' => '2026-10-11T10:00:00+07:00',
+        ]])
+        ->assertJsonPath('data.action_needed.leaves.*.id', [$leave->id]);
 });

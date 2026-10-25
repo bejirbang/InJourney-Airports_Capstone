@@ -13,41 +13,39 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceCorrectionController extends Controller
 {
+    public function __construct(private AttendanceCorrections $corrections) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         /** @var User $intern */
         $intern = $request->user();
 
-        $corrections = $intern->attendanceCorrections()
-            ->with('decider:id,name')
+        return AttendanceCorrectionResource::collection($intern->attendanceCorrections()
+            ->with(['mentor:id,name', 'admin:id,name'])
             ->latest()
             ->latest('id')
-            ->get();
-
-        return AttendanceCorrectionResource::collection($corrections);
+            ->get());
     }
 
-    public function store(AttendanceCorrectionRequest $request, AttendanceCorrections $corrections): JsonResponse
+    public function store(AttendanceCorrectionRequest $request): JsonResponse
     {
         /** @var User $intern */
         $intern = $request->user();
 
-        $correction = $corrections->submit($intern, [
-            'date' => $request->string('date')->value(),
-            'clock_in' => $request->string('clock_in')->value(),
-            'clock_out' => $request->string('clock_out')->value(),
-            'reason' => $request->string('reason')->value(),
-        ], $request->file('evidence'), Date::now());
+        $correction = $this->corrections->submit(
+            $intern,
+            $request->string('date')->value(),
+            $request->string('reason')->value(),
+            Date::now(),
+        );
 
         return response()->json([
-            'message' => 'Permintaan koreksi terkirim. Menunggu admin.',
-            'data' => new AttendanceCorrectionResource($correction),
+            'message' => 'Pengajuan koreksi terkirim. Menunggu mentor.',
+            'data' => $this->detailed($correction),
         ], Response::HTTP_CREATED);
     }
 
@@ -55,27 +53,25 @@ class AttendanceCorrectionController extends Controller
     {
         Gate::authorize('view', $correction);
 
-        return new AttendanceCorrectionResource($correction->load('decider:id,name'));
+        return $this->detailed($correction);
     }
 
-    public function cancel(AttendanceCorrection $correction, AttendanceCorrections $corrections): JsonResponse
+    public function cancel(AttendanceCorrection $correction): JsonResponse
     {
         Gate::authorize('cancel', $correction);
 
         return response()->json([
-            'message' => 'Permintaan koreksi dibatalkan.',
-            'data' => new AttendanceCorrectionResource($corrections->cancel($correction)),
+            'message' => 'Pengajuan koreksi dibatalkan.',
+            'data' => $this->detailed($this->corrections->cancel($correction)),
         ]);
     }
 
-    public function evidence(AttendanceCorrection $correction): StreamedResponse
+    private function detailed(AttendanceCorrection $correction): AttendanceCorrectionResource
     {
-        Gate::authorize('view', $correction);
+        $correction->load(['mentor:id,name', 'admin:id,name']);
 
-        abort_if($correction->evidence_path === null || ! Storage::exists($correction->evidence_path), 404, 'Bukti tidak ditemukan.');
-
-        $extension = pathinfo($correction->evidence_path, PATHINFO_EXTENSION);
-
-        return Storage::download($correction->evidence_path, "bukti-koreksi-{$correction->date->toDateString()}.{$extension}");
+        return (new AttendanceCorrectionResource($correction))->withDetail([
+            'recorded' => AttendanceCorrections::recorded(AttendanceCorrections::attendanceOf($correction)),
+        ]);
     }
 }

@@ -2,14 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\CorrectionStatus;
 use App\Enums\RequestStatus;
 use App\Enums\Role;
-use App\Enums\TaskStatus;
 use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
 use App\Models\MentorHistory;
-use App\Models\Task;
-use App\Models\TaskComment;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -28,7 +26,7 @@ class AdminUsers
 
     public const STATUSES = [self::STATUS_ACTIVE, self::STATUS_INACTIVE, self::STATUS_ALL];
 
-    public function __construct(private AccountAccess $access, private AttendanceCalendar $calendar) {}
+    public function __construct(private AccountAccess $access, private WorkSchedules $schedules, private LeaveQuotas $quotas) {}
 
     /**
      * @param  array{q?: string|null, role?: string|null, status?: string|null}  $filters
@@ -39,7 +37,7 @@ class AdminUsers
         $today = $now->toDateString();
 
         return User::query()
-            ->with('internProfile.mentor:id,name')
+            ->with(['unit:id,name', 'internProfile.mentor:id,name', 'internProfile.airport:id,name'])
             ->when($filters['q'] ?? null, function (Builder $q, string $search): void {
                 $needle = '%'.mb_strtolower($search).'%';
                 $q->where(fn (Builder $q) => $q->whereRaw('LOWER(name) LIKE ?', [$needle])->orWhere('email', 'like', $needle));
@@ -66,8 +64,9 @@ class AdminUsers
         return User::query()
             ->where('role', Role::Mentor)
             ->where('is_active', true)
+            ->with('unit:id,name')
             ->orderBy('name')
-            ->get(['id', 'name', 'title']);
+            ->get(['id', 'name', 'unit_id']);
     }
 
     /**
@@ -76,7 +75,7 @@ class AdminUsers
     public function detail(User $user, CarbonInterface $now): array
     {
         return match ($user->role) {
-            Role::Intern => ['former_mentors' => $this->formerMentors($user)],
+            Role::Intern => ['former_mentors' => $this->formerMentors($user), 'leave_quota' => $this->quotas->summary($user)],
             Role::Mentor => ['interns' => User::query()
                 ->with('internProfile')
                 ->whereHas('internProfile', fn (Builder $q) => $q->where('mentor_id', $user->id))
@@ -94,17 +93,15 @@ class AdminUsers
     }
 
     /**
-     * @return array{current_mentor: array{id: int, name: string}|null, active_tasks: int, comments: int, pending_leaves: int}
+     * @return array{current_mentor: array{id: int, name: string}|null, pending_corrections: int, pending_leaves: int}
      */
     public function mentorChangeImpact(User $intern): array
     {
         $mentor = $intern->internProfile?->mentor;
-        $activeTasks = Task::query()->where('intern_id', $intern->id)->where('status', '!=', TaskStatus::Done);
 
         return [
             'current_mentor' => $mentor === null ? null : ['id' => $mentor->id, 'name' => $mentor->name],
-            'active_tasks' => $activeTasks->count(),
-            'comments' => TaskComment::query()->whereIn('task_id', $activeTasks->select('id'))->count(),
+            'pending_corrections' => $intern->attendanceCorrections()->where('status', CorrectionStatus::PendingMentor)->count(),
             'pending_leaves' => $intern->leaveRequests()->where('status', RequestStatus::Pending)->count(),
         ];
     }
@@ -124,9 +121,9 @@ class AdminUsers
                 'type' => $leave->type->value,
                 'start_date' => $leave->start_date->toDateString(),
                 'end_date' => $leave->end_date->toDateString(),
-                'working_days' => $this->calendar->workingDays($leave->start_date->toDateString(), $leave->end_date->toDateString()),
+                'working_days' => $this->schedules->workingDays($intern, $leave->start_date->toDateString(), $leave->end_date->toDateString()),
                 'status' => $leave->status->value,
-                'has_evidence' => $leave->evidence_path !== null,
+                'evidence_url' => $leave->evidence_url,
                 'submitted_at' => $leave->created_at?->toIso8601String(),
                 'decided_by' => $leave->decider === null ? null : [
                     'name' => $leave->decider->name,
@@ -143,10 +140,8 @@ class AdminUsers
      */
     public function corrections(User $intern): array
     {
-        $time = fn (?string $value): ?string => $value === null ? null : substr($value, 0, 5);
-
         return array_values($intern->attendanceCorrections()
-            ->with('decider:id,name')
+            ->with(['mentor:id,name', 'admin:id,name'])
             ->latest()
             ->latest('id')
             ->get()
@@ -155,13 +150,15 @@ class AdminUsers
                 'date' => $correction->date->toDateString(),
                 'submitted_at' => $correction->created_at?->toIso8601String(),
                 'status' => $correction->status->value,
-                'recorded' => ['clock_in' => $time($correction->recorded_clock_in), 'clock_out' => $time($correction->recorded_clock_out)],
-                'requested' => ['clock_in' => $time($correction->requested_clock_in), 'clock_out' => $time($correction->requested_clock_out)],
+                'recorded_status' => $correction->recorded_status->value,
+                'recorded_missed_clock_out' => $correction->recorded_missed_clock_out,
                 'reason' => $correction->reason,
-                'has_evidence' => $correction->evidence_path !== null,
-                'decision_note' => $correction->decision_note,
-                'decided_by' => $correction->decider?->name,
-                'decided_at' => $correction->decided_at?->toIso8601String(),
+                'mentor' => $correction->mentor?->name,
+                'mentor_note' => $correction->mentor_note,
+                'mentor_decided_at' => $correction->mentor_decided_at?->toIso8601String(),
+                'admin' => $correction->admin?->name,
+                'admin_note' => $correction->admin_note,
+                'admin_decided_at' => $correction->admin_decided_at?->toIso8601String(),
             ])
             ->all());
     }

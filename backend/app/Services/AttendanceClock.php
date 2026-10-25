@@ -7,7 +7,7 @@ use App\Exceptions\ActionRejected;
 use App\Models\Attendance;
 use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
+use App\Support\DaySchedule;
 use App\Support\Duration;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -23,15 +23,23 @@ class AttendanceClock
 
     public const ALREADY_CLOCKED_IN = 'Anda sudah clock in hari ini.';
 
-    public const NOT_CLOCKED_IN = 'Anda belum clock in hari ini.';
-
     public const ALREADY_CLOCKED_OUT = 'Anda sudah clock out hari ini.';
 
-    public const DAILY_REPORT_MISSING = 'Daily Report belum dikirim. Isi dulu sebelum clock out.';
+    public const AFTER_WORK_END = 'Jam pulang sudah lewat. Clock in tidak bisa dilakukan, gunakan Clock Out.';
 
-    public function __construct(private AttendanceCalendar $calendar) {}
+    public const LOGBOOK_MISSING = 'Isi logbook dulu sebelum clock out.';
+
+    public const CONFLICT = 'Presensi hari ini baru saja tercatat. Muat ulang halaman lalu coba lagi.';
+
+    public function __construct(
+        private AttendanceCalendar $calendar,
+        private WorkSchedules $schedules,
+        private SystemSettings $settings,
+    ) {}
 
     /**
+     * Hanya pada hari kerja, dalam periode magang, tanpa izin disetujui, dan sebelum jam pulang.
+     *
      * @throws ActionRejected
      */
     public function clockIn(User $intern, float $latitude, float $longitude, CarbonInterface $now): Attendance
@@ -41,10 +49,12 @@ class AttendanceClock
             TodayState::Holiday => throw new ActionRejected(self::HOLIDAY, 'holiday'),
             TodayState::OnLeave => throw new ActionRejected(self::ON_LEAVE, 'on_leave'),
             TodayState::ClockedIn, TodayState::ClockedOut => throw new ActionRejected(self::ALREADY_CLOCKED_IN, 'already_clocked_in'),
+            TodayState::MissedClockIn => throw new ActionRejected(self::AFTER_WORK_END, 'after_work_end'),
             TodayState::NotClockedIn => null,
         };
 
-        $office = $this->officeFor($latitude, $longitude, clockIn: true);
+        $office = $this->officeFor($intern, $latitude, $longitude, clockIn: true);
+        $schedule = $this->schedules->forIntern($intern, $now->toDateString());
 
         try {
             return $intern->attendances()->create([
@@ -53,7 +63,7 @@ class AttendanceClock
                 'clock_in_office_id' => $office->id,
                 'clock_in_latitude' => $latitude,
                 'clock_in_longitude' => $longitude,
-                'is_corrected' => false,
+                ...$this->scheduleCopy($schedule),
             ]);
         } catch (UniqueConstraintViolationException) {
             // Dua permintaan clock in hampir bersamaan: yang kedua ditolak oleh unique index.
@@ -62,42 +72,103 @@ class AttendanceClock
     }
 
     /**
+     * Urutan pemeriksaan: jam pulang, logbook, lalu lokasi. Isian logbook boleh ikut dikirim; tanpa clock in
+     * (Lupa Clock In) isian itu wajib karena baris presensi dan logbook dibuat bersamaan.
+     *
      * @throws ActionRejected
      */
-    public function clockOut(User $intern, float $latitude, float $longitude, CarbonInterface $now): Attendance
+    public function clockOut(User $intern, float $latitude, float $longitude, ?string $work, ?string $notes, CarbonInterface $now): Attendance
     {
-        return DB::transaction(function () use ($intern, $latitude, $longitude, $now): Attendance {
-            // Dikunci agar Daily Report tidak bisa diubah saat clock out sedang berjalan.
-            $attendance = $intern->attendances()
-                ->whereDate('date', $now->toDateString())
-                ->lockForUpdate()
-                ->first();
+        try {
+            return DB::transaction(function () use ($intern, $latitude, $longitude, $work, $notes, $now): Attendance {
+                // Dikunci agar logbook tidak bisa diubah saat clock out sedang berjalan.
+                $attendance = $intern->attendances()
+                    ->whereDate('date', $now->toDateString())
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($attendance === null) {
-                throw new ActionRejected(self::NOT_CLOCKED_IN, 'not_clocked_in');
-            }
+                if ($attendance === null) {
+                    return $this->clockOutWithoutClockIn($intern, $latitude, $longitude, $work, $notes, $now);
+                }
 
-            if ($attendance->clock_out_at !== null) {
-                throw new ActionRejected(self::ALREADY_CLOCKED_OUT, 'already_clocked_out');
-            }
+                if ($attendance->clock_out_at !== null) {
+                    throw new ActionRejected(self::ALREADY_CLOCKED_OUT, 'already_clocked_out');
+                }
 
-            if (! $attendance->dailyReport()->exists()) {
-                throw new ActionRejected(self::DAILY_REPORT_MISSING, 'daily_report_missing');
-            }
+                $this->ensureWorkHoursOver($attendance->scheduled_end, $now);
 
-            $this->ensureWorkHoursOver($now);
+                if ($work === null && ! $attendance->logbook()->exists()) {
+                    throw new ActionRejected(self::LOGBOOK_MISSING, 'logbook_missing');
+                }
 
-            $office = $this->officeFor($latitude, $longitude, clockIn: false);
+                $office = $this->officeFor($intern, $latitude, $longitude, clockIn: false);
 
-            $attendance->update([
-                'clock_out_at' => $now->format('H:i:s'),
-                'clock_out_office_id' => $office->id,
-                'clock_out_latitude' => $latitude,
-                'clock_out_longitude' => $longitude,
-            ]);
+                $attendance->update([
+                    'clock_out_at' => $now->format('H:i:s'),
+                    'clock_out_office_id' => $office->id,
+                    'clock_out_latitude' => $latitude,
+                    'clock_out_longitude' => $longitude,
+                ]);
 
-            return $attendance;
-        });
+                InternLogbooks::submitOnClockOut($attendance, $work, $notes, $now);
+
+                return $attendance;
+            });
+        } catch (UniqueConstraintViolationException) {
+            // Clock in dan clock out tanpa clock in dikirim hampir bersamaan.
+            throw new ActionRejected(self::CONFLICT, 'conflict');
+        }
+    }
+
+    /**
+     * @throws ActionRejected
+     */
+    private function clockOutWithoutClockIn(User $intern, float $latitude, float $longitude, ?string $work, ?string $notes, CarbonInterface $now): Attendance
+    {
+        match ($this->calendar->today($intern, $now)['state']) {
+            TodayState::OutsidePeriod => throw new ActionRejected(self::OUTSIDE_PERIOD, 'outside_period'),
+            TodayState::Holiday => throw new ActionRejected(self::HOLIDAY, 'holiday'),
+            TodayState::OnLeave => throw new ActionRejected(self::ON_LEAVE, 'on_leave'),
+            default => null,
+        };
+
+        $schedule = $this->schedules->forIntern($intern, $now->toDateString());
+        $this->ensureWorkHoursOver((string) $schedule->end, $now);
+
+        if ($work === null) {
+            throw new ActionRejected(self::LOGBOOK_MISSING, 'logbook_missing');
+        }
+
+        $office = $this->officeFor($intern, $latitude, $longitude, clockIn: false);
+
+        $attendance = $intern->attendances()->create([
+            'date' => $now->toDateString(),
+            'clock_in_at' => null,
+            'clock_out_at' => $now->format('H:i:s'),
+            'clock_out_office_id' => $office->id,
+            'clock_out_latitude' => $latitude,
+            'clock_out_longitude' => $longitude,
+            ...$this->scheduleCopy($schedule),
+        ]);
+
+        InternLogbooks::submitOnClockOut($attendance, $work, $notes, $now);
+
+        return $attendance;
+    }
+
+    /**
+     * Jadwal dan toleransi disalin agar perubahan pengaturan nanti tidak mengubah status hari ini.
+     *
+     * @return array{scheduled_start: string|null, scheduled_end: string|null, late_tolerance_minutes: int, is_corrected: false}
+     */
+    private function scheduleCopy(DaySchedule $schedule): array
+    {
+        return [
+            'scheduled_start' => $schedule->start,
+            'scheduled_end' => $schedule->end,
+            'late_tolerance_minutes' => $this->settings->lateToleranceMinutes(),
+            'is_corrected' => false,
+        ];
     }
 
     /**
@@ -106,18 +177,12 @@ class AttendanceClock
      *
      * @throws ActionRejected
      */
-    private function ensureWorkHoursOver(CarbonInterface $now): void
+    private function ensureWorkHoursOver(string $workEnd, CarbonInterface $now): void
     {
-        $hours = WorkHourSetting::effectiveOn($now->toDateString());
+        $end = $now->copy()->setTimeFromTimeString($workEnd);
 
-        if ($hours === null) {
-            return;
-        }
-
-        $workEnd = $now->copy()->setTimeFromTimeString($hours->end_time);
-
-        if ($now->lt($workEnd)) {
-            $minutesLeft = (int) ceil($now->diffInSeconds($workEnd) / 60);
+        if ($now->lt($end)) {
+            $minutesLeft = (int) ceil($now->diffInSeconds($end) / 60);
 
             throw new ActionRejected(
                 'Belum saatnya clock out, tunggu '.Duration::minutes($minutesLeft).' lagi.',
@@ -127,14 +192,15 @@ class AttendanceClock
     }
 
     /**
-     * Jika posisi masuk radius beberapa kantor, yang dicatat kantor terdekat.
+     * Hanya titik presensi aktif milik bandara intern. Jika posisi masuk radius beberapa titik,
+     * yang dicatat titik terdekat.
      *
      * @throws ActionRejected
      */
-    private function officeFor(float $latitude, float $longitude, bool $clockIn): Office
+    private function officeFor(User $intern, float $latitude, float $longitude, bool $clockIn): Office
     {
         $action = $clockIn ? 'Clock in' : 'Clock out';
-        $offices = Office::query()->active()->get();
+        $offices = Office::query()->active()->where('airport_id', $intern->internProfile?->airport_id)->get();
 
         if ($offices->isEmpty()) {
             throw new ActionRejected("Belum ada kantor aktif. {$action} belum bisa dilakukan. Hubungi admin.", 'no_active_office');

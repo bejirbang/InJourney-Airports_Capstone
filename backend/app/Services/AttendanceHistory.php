@@ -3,22 +3,27 @@
 namespace App\Services;
 
 use App\Enums\AttendanceStatus;
-use App\Enums\RequestStatus;
-use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
-use App\Models\LeaveRequest;
 use App\Models\Office;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * @phpstan-import-type CalendarDay from AttendanceCalendar
+ */
 class AttendanceHistory
 {
     public const MONTH_OUTSIDE_PERIOD = 'Bulan di luar periode magang.';
 
     public const DATE_UNAVAILABLE = 'Tanggal di luar periode magang atau belum berjalan.';
 
-    private const CORRECTABLE = [AttendanceStatus::Present, AttendanceStatus::MissedClockOut, AttendanceStatus::Absent];
+    /** Filter Riwayat: status presensi, ditambah tanda Lupa Clock Out (kotak rekap di Dashboard). */
+    public const FILTER_MISSED_CLOCK_OUT = 'missed_clock_out';
+
+    public const FILTERS = ['present', 'late', 'missed_clock_in', 'leave', 'absent', 'holiday', self::FILTER_MISSED_CLOCK_OUT];
+
+    private const CORRECTABLE = [AttendanceStatus::Late, AttendanceStatus::MissedClockIn, AttendanceStatus::Absent];
 
     public function __construct(private AttendanceCalendar $calendar) {}
 
@@ -40,33 +45,37 @@ class AttendanceHistory
     }
 
     /**
+     * Pengajuan koreksi sah untuk hari kerja yang sudah lewat dengan status Terlambat, Lupa Clock In,
+     * Tidak Hadir, atau bertanda Lupa Clock Out.
+     *
+     * @param  CalendarDay  $day
+     */
+    public static function correctable(string $date, array $day, string $today): bool
+    {
+        return $date < $today && (in_array($day['status'], self::CORRECTABLE, true) || $day['missed_clock_out']);
+    }
+
+    /**
+     * Riwayat Intern. Rekap selalu sebulan penuh walau daftar hari difilter.
+     *
      * @return array<string, mixed>
      *
      * @throws ValidationException
      */
-    public function month(User $intern, ?string $month, CarbonInterface $now): array
+    public function month(User $intern, ?string $month, ?string $filter, CarbonInterface $now): array
     {
         [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
-        [$from, $to] = AttendanceCalendar::monthRange($month);
+        $activeDates = $this->activeCorrectionDates($intern, $month);
         $today = $now->toDateString();
-
-        $pendingDates = $intern->attendanceCorrections()
-            ->where('status', RequestStatus::Pending)
-            ->whereDate('date', '>=', $from)
-            ->whereDate('date', '<=', $to)
-            ->get()
-            ->map(fn (AttendanceCorrection $correction): string => $correction->date->toDateString())
-            ->all();
-
         $rows = [];
 
-        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
-            $pending = in_array($date, $pendingDates, true);
+        foreach ($this->filtered($days, $filter) as $date => $day) {
+            $active = in_array($date, $activeDates, true);
 
             $rows[] = [
                 ...$this->dayFields($date, $day),
-                'has_pending_correction' => $pending,
-                'can_request_correction' => ! $pending && $date < $today && in_array($day['status'], self::CORRECTABLE, true),
+                'has_active_correction' => $active,
+                'can_request_correction' => ! $active && self::correctable($date, $day, $today),
             ];
         }
 
@@ -83,7 +92,126 @@ class AttendanceHistory
      *
      * @throws ValidationException
      */
+    public function monthForMentor(User $intern, ?string $month, ?string $filter, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+        $rows = [];
+
+        foreach ($this->filtered($days, $filter) as $date => $day) {
+            $rows[] = $this->dayFields($date, $day);
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'recap' => $this->calendar->recap($days, $month, $now),
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function monthForAdmin(User $intern, ?string $month, ?string $filter, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+        $activeDates = $this->activeCorrectionDates($intern, $month);
+        $rows = [];
+
+        foreach ($this->filtered($days, $filter) as $date => $day) {
+            $rows[] = [
+                ...$this->dayFields($date, $day),
+                'logbook_work' => $day['attendance']?->logbook?->work,
+                'has_active_correction' => in_array($date, $activeDates, true),
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'recap' => $this->calendar->recap($days, $month, $now),
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * Tab Logbook di detail intern milik mentor: satu baris per hari kerja.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    public function logbooks(User $intern, ?string $month, CarbonInterface $now): array
+    {
+        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
+        $rows = [];
+
+        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
+            if ($day['status'] === AttendanceStatus::Holiday) {
+                continue;
+            }
+
+            $logbook = $day['attendance']?->logbook;
+
+            $rows[] = [
+                'date' => $date,
+                'status' => $day['status']->value,
+                'leave_type' => $day['leave']?->type->value,
+                'logbook_state' => InternLogbooks::state($day['attendance']),
+                'logbook' => $logbook === null ? null : [
+                    'work' => $logbook->work,
+                    'notes' => $logbook->notes,
+                    'status' => $logbook->status->value,
+                    'submitted_at' => $logbook->submitted_at?->toIso8601String(),
+                ],
+            ];
+        }
+
+        return [
+            'month' => $month,
+            'selectable_months' => $months,
+            'days' => $rows,
+        ];
+    }
+
+    /**
+     * Detail satu hari, sama untuk intern, mentor, dan admin.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
     public function day(User $intern, string $date, CarbonInterface $now): array
+    {
+        $day = $this->validDay($intern, $date, $now);
+        $attendance = $day['attendance']?->loadMissing(['clockInOffice', 'clockOutOffice']);
+        $logbook = $attendance?->logbook;
+
+        return [
+            ...$this->dayFields($date, $day),
+            'scheduled' => $attendance === null ? null : [
+                'start' => substr($attendance->scheduled_start, 0, 5),
+                'end' => substr($attendance->scheduled_end, 0, 5),
+            ],
+            'clock_in_office' => self::office($attendance?->clockInOffice),
+            'clock_out_office' => self::office($attendance?->clockOutOffice),
+            'logbook' => $logbook === null ? null : [
+                'work' => $logbook->work,
+                'notes' => $logbook->notes,
+                'status' => $logbook->status->value,
+                'submitted_at' => $logbook->submitted_at?->toIso8601String(),
+            ],
+        ];
+    }
+
+    /**
+     * @return CalendarDay
+     *
+     * @throws ValidationException
+     */
+    public function validDay(User $intern, string $date, CarbonInterface $now): array
     {
         $valid = preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $parts) === 1
             && checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
@@ -93,137 +221,15 @@ class AttendanceHistory
             throw ValidationException::withMessages(['date' => self::DATE_UNAVAILABLE]);
         }
 
-        $attendance = $day['attendance']?->loadMissing(['clockInOffice', 'clockOutOffice']);
-        $report = $attendance?->dailyReport;
-
-        return [
-            ...$this->dayFields($date, $day),
-            'clock_in_office' => self::office($attendance?->clockInOffice),
-            'clock_out_office' => self::office($attendance?->clockOutOffice),
-            'daily_report' => $report === null ? null : [
-                'work' => $report->work,
-                'notes' => $report->notes,
-                'sent_at' => $report->sent_at->toIso8601String(),
-            ],
-        ];
+        return $day;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{0: string, 1: array{first: string, last: string}, 2: array<string, CalendarDay>}
      *
      * @throws ValidationException
      */
-    public function monthForMentor(User $intern, ?string $month, CarbonInterface $now): array
-    {
-        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
-
-        $recap = $this->calendar->recap($days, $month, $now);
-        unset($recap['late']);
-
-        $rows = [];
-
-        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
-            $rows[] = self::withoutLate($this->dayFields($date, $day));
-        }
-
-        return [
-            'month' => $month,
-            'selectable_months' => $months,
-            'recap' => $recap,
-            'days' => $rows,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     *
-     * @throws ValidationException
-     */
-    public function monthForAdmin(User $intern, ?string $month, CarbonInterface $now): array
-    {
-        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
-        [$from, $to] = AttendanceCalendar::monthRange($month);
-
-        $pendingDates = $intern->attendanceCorrections()
-            ->where('status', RequestStatus::Pending)
-            ->whereDate('date', '>=', $from)
-            ->whereDate('date', '<=', $to)
-            ->get()
-            ->map(fn (AttendanceCorrection $correction): string => $correction->date->toDateString())
-            ->all();
-
-        $rows = [];
-
-        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
-            $rows[] = [
-                ...$this->dayFields($date, $day),
-                'daily_report_work' => $day['attendance']?->dailyReport?->work,
-                'has_pending_correction' => in_array($date, $pendingDates, true),
-            ];
-        }
-
-        return [
-            'month' => $month,
-            'selectable_months' => $months,
-            'recap' => $this->calendar->recap($days, $month, $now),
-            'days' => $rows,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     *
-     * @throws ValidationException
-     */
-    public function dailyReports(User $intern, ?string $month, CarbonInterface $now): array
-    {
-        [$month, $months, $days] = $this->resolveMonth($intern, $month, $now);
-
-        $rows = [];
-
-        foreach (array_reverse($days, preserve_keys: true) as $date => $day) {
-            if ($day['status'] === AttendanceStatus::Holiday) {
-                continue;
-            }
-
-            $report = $day['attendance']?->dailyReport;
-
-            $rows[] = [
-                'date' => $date,
-                'status' => $day['status']->value,
-                'leave_type' => $day['status'] === AttendanceStatus::Leave ? $day['leave']?->type->value : null,
-                'report' => $report === null ? null : [
-                    'work' => $report->work,
-                    'notes' => $report->notes,
-                    'sent_at' => $report->sent_at->toIso8601String(),
-                ],
-                'report_missing' => $report === null && $day['attendance'] !== null,
-            ];
-        }
-
-        return [
-            'month' => $month,
-            'selectable_months' => $months,
-            'days' => $rows,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     *
-     * @throws ValidationException
-     */
-    public function dayForMentor(User $intern, string $date, CarbonInterface $now): array
-    {
-        return self::withoutLate($this->day($intern, $date, $now));
-    }
-
-    /**
-     * @return array{0: string, 1: array{first: string, last: string}, 2: array<string, array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}>}
-     *
-     * @throws ValidationException
-     */
-    private function resolveMonth(User $intern, ?string $month, CarbonInterface $now): array
+    public function resolveMonth(User $intern, ?string $month, CarbonInterface $now): array
     {
         $months = $this->selectableMonths($intern, $now);
         $month ??= $months['last'] ?? $now->format('Y-m');
@@ -238,34 +244,59 @@ class AttendanceHistory
     }
 
     /**
-     * @param  array<string, mixed>  $fields
-     * @return array<string, mixed>
+     * Terbaru lebih dulu.
+     *
+     * @param  array<string, CalendarDay>  $days
+     * @return array<string, CalendarDay>
      */
-    private static function withoutLate(array $fields): array
+    private function filtered(array $days, ?string $filter): array
     {
-        unset($fields['late_minutes']);
-
-        return $fields;
+        return array_filter(
+            array_reverse($days, preserve_keys: true),
+            fn (array $day): bool => match ($filter) {
+                null => true,
+                self::FILTER_MISSED_CLOCK_OUT => $day['missed_clock_out'],
+                default => $day['status']->value === $filter,
+            },
+        );
     }
 
     /**
-     * @param  array{status: AttendanceStatus, attendance: Attendance|null, late_minutes: int|null, holiday_name: string|null, leave: LeaveRequest|null}  $day
+     * @return list<string>
+     */
+    private function activeCorrectionDates(User $intern, string $month): array
+    {
+        [$from, $to] = AttendanceCalendar::monthRange($month);
+
+        return array_values($intern->attendanceCorrections()
+            ->active()
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $to)
+            ->get()
+            ->map(fn (AttendanceCorrection $correction): string => $correction->date->toDateString())
+            ->all());
+    }
+
+    /**
+     * @param  CalendarDay  $day
      * @return array<string, mixed>
      */
     private function dayFields(string $date, array $day): array
     {
         $attendance = $day['attendance'];
+        $holiday = $day['status'] === AttendanceStatus::Holiday;
 
         return [
             'date' => $date,
             'status' => $day['status']->value,
-            'clock_in_at' => $attendance === null ? null : substr($attendance->clock_in_at, 0, 5),
+            'clock_in_at' => $attendance?->clock_in_at === null ? null : substr($attendance->clock_in_at, 0, 5),
             'clock_out_at' => $attendance?->clock_out_at === null ? null : substr($attendance->clock_out_at, 0, 5),
             'late_minutes' => $day['late_minutes'],
-            'is_corrected' => $attendance !== null && $attendance->is_corrected,
-            'daily_report_sent' => $attendance?->dailyReport !== null,
-            'holiday_name' => $day['status'] === AttendanceStatus::Holiday ? $day['holiday_name'] : null,
-            'leave_type' => $day['status'] === AttendanceStatus::Leave ? $day['leave']?->type->value : null,
+            'missed_clock_out' => $day['missed_clock_out'],
+            'is_corrected' => $day['is_corrected'],
+            'logbook_state' => $holiday ? null : InternLogbooks::state($attendance),
+            'holiday_name' => $holiday ? $day['holiday_name'] : null,
+            'leave_type' => $day['leave']?->type->value,
         ];
     }
 

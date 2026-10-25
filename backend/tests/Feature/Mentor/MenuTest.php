@@ -48,10 +48,12 @@ it('returns the mentor menu for a logged-in mentor', function () {
         ->assertExactJson(['data' => [
             ['key' => 'dashboard', 'path' => '/mentor/dashboard', 'badge' => null],
             ['key' => 'interns', 'path' => '/mentor/interns', 'badge' => null],
-            ['key' => 'tasks', 'path' => '/mentor/tasks', 'badge' => null],
+            ['key' => 'logbooks', 'path' => '/mentor/logbooks', 'badge' => 0],
+            ['key' => 'corrections', 'path' => '/mentor/corrections', 'badge' => 0],
             ['key' => 'leaves', 'path' => '/mentor/leaves', 'badge' => 0],
             ['key' => 'leave_calendar', 'path' => '/mentor/leave-calendar', 'badge' => null],
             ['key' => 'performance', 'path' => '/mentor/performance', 'badge' => null],
+            ['key' => 'assessments', 'path' => '/mentor/assessments', 'badge' => 0],
         ]]);
 });
 
@@ -69,8 +71,8 @@ it('counts only pending leaves of interns currently mentored by this mentor', fu
 
     mentorMenu($mentor)
         ->assertOk()
-        ->assertJsonPath('data.3.key', 'leaves')
-        ->assertJsonPath('data.3.badge', 2);
+        ->assertJsonPath('data.4.key', 'leaves')
+        ->assertJsonPath('data.4.badge', 2);
 });
 
 it('rejects interns and admins from the mentor menu', function (string $role) {

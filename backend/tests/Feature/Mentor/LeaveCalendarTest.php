@@ -2,6 +2,8 @@
 
 use App\Enums\LeaveType;
 use App\Enums\RequestStatus;
+use App\Models\Airport;
+use App\Models\AirportWeeklySchedule;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -109,4 +111,23 @@ it('rejects an invalid month and other roles', function () {
 
     app('auth')->forgetGuards();
     leaveCalendar(User::factory()->admin()->create())->assertForbidden();
+});
+
+it('marks off days per intern airport and hides leave entries on that intern off days', function () {
+    $saturday = Airport::factory()->create();
+    AirportWeeklySchedule::query()->where('airport_id', $saturday->id)->where('day_of_week', 6)
+        ->update(['is_workday' => true, 'start_time' => '08:00:00', 'end_time' => '12:00:00']);
+    $this->dewi->internProfile->update(['airport_id' => $saturday->id]);
+    LeaveRequest::factory()->for($this->andi, 'intern')->approved()->create(['start_date' => '2026-10-16', 'end_date' => '2026-10-17']);
+    LeaveRequest::factory()->for($this->dewi, 'intern')->approved()->create(['start_date' => '2026-10-16', 'end_date' => '2026-10-17']);
+
+    $days = collect(leaveCalendar($this->mentor)->json('data.days'))->keyBy('date');
+    expect($days['2026-10-17']['is_off'])->toBeFalse()
+        ->and(array_column($days['2026-10-17']['entries'], 'intern_id'))->toBe([$this->dewi->id])
+        ->and(array_column($days['2026-10-16']['entries'], 'intern_id'))->toBe([$this->andi->id, $this->dewi->id])
+        ->and($days['2026-10-18']['is_off'])->toBeTrue();
+
+    app('auth')->forgetGuards();
+    $andiOnly = collect(leaveCalendar($this->mentor, "?intern_id={$this->andi->id}")->json('data.days'))->keyBy('date');
+    expect($andiOnly['2026-10-17']['is_off'])->toBeTrue();
 });

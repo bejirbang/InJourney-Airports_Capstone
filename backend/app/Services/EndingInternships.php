@@ -8,20 +8,24 @@ use Illuminate\Database\Eloquent\Builder;
 
 class EndingInternships
 {
+    public function __construct(private SystemSettings $settings) {}
+
     /**
      * @return Builder<InternProfile>
      */
-    public function query(CarbonInterface $now): Builder
+    public function query(CarbonInterface $now, ?int $airportId = null): Builder
     {
-        return InternProfile::query()->endingSoon($now->toDateString());
+        return InternProfile::query()
+            ->endingSoon($now->toDateString(), $this->settings->endReminderDays())
+            ->when($airportId !== null, fn (Builder $q) => $q->where('airport_id', $airportId));
     }
 
     /**
      * @return Builder<InternProfile>
      */
-    public function ordered(CarbonInterface $now): Builder
+    public function ordered(CarbonInterface $now, ?int $airportId = null): Builder
     {
-        return $this->query($now)->with(['user:id,name', 'mentor:id,name'])->orderBy('end_date')->orderBy('id');
+        return $this->query($now, $airportId)->with(['user:id,name', 'mentor:id,name'])->orderBy('end_date')->orderBy('id');
     }
 
     /**

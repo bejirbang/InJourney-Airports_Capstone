@@ -22,6 +22,8 @@ class ReviewerLeaveIndexRequest extends FormRequest
             'tab' => ['sometimes', Rule::in(['pending', 'all'])],
             'type' => ['sometimes', 'nullable', Rule::enum(LeaveType::class)],
             'intern_id' => ['sometimes', 'nullable', 'integer'],
+            'airport_id' => ['sometimes', 'nullable', 'integer'],
+            'quota_exhausted' => ['sometimes', 'boolean'],
         ];
     }
 

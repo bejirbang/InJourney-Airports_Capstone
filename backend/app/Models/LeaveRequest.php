@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property string $reason
- * @property string|null $evidence_path
+ * @property string|null $evidence_url
  * @property RequestStatus $status
  * @property int|null $decided_by
  * @property string|null $decision_note
@@ -32,15 +32,13 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $decider
  */
 #[Fillable([
-    'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_path',
+    'intern_id', 'type', 'start_date', 'end_date', 'reason', 'evidence_url',
     'status', 'decided_by', 'decision_note', 'decided_at', 'overdue_notified_at',
 ])]
 class LeaveRequest extends Model
 {
     /** @use HasFactory<LeaveRequestFactory> */
     use HasFactory;
-
-    public const OVERDUE_PENDING_HOURS = 24;
 
     /**
      * @return array<string, string>
@@ -74,6 +72,17 @@ class LeaveRequest extends Model
     }
 
     /**
+     * Pengajuan yang memakai kuota: Menunggu dan Disetujui.
+     *
+     * @param  Builder<LeaveRequest>  $query
+     * @return Builder<LeaveRequest>
+     */
+    public function scopeCountingQuota(Builder $query): Builder
+    {
+        return $query->whereIn('status', [RequestStatus::Pending, RequestStatus::Approved]);
+    }
+
+    /**
      * @param  Builder<LeaveRequest>  $query
      * @return Builder<LeaveRequest>
      */
@@ -85,16 +94,16 @@ class LeaveRequest extends Model
     }
 
     /**
-     * Versi query dari isOverduePending(): menit pending yang dibulatkan ke bawah harus lebih dari 24 jam,
-     * jadi diajukan paling lambat 24 jam 1 menit sebelum $now.
+     * Versi query dari isOverduePending(): menit pending yang dibulatkan ke bawah harus lebih dari $hours jam
+     * (pengaturan `leave_escalation_hours`), jadi diajukan paling lambat $hours jam 1 menit sebelum $now.
      *
      * @param  Builder<LeaveRequest>  $query
      * @return Builder<LeaveRequest>
      */
-    public function scopeOverduePending(Builder $query, CarbonInterface $now): Builder
+    public function scopeOverduePending(Builder $query, CarbonInterface $now, int $hours): Builder
     {
         return $query->where('status', RequestStatus::Pending)
-            ->where('created_at', '<=', $now->copy()->subMinutes(self::OVERDUE_PENDING_HOURS * 60 + 1));
+            ->where('created_at', '<=', $now->copy()->subMinutes($hours * 60 + 1));
     }
 
     public function pendingHours(CarbonInterface $now): ?int
@@ -104,11 +113,11 @@ class LeaveRequest extends Model
         return $minutes === null ? null : intdiv($minutes, 60);
     }
 
-    public function isOverduePending(CarbonInterface $now): bool
+    public function isOverduePending(CarbonInterface $now, int $hours): bool
     {
         $minutes = $this->pendingMinutes($now);
 
-        return $minutes !== null && $minutes > self::OVERDUE_PENDING_HOURS * 60;
+        return $minutes !== null && $minutes > $hours * 60;
     }
 
     private function pendingMinutes(CarbonInterface $now): ?int
@@ -118,11 +127,6 @@ class LeaveRequest extends Model
         }
 
         return max(0, (int) floor($this->created_at->diffInMinutes($now)));
-    }
-
-    public function evidenceFileName(): string
-    {
-        return "lampiran-izin-{$this->start_date->toDateString()}.".pathinfo((string) $this->evidence_path, PATHINFO_EXTENSION);
     }
 
     public function covers(string $date): bool

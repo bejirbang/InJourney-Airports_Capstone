@@ -3,17 +3,14 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\CorrectionDecisionRequest;
-use App\Http\Requests\Admin\CorrectionIndexRequest;
-use App\Http\Resources\AdminCorrectionResource;
+use App\Http\Requests\Shared\CorrectionDecisionRequest;
+use App\Http\Requests\Shared\CorrectionIndexRequest;
+use App\Http\Resources\AttendanceCorrectionResource;
 use App\Models\AttendanceCorrection;
 use App\Models\User;
 use App\Services\AdminCorrections;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CorrectionController extends Controller
 {
@@ -21,32 +18,17 @@ class CorrectionController extends Controller
 
     public function index(CorrectionIndexRequest $request): JsonResponse
     {
-        $list = $this->corrections->list([
-            'status' => $request->input('status'),
-            'intern_id' => $request->filled('intern_id') ? $request->integer('intern_id') : null,
-            'from' => $request->input('from'),
-            'to' => $request->input('to'),
-        ]);
+        $result = $this->corrections->list($request->tab(), $request->internId(), $request->airportId());
 
         return response()->json([
-            'data' => AdminCorrectionResource::collection($list),
-            'meta' => ['interns' => $this->corrections->interns()],
+            'data' => AttendanceCorrectionResource::collection($result['corrections']),
+            'meta' => [...$result['counts'], 'interns' => $this->corrections->interns()],
         ]);
     }
 
-    public function show(AttendanceCorrection $correction): AdminCorrectionResource
+    public function show(AttendanceCorrection $correction): AttendanceCorrectionResource
     {
         return $this->detailed($correction);
-    }
-
-    public function evidence(Request $request, AttendanceCorrection $correction): StreamedResponse
-    {
-        $path = $correction->evidence_path;
-        abort_if($path === null || ! Storage::exists($path), 404, 'Bukti tidak ditemukan.');
-
-        $name = "bukti-koreksi-{$correction->date->toDateString()}.".pathinfo($path, PATHINFO_EXTENSION);
-
-        return $request->boolean('inline') ? Storage::response($path, $name) : Storage::download($path, $name);
     }
 
     public function approve(CorrectionDecisionRequest $request, AttendanceCorrection $correction): JsonResponse
@@ -54,18 +36,9 @@ class CorrectionController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        $correction = $this->corrections->approve(
-            $admin,
-            $correction,
-            $request->string('clock_in')->value(),
-            $request->string('clock_out')->value(),
-            $request->string('note')->value(),
-            Date::now(),
-        );
-
         return response()->json([
-            'message' => 'Koreksi disetujui. Status absensi dihitung ulang.',
-            'data' => $this->detailed($correction),
+            'message' => 'Koreksi disetujui. Status hari itu menjadi Hadir.',
+            'data' => $this->detailed($this->corrections->approve($admin, $correction, (string) $request->note(), Date::now())),
         ]);
     }
 
@@ -74,18 +47,16 @@ class CorrectionController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        $correction = $this->corrections->reject($admin, $correction, $request->string('note')->value(), Date::now());
-
         return response()->json([
-            'message' => 'Koreksi ditolak. Data absensi tidak berubah.',
-            'data' => $this->detailed($correction),
+            'message' => 'Koreksi ditolak. Data presensi tidak berubah.',
+            'data' => $this->detailed($this->corrections->reject($admin, $correction, (string) $request->note(), Date::now())),
         ]);
     }
 
-    private function detailed(AttendanceCorrection $correction): AdminCorrectionResource
+    private function detailed(AttendanceCorrection $correction): AttendanceCorrectionResource
     {
-        $correction->load(['intern:id,name', 'decider:id,name']);
+        $correction->load(['intern:id,name', 'mentor:id,name', 'admin:id,name']);
 
-        return (new AdminCorrectionResource($correction))->withDetail($this->corrections->currentStatus($correction, Date::now()));
+        return (new AttendanceCorrectionResource($correction))->withDetail($this->corrections->preview($correction));
     }
 }

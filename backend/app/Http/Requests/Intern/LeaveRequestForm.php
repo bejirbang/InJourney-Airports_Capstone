@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Intern;
 
 use App\Enums\LeaveType;
+use App\Rules\GoogleDriveLink;
 use App\Services\InternLeaves;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,12 +25,7 @@ class LeaveRequestForm extends FormRequest
             'start_date' => ['required', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'reason' => ['required', 'string'],
-            'evidence' => [
-                'nullable',
-                'file',
-                'max:'.config('uploads.max_kilobytes'),
-                'mimes:'.implode(',', config('uploads.mimes')),
-            ],
+            'evidence_url' => ['nullable', 'string', new GoogleDriveLink],
         ];
     }
 
@@ -46,9 +42,7 @@ class LeaveRequestForm extends FormRequest
             'end_date.date_format' => InternLeaves::OUTSIDE_PERIOD,
             'end_date.after_or_equal' => 'Tanggal selesai harus sesudah tanggal mulai.',
             'reason.required' => 'Alasan wajib diisi.',
-            'evidence.file' => 'Lampiran tidak dapat dibaca. Pilih file lagi.',
-            'evidence.max' => config('uploads.messages.max'),
-            'evidence.mimes' => config('uploads.messages.mimes'),
+            'evidence_url.string' => GoogleDriveLink::MESSAGE,
         ];
     }
 }

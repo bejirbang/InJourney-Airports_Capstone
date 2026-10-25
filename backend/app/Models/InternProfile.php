@@ -16,21 +16,28 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property int $mentor_id
+ * @property int $airport_id
+ * @property string $university
+ * @property string $major
  * @property Carbon $start_date
  * @property Carbon $end_date
+ * @property Carbon $leave_quota_since
+ * @property Carbon|null $presentation_reminded_at
  * @property Carbon|null $ending_notified_for
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read User $user
  * @property-read User $mentor
+ * @property-read Airport $airport
  */
-#[Fillable(['user_id', 'mentor_id', 'start_date', 'end_date'])]
+#[Fillable([
+    'user_id', 'mentor_id', 'airport_id', 'university', 'major', 'start_date', 'end_date',
+    'leave_quota_since', 'presentation_reminded_at', 'ending_notified_for',
+])]
 class InternProfile extends Model
 {
     /** @use HasFactory<InternProfileFactory> */
     use HasFactory;
-
-    public const ENDING_SOON_DAYS = 7;
 
     /**
      * @return array<string, string>
@@ -40,6 +47,8 @@ class InternProfile extends Model
         return [
             'start_date' => 'date',
             'end_date' => 'date',
+            'leave_quota_since' => 'date',
+            'presentation_reminded_at' => 'datetime',
             'ending_notified_for' => 'date',
         ];
     }
@@ -61,12 +70,20 @@ class InternProfile extends Model
     }
 
     /**
+     * @return BelongsTo<Airport, $this>
+     */
+    public function airport(): BelongsTo
+    {
+        return $this->belongsTo(Airport::class);
+    }
+
+    /**
      * @param  Builder<InternProfile>  $query
      * @return Builder<InternProfile>
      */
-    public function scopeEndingSoon(Builder $query, string $date): Builder
+    public function scopeEndingSoon(Builder $query, string $date, int $days): Builder
     {
-        $until = Carbon::parse($date)->addDays(self::ENDING_SOON_DAYS)->toDateString();
+        $until = Carbon::parse($date)->addDays($days)->toDateString();
 
         return $query
             ->whereDate('start_date', '<=', $date)

@@ -2,25 +2,33 @@
 
 namespace App\Services;
 
+use App\Enums\CorrectionStatus;
 use App\Enums\RequestStatus;
-use App\Enums\TaskStatus;
 use App\Models\Announcement;
-use App\Models\Attendance;
-use App\Models\Holiday;
+use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
-use App\Models\Task;
+use App\Models\Logbook;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 
+/**
+ * Dashboard mentor: kartu presensi intern bimbingan hari ini dan antrean tindakan (logbook, koreksi, izin, siap
+ * dinilai). Setiap kotak maksimal lima baris; kotak kosong disembunyikan frontend.
+ */
 class MentorDashboard
 {
     public const LIST_LIMIT = 5;
 
     public const ANNOUNCEMENT_LIMIT = 3;
 
-    public function __construct(private AccountAccess $access) {}
+    public function __construct(
+        private AccountAccess $access,
+        private SystemSettings $settings,
+        private DashboardCards $cards,
+        private MentorLogbooks $logbooks,
+        private Assessments $assessments,
+    ) {}
 
     /**
      * @return array<string, mixed>
@@ -33,67 +41,58 @@ class MentorDashboard
             ->orderBy('name')
             ->get();
 
-        $date = $now->toDateString();
-        $holidayName = Holiday::query()->whereDate('date', $date)->value('name');
-        $isHoliday = $holidayName !== null || $now->isWeekend();
+        $active = $interns->filter(fn (User $intern): bool => $this->access->denialReason($intern, $now) === null);
+        $today = $this->cards->today($active, $now);
 
         return [
-            'date' => $date,
-            'holiday' => $isHoliday ? ['name' => $holidayName] : null,
+            'date' => $now->toDateString(),
             'interns_total' => $interns->count(),
-            'today' => $isHoliday ? null : $this->today($interns, $now),
-            'review_tasks' => $this->reviewTasks($mentor, $now),
+            'holiday' => $today['holiday'],
+            'today' => $today['card'],
+            'pending_logbooks' => $this->pendingLogbooks($mentor),
+            'pending_corrections' => $this->pendingCorrections($mentor),
             'pending_leaves' => $this->pendingLeaves($mentor, $now),
-            'unread_comments' => $this->unreadComments($mentor),
-            'late_tasks' => $this->lateTasks($mentor, $now),
+            'ready_to_assess' => $this->readyToAssess($mentor),
             'announcements' => $this->announcements(),
-        ];
-    }
-
-    /**
-     * @param  Collection<int, User>  $interns
-     * @return array{interns: int, clocked_in: int, on_leave: int, not_clocked_in: int}
-     */
-    private function today(Collection $interns, CarbonInterface $now): array
-    {
-        $ids = $interns
-            ->filter(fn (User $intern): bool => $this->access->denialReason($intern, $now) === null)
-            ->pluck('id');
-
-        $date = $now->toDateString();
-
-        $clockedIn = Attendance::query()
-            ->whereIn('intern_id', $ids)
-            ->whereDate('date', $date)
-            ->pluck('intern_id')
-            ->unique();
-
-        // Hari yang sudah clock in tetap dihitung Sudah Clock In walau ada izin disetujui.
-        $onLeave = LeaveRequest::query()
-            ->whereIn('intern_id', $ids->diff($clockedIn))
-            ->approvedBetween($date, $date)
-            ->pluck('intern_id')
-            ->unique();
-
-        return [
-            'interns' => $ids->count(),
-            'clocked_in' => $clockedIn->count(),
-            'on_leave' => $onLeave->count(),
-            'not_clocked_in' => $ids->count() - $clockedIn->count() - $onLeave->count(),
         ];
     }
 
     /**
      * @return array{total: int, items: list<array<string, mixed>>}
      */
-    private function reviewTasks(User $mentor, CarbonInterface $now): array
+    private function pendingLogbooks(User $mentor): array
     {
-        $query = $this->tasksOf($mentor)->where('status', TaskStatus::InReview);
+        $result = $this->logbooks->list($mentor, MentorLogbooks::TAB_PENDING, null);
 
-        return $this->box($query, $query->clone()->orderBy('submitted_at')->orderBy('id'), fn (Task $task): array => [
-            ...$this->taskRow($task),
-            'submitted_at' => $task->submitted_at?->toIso8601String(),
-            'is_late' => $task->isLate($now),
+        return [
+            'total' => $result['counts']['pending_review'],
+            'items' => array_values($result['logbooks']->take(self::LIST_LIMIT)->map(fn (Logbook $logbook): array => [
+                'id' => $logbook->id,
+                'intern' => $this->person($logbook->attendance->intern),
+                'date' => $logbook->attendance->date->toDateString(),
+                'work' => $logbook->work,
+                'is_corrected' => $logbook->attendance->is_corrected,
+            ])->all()),
+        ];
+    }
+
+    /**
+     * @return array{total: int, items: list<array<string, mixed>>}
+     */
+    private function pendingCorrections(User $mentor): array
+    {
+        $query = AttendanceCorrection::query()
+            ->where('mentor_id', $mentor->id)
+            ->where('status', CorrectionStatus::PendingMentor)
+            ->whereHas('intern');
+
+        return $this->box($query, $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id'), fn (AttendanceCorrection $correction): array => [
+            'id' => $correction->id,
+            'intern' => $this->person($correction->intern),
+            'date' => $correction->date->toDateString(),
+            'recorded_status' => $correction->recorded_status->value,
+            'recorded_missed_clock_out' => $correction->recorded_missed_clock_out,
+            'reason' => $correction->reason,
         ]);
     }
 
@@ -106,9 +105,7 @@ class MentorDashboard
             ->where('status', RequestStatus::Pending)
             ->whereHas('intern.internProfile', fn (Builder $q) => $q->where('mentor_id', $mentor->id));
 
-        $ordered = $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id');
-
-        return $this->box($query, $ordered, fn (LeaveRequest $leave): array => [
+        return $this->box($query, $query->clone()->with('intern:id,name')->orderBy('created_at')->orderBy('id'), fn (LeaveRequest $leave): array => [
             'id' => $leave->id,
             'intern' => $this->person($leave->intern),
             'type' => $leave->type->value,
@@ -116,61 +113,27 @@ class MentorDashboard
             'end_date' => $leave->end_date->toDateString(),
             'created_at' => $leave->created_at?->toIso8601String(),
             'pending_hours' => $leave->pendingHours($now),
-            'is_overdue' => $leave->isOverduePending($now),
+            'is_overdue' => $leave->isOverduePending($now, $this->settings->leaveEscalationHours()),
         ]);
     }
 
     /**
+     * Intern yang bisa dinilai sekarang (presentasi disetujui, semua logbook disetujui, belum disubmit).
+     *
      * @return array{total: int, items: list<array<string, mixed>>}
      */
-    private function unreadComments(User $mentor): array
+    private function readyToAssess(User $mentor): array
     {
-        $unread = fn (Builder $q) => $q->unreadFor($mentor->id);
+        $ready = array_values(array_filter($this->assessments->mentorList($mentor), fn (array $row): bool => $row['can_assess']));
 
-        $query = $this->tasksOf($mentor)->whereHas('comments', $unread);
-
-        $ordered = $query->clone()
-            ->withCount(['comments as unread_comments_count' => $unread])
-            ->withMin(['comments as oldest_unread_at' => $unread], 'created_at')
-            ->orderBy('oldest_unread_at')
-            ->orderBy('id');
-
-        return $this->box($query, $ordered, fn (Task $task): array => [
-            ...$this->taskRow($task),
-            'status' => $task->status->value,
-            'unread_comments' => (int) $task->unread_comments_count,
-        ]);
-    }
-
-    /**
-     * @return array{total: int, items: list<array<string, mixed>>}
-     */
-    private function lateTasks(User $mentor, CarbonInterface $now): array
-    {
-        $query = $this->tasksOf($mentor)->where(fn (Builder $q) => $q
-            ->where(fn (Builder $q) => $q
-                ->whereIn('status', [TaskStatus::Todo, TaskStatus::InProgress])
-                ->where('due_at', '<', $now))
-            ->orWhere(fn (Builder $q) => $q
-                ->where('status', TaskStatus::InReview)
-                ->where(fn (Builder $q) => $q
-                    ->whereColumn('submitted_at', '>', 'due_at')
-                    ->orWhere(fn (Builder $q) => $q->whereNull('submitted_at')->where('due_at', '<', $now)))));
-
-        return $this->box($query, $query->clone()->orderBy('due_at')->orderBy('id'), fn (Task $task): array => [
-            ...$this->taskRow($task),
-            'status' => $task->status->value,
-            'due_at' => $task->due_at->toIso8601String(),
-            'late_label' => $task->lateLabel($task->status === TaskStatus::InReview && $task->submitted_at !== null ? $task->submitted_at : $now),
-        ]);
-    }
-
-    /**
-     * @return Builder<Task>
-     */
-    private function tasksOf(User $mentor): Builder
-    {
-        return Task::query()->where('mentor_id', $mentor->id)->whereHas('intern');
+        return [
+            'total' => count($ready),
+            'items' => array_map(fn (array $row): array => [
+                'intern' => $row['intern'],
+                'end_date' => $row['end_date'],
+                'status' => $row['status'],
+            ], array_slice($ready, 0, self::LIST_LIMIT)),
+        ];
     }
 
     /**
@@ -189,22 +152,7 @@ class MentorDashboard
             return ['total' => 0, 'items' => []];
         }
 
-        $items = $ordered->with('intern:id,name')->limit(self::LIST_LIMIT)->get()->map($row)->values()->all();
-
-        return ['total' => $total, 'items' => $items];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function taskRow(Task $task): array
-    {
-        return [
-            'id' => $task->id,
-            'code' => $task->code,
-            'title' => $task->title,
-            'intern' => $this->person($task->intern),
-        ];
+        return ['total' => $total, 'items' => array_values($ordered->limit(self::LIST_LIMIT)->get()->map($row)->all())];
     }
 
     /**

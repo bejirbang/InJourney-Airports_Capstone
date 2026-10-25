@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CorrectionStatus;
 use App\Enums\RequestStatus;
 use App\Models\AttendanceCorrection;
 use App\Models\LeaveRequest;
@@ -53,6 +54,8 @@ it('returns the admin menu for a logged-in admin', function () {
             ['key' => 'attendance', 'path' => '/admin/attendance', 'badge' => null],
             ['key' => 'corrections', 'path' => '/admin/corrections', 'badge' => 0],
             ['key' => 'leaves', 'path' => '/admin/leaves', 'badge' => 0],
+            ['key' => 'presentations', 'path' => '/admin/presentations', 'badge' => 0],
+            ['key' => 'assessments', 'path' => '/admin/assessments', 'badge' => null],
             ['key' => 'warnings', 'path' => '/admin/warnings', 'badge' => null],
             ['key' => 'announcements', 'path' => '/admin/announcements', 'badge' => null],
             ['key' => 'reports', 'path' => '/admin/reports', 'badge' => null],
@@ -62,12 +65,13 @@ it('returns the admin menu for a logged-in admin', function () {
         ]]);
 });
 
-it('counts pending corrections of every intern', function () {
+it('counts corrections waiting for an admin decision of every intern', function () {
     $admin = User::factory()->admin()->create();
 
-    AttendanceCorrection::factory()->count(2)->create();
-    AttendanceCorrection::factory()->decided(RequestStatus::Approved, $admin)->create();
-    AttendanceCorrection::factory()->decided(RequestStatus::Rejected, $admin)->create();
+    AttendanceCorrection::factory()->count(2)->pendingAdmin()->create();
+    AttendanceCorrection::factory()->create();
+    AttendanceCorrection::factory()->decidedByAdmin(CorrectionStatus::Approved, $admin)->create();
+    AttendanceCorrection::factory()->decidedByAdmin(CorrectionStatus::RejectedByAdmin, $admin)->create();
 
     adminMenu($admin)
         ->assertOk()

@@ -4,10 +4,11 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\Office;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 /**
- * Batas atas hanya batas kolom database.
+ * Batas atas hanya batas kolom database. Bandara pemilik titik dipilih saat titik dibuat dan tidak dipindah.
  */
 class OfficeRequest extends FormRequest
 {
@@ -15,7 +16,9 @@ class OfficeRequest extends FormRequest
 
     public const NAME_REQUIRED = 'Nama kantor wajib diisi.';
 
-    public const NAME_TAKEN = 'Nama kantor sudah dipakai kantor lain.';
+    public const NAME_TAKEN = 'Nama kantor sudah dipakai kantor lain di bandara ini.';
+
+    public const AIRPORT_REQUIRED = 'Pilih bandara pemilik titik presensi.';
 
     public const RADIUS_INVALID = 'Isi radius dalam meter, lebih dari 0.';
 
@@ -34,19 +37,25 @@ class OfficeRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         $radius = ['required', 'integer', 'min:1', 'max:'.self::RADIUS_COLUMN_MAX];
 
-        return [
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'clock_in_radius_meters' => $radius,
             'clock_out_radius_meters' => $radius,
         ];
+
+        if ($this->editing() === null) {
+            $rules['airport_id'] = ['required', 'integer', Rule::exists('airports', 'id')->where('is_active', true)];
+        }
+
+        return $rules;
     }
 
     /**
@@ -57,17 +66,17 @@ class OfficeRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 $name = $this->input('name');
+                $editing = $this->editing();
+                $airportId = $editing->airport_id ?? $this->input('airport_id');
 
-                if ($validator->errors()->has('name') || ! is_string($name)) {
+                if ($validator->errors()->hasAny(['name', 'airport_id']) || ! is_string($name)) {
                     return;
                 }
 
-                $editing = $this->route('office');
-                $editingId = $editing instanceof Office ? $editing->id : null;
-
                 $taken = Office::query()
+                    ->where('airport_id', $airportId)
                     ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
-                    ->when($editingId !== null, fn ($q) => $q->whereKeyNot($editingId))
+                    ->when($editing !== null, fn ($q) => $q->whereKeyNot($editing?->id))
                     ->exists();
 
                 if ($taken) {
@@ -86,10 +95,18 @@ class OfficeRequest extends FormRequest
             'name.required' => self::NAME_REQUIRED,
             'name.string' => self::NAME_REQUIRED,
             'name.max' => 'Nama kantor maksimal 255 karakter.',
+            'airport_id.*' => self::AIRPORT_REQUIRED,
             'latitude.*' => self::PIN_REQUIRED,
             'longitude.*' => self::PIN_REQUIRED,
             'clock_in_radius_meters.*' => self::RADIUS_INVALID,
             'clock_out_radius_meters.*' => self::RADIUS_INVALID,
         ];
+    }
+
+    private function editing(): ?Office
+    {
+        $office = $this->route('office');
+
+        return $office instanceof Office ? $office : null;
     }
 }

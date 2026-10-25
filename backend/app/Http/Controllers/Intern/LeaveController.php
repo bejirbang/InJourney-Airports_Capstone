@@ -9,19 +9,18 @@ use App\Http\Requests\Intern\LeaveWorkingDaysRequest;
 use App\Http\Resources\InternLeaveResource;
 use App\Models\LeaveRequest;
 use App\Models\User;
-use App\Services\AttendanceCalendar;
 use App\Services\InternLeaves;
+use App\Services\LeaveQuotas;
+use App\Services\WorkSchedules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LeaveController extends Controller
 {
-    public function index(LeaveIndexRequest $request): AnonymousResourceCollection
+    public function index(LeaveIndexRequest $request, LeaveQuotas $quotas): AnonymousResourceCollection
     {
         /** @var User $intern */
         $intern = $request->user();
@@ -33,13 +32,16 @@ class LeaveController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        return InternLeaveResource::collection($leaves);
+        return InternLeaveResource::collection($leaves)->additional(['meta' => ['quota' => $quotas->summary($intern)]]);
     }
 
-    public function workingDays(LeaveWorkingDaysRequest $request, AttendanceCalendar $calendar): JsonResponse
+    public function workingDays(LeaveWorkingDaysRequest $request, WorkSchedules $schedules): JsonResponse
     {
+        /** @var User $intern */
+        $intern = $request->user();
+
         return response()->json(['data' => [
-            'working_days' => $calendar->workingDays($request->string('start_date')->value(), $request->string('end_date')->value()),
+            'working_days' => $schedules->workingDays($intern, $request->string('start_date')->value(), $request->string('end_date')->value()),
         ]]);
     }
 
@@ -53,7 +55,8 @@ class LeaveController extends Controller
             'start_date' => $request->string('start_date')->value(),
             'end_date' => $request->string('end_date')->value(),
             'reason' => $request->string('reason')->value(),
-        ], $request->file('evidence'));
+            'evidence_url' => $request->filled('evidence_url') ? $request->string('evidence_url')->value() : null,
+        ]);
 
         return response()->json([
             'message' => 'Izin diajukan. Menunggu mentor.',
@@ -79,15 +82,5 @@ class LeaveController extends Controller
             'message' => 'Pengajuan izin dibatalkan.',
             'data' => new InternLeaveResource($leaves->cancel($intern, $leave)),
         ]);
-    }
-
-    public function evidence(LeaveRequest $leave): StreamedResponse
-    {
-        Gate::authorize('view', $leave);
-
-        $path = $leave->evidence_path;
-        abort_if($path === null || ! Storage::exists($path), 404, 'Lampiran tidak ditemukan.');
-
-        return Storage::download($path, $leave->evidenceFileName());
     }
 }

@@ -51,6 +51,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Idle Minutes
+    |--------------------------------------------------------------------------
+    |
+    | Sesi berakhir jika token tidak dipakai selama sekian menit (dihitung dari
+    | last_used_at, atau created_at jika belum pernah dipakai). Setiap request
+    | yang berhasil memperpanjang sesi. Dicek di AppServiceProvider.
+    |
+    */
+
+    'idle_minutes' => (int) env('SANCTUM_IDLE_MINUTES', 30),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

@@ -20,6 +20,14 @@ class AttendanceCorrectionPolicy
         return $this->ownedByIntern($user, $correction);
     }
 
+    /**
+     * Mentor yang dicatat pada pengajuan. Pengajuan yang menunggu mentor ikut pindah saat mentor diganti.
+     */
+    public function manage(User $user, AttendanceCorrection $correction): Response
+    {
+        return $correction->mentor_id === $user->id ? Response::allow() : Response::deny(self::FORBIDDEN);
+    }
+
     private function ownedByIntern(User $user, AttendanceCorrection $correction): Response
     {
         return $correction->intern_id === $user->id ? Response::allow() : Response::deny(self::FORBIDDEN);

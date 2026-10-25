@@ -24,13 +24,21 @@ class AuditLog extends Model
 
     public const ACTION_WARNING = 'Warning';
 
-    public const ACTION_ATTENDANCE = 'Absensi';
+    public const ACTION_ATTENDANCE = 'Presensi';
+
+    public const ACTION_CORRECTION = 'Koreksi Presensi';
 
     public const ACTION_LEAVE = 'Izin';
 
-    public const ACTION_CALENDAR = 'Kalender dan jam kerja';
+    public const ACTION_PRESENTATION = 'Presentasi';
 
-    public const ACTION_OFFICE = 'Lokasi kantor';
+    public const ACTION_CALENDAR = 'Kalender Libur';
+
+    public const ACTION_OFFICE = 'Lokasi & Jadwal';
+
+    public const ACTION_SETTINGS = 'Pengaturan Umum';
+
+    public const ACTION_UNIT = 'Unit';
 
     public const ACTION_ANNOUNCEMENT = 'Pengumuman';
 
@@ -39,9 +47,13 @@ class AuditLog extends Model
     public const ACTIONS = [
         self::ACTION_ACCOUNT,
         self::ACTION_ATTENDANCE,
+        self::ACTION_CORRECTION,
         self::ACTION_LEAVE,
-        self::ACTION_CALENDAR,
+        self::ACTION_PRESENTATION,
         self::ACTION_OFFICE,
+        self::ACTION_CALENDAR,
+        self::ACTION_SETTINGS,
+        self::ACTION_UNIT,
         self::ACTION_WARNING,
         self::ACTION_ANNOUNCEMENT,
         self::ACTION_REPORT,

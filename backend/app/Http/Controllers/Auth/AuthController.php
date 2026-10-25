@@ -43,7 +43,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user' => new UserResource($user),
+            'user' => new UserResource(UserResource::withProfile($user)),
         ]);
     }
 
@@ -52,7 +52,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return new UserResource($user->loadMissing('internProfile'));
+        return new UserResource(UserResource::withProfile($user));
     }
 
     public function logout(Request $request): Response
@@ -85,6 +85,6 @@ class AuthController extends Controller
             $user->tokens()->whereKeyNot($currentTokenId)->delete();
         });
 
-        return new UserResource($user->loadMissing('internProfile'));
+        return new UserResource(UserResource::withProfile($user));
     }
 }

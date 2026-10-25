@@ -45,7 +45,7 @@ class UserController extends Controller
             'data' => $this->users->activeMentors()->map(fn (User $mentor): array => [
                 'id' => $mentor->id,
                 'name' => $mentor->name,
-                'title' => $mentor->title,
+                'unit' => $mentor->unit === null ? null : ['id' => $mentor->unit->id, 'name' => $mentor->unit->name],
             ])->values(),
         ]);
     }
@@ -55,7 +55,7 @@ class UserController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, email: string, role: string, title?: string|null, mentor_id?: int|string, start_date?: string, end_date?: string} $input */
+        /** @var array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string} $input */
         $input = $request->validated();
         $result = $this->accounts->create($admin, $input);
 
@@ -75,7 +75,7 @@ class UserController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, email: string, title?: string|null, start_date?: string, end_date?: string} $input */
+        /** @var array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string} $input */
         $input = $request->validated();
         $user = $this->accounts->update($admin, $user, $input);
 

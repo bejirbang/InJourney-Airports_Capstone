@@ -36,7 +36,8 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Nama file export Excel dibaca frontend dari header ini.
+    'exposed_headers' => ['Content-Disposition'],
 
     'max_age' => 0,
 

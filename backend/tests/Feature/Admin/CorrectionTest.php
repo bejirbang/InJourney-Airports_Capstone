@@ -1,254 +1,231 @@
 <?php
 
-use App\Enums\RequestStatus;
+use App\Enums\AttendanceStatus;
+use App\Enums\CorrectionStatus;
+use App\Enums\LogbookStatus;
+use App\Models\AirportWeeklySchedule;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\AuditLog;
+use App\Models\Holiday;
+use App\Models\Logbook;
 use App\Models\Notification;
-use App\Models\Office;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
 beforeEach(function () {
-    $this->travelTo(Carbon::parse('2026-10-12 14:39:00'));
-    Storage::fake();
-    WorkHourSetting::factory()->create();
+    $this->travelTo(Carbon::parse('2026-10-12 09:00:00'));
 
     $this->admin = User::factory()->admin()->create(['name' => 'Admin Sinta']);
-    $this->rina = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Rina Wulandari']);
-    $this->budi = User::factory()->intern(['start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Budi Kurniawan']);
-
-    $this->office = Office::factory()->create();
-    $this->attendance = Attendance::factory()->for($this->rina, 'intern')->clockedIn()->create([
-        'date' => '2026-10-09', 'clock_in_at' => '08:02:00', 'clock_in_office_id' => $this->office->id,
-    ]);
-    $this->correction = AttendanceCorrection::factory()->for($this->rina, 'intern')->create([
-        'date' => '2026-10-09',
-        'recorded_clock_in' => '08:02:00',
-        'recorded_clock_out' => null,
-        'requested_clock_in' => '08:02:00',
-        'requested_clock_out' => '17:00:00',
-        'reason' => 'Lupa clock out karena listrik padam.',
-        'created_at' => '2026-10-10 09:12:00',
-    ]);
+    $this->mentor = User::factory()->mentor()->create(['name' => 'Sari Wijaya']);
+    $this->nabila = User::factory()->intern(['mentor_id' => $this->mentor->id, 'start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Nabila Putri']);
 });
 
-function asAdminUser(User $user, string $method, string $uri, array $data = []): TestResponse
+function adminCorrections(User $user, string $method, string $uri, array $data = []): TestResponse
 {
     app('auth')->forgetGuards();
 
     return test()->json($method, $uri, $data, ['Authorization' => 'Bearer '.$user->createToken('api')->plainTextToken]);
 }
 
-describe('daftar', function () {
-    it('shows pending requests by default, oldest first, with intern choices', function () {
-        $newer = AttendanceCorrection::factory()->for($this->budi, 'intern')->create(['date' => '2026-10-08', 'created_at' => '2026-10-11 14:30:00']);
-        AttendanceCorrection::factory()->for($this->budi, 'intern')->decided(RequestStatus::Approved, $this->admin)->create(['date' => '2026-10-02']);
+function forwarded(User $intern, string $date, array $attributes = []): AttendanceCorrection
+{
+    return AttendanceCorrection::factory()->for($intern, 'intern')->pendingAdmin()->create(['date' => $date, ...$attributes]);
+}
 
-        asAdminUser($this->admin, 'GET', '/api/admin/corrections')
+function approveCorrection(AttendanceCorrection $correction, ?string $note = 'Sesuai validasi mentor.'): TestResponse
+{
+    return adminCorrections(test()->admin, 'POST', "/api/admin/corrections/{$correction->id}/approve", ['note' => $note]);
+}
+
+describe('daftar dan detail', function () {
+    it('lists requests waiting for the admin by mentor approval time, and the mentor tab read-only', function () {
+        $later = forwarded($this->nabila, '2026-10-06', ['mentor_decided_at' => '2026-10-08 09:00:00']);
+        $first = forwarded($this->nabila, '2026-10-01', ['mentor_decided_at' => '2026-10-07 09:00:00']);
+        $waitingMentor = AttendanceCorrection::factory()->for($this->nabila, 'intern')->create(['date' => '2026-10-02']);
+
+        adminCorrections($this->admin, 'GET', '/api/admin/corrections')
             ->assertOk()
-            ->assertJsonPath('data.*.id', [$this->correction->id, $newer->id])
-            ->assertJsonPath('data.0', [
-                'id' => $this->correction->id,
-                'intern' => ['id' => $this->rina->id, 'name' => 'Rina Wulandari', 'short_name' => 'Rina W.'],
-                'date' => '2026-10-09',
-                'submitted_at' => '2026-10-10T09:12:00+07:00',
-                'status' => 'pending',
-            ])
-            ->assertJsonPath('meta.interns', [
-                ['id' => $this->budi->id, 'name' => 'Budi Kurniawan'],
-                ['id' => $this->rina->id, 'name' => 'Rina Wulandari'],
-            ]);
+            ->assertJsonPath('data.*.id', [$first->id, $later->id])
+            ->assertJsonPath('data.0.can_decide', true)
+            ->assertJsonPath('meta.pending_admin', 2)
+            ->assertJsonPath('meta.pending_mentor', 1)
+            ->assertJsonPath('meta.interns', [['id' => $this->nabila->id, 'name' => 'Nabila Putri']]);
+
+        adminCorrections($this->admin, 'GET', '/api/admin/corrections?tab=pending_mentor')
+            ->assertJsonPath('data.*.id', [$waitingMentor->id])
+            ->assertJsonPath('data.0.can_decide', false);
+
+        adminCorrections($this->admin, 'GET', '/api/admin/corrections?tab=all')->assertJsonCount(3, 'data');
     });
 
-    it('filters by status, intern, and attendance date range', function () {
-        $approved = AttendanceCorrection::factory()->for($this->budi, 'intern')->decided(RequestStatus::Approved, $this->admin)
-            ->create(['date' => '2026-10-02', 'created_at' => '2026-10-03 08:05:00']);
-        $cancelled = AttendanceCorrection::factory()->for($this->budi, 'intern')->create(['date' => '2026-10-05', 'status' => RequestStatus::Cancelled, 'created_at' => '2026-10-06 08:00:00']);
+    it('shows the recorded data and the result if approved', function () {
+        Attendance::factory()->for($this->nabila, 'intern')->clockedIn()->create(['date' => '2026-10-06', 'clock_in_at' => '08:00:00']);
+        $correction = forwarded($this->nabila, '2026-10-06');
 
-        asAdminUser($this->admin, 'GET', '/api/admin/corrections?status=approved')->assertJsonPath('data.*.id', [$approved->id]);
-        asAdminUser($this->admin, 'GET', '/api/admin/corrections?status=all')->assertJsonPath('data.*.id', [$this->correction->id, $cancelled->id, $approved->id]);
-        asAdminUser($this->admin, 'GET', "/api/admin/corrections?status=all&intern_id={$this->budi->id}")->assertJsonPath('data.*.id', [$cancelled->id, $approved->id]);
-        asAdminUser($this->admin, 'GET', '/api/admin/corrections?status=all&from=2026-10-03&to=2026-10-09')->assertJsonPath('data.*.id', [$this->correction->id, $cancelled->id]);
-    });
-
-    it('rejects an unknown filter', function () {
-        asAdminUser($this->admin, 'GET', '/api/admin/corrections?status=open')
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['status' => 'Filter koreksi tidak valid.']);
-    });
-});
-
-describe('detail', function () {
-    it('shows recorded and requested data with the current day status', function () {
-        asAdminUser($this->admin, 'GET', "/api/admin/corrections/{$this->correction->id}")
+        adminCorrections($this->admin, 'GET', "/api/admin/corrections/{$correction->id}")
             ->assertOk()
-            ->assertJsonPath('data.recorded', ['clock_in' => '08:02', 'clock_out' => null, 'status' => 'missed_clock_out'])
-            ->assertJsonPath('data.requested', ['clock_in' => '08:02', 'clock_out' => '17:00'])
-            ->assertJsonPath('data.reason', 'Lupa clock out karena listrik padam.')
-            ->assertJsonPath('data.has_evidence', false)
-            ->assertJsonPath('data.final', null)
-            ->assertJsonPath('data.can_decide', true);
-    });
-
-    it('streams the evidence for preview or download', function () {
-        Storage::put('attendance-corrections/bukti.pdf', 'isi');
-        $this->correction->update(['evidence_path' => 'attendance-corrections/bukti.pdf']);
-
-        asAdminUser($this->admin, 'GET', "/api/admin/corrections/{$this->correction->id}/evidence")
-            ->assertOk()
-            ->assertDownload('bukti-koreksi-2026-10-09.pdf');
-
-        $this->correction->update(['evidence_path' => null]);
-        asAdminUser($this->admin, 'GET', "/api/admin/corrections/{$this->correction->id}/evidence")->assertNotFound();
+            ->assertJsonPath('data.mentor_note', 'Benar, intern hadir.')
+            ->assertJsonPath('data.recorded', ['clock_in_at' => '08:00', 'clock_out_at' => null])
+            ->assertJsonPath('data.result', ['clock_in_at' => '08:00', 'clock_out_at' => '17:00']);
     });
 });
 
 describe('setujui', function () {
-    it('updates the attendance, recalculates the status, notifies the intern, and logs it', function () {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/approve", [
-            'clock_in' => '08:02', 'clock_out' => '17:00', 'note' => 'Sesuai bukti listrik padam.',
-        ])
+    it('fills the missing clock out with the scheduled end, marks the day corrected, and logs it', function () {
+        $attendance = Attendance::factory()->for($this->nabila, 'intern')->clockedIn()->create(['date' => '2026-10-06', 'clock_in_at' => '08:20:00', 'scheduled_end' => '16:30:00']);
+        Logbook::factory()->for($attendance)->create(['work' => 'Draft.']);
+        $correction = forwarded($this->nabila, '2026-10-06', ['recorded_status' => AttendanceStatus::Late]);
+
+        approveCorrection($correction)
             ->assertOk()
-            ->assertJsonPath('message', 'Koreksi disetujui. Status absensi dihitung ulang.')
+            ->assertJsonPath('message', 'Koreksi disetujui. Status hari itu menjadi Hadir.')
             ->assertJsonPath('data.status', 'approved')
-            ->assertJsonPath('data.recorded.status', 'present')
-            ->assertJsonPath('data.final', ['clock_in' => '08:02', 'clock_out' => '17:00'])
-            ->assertJsonPath('data.decision_note', 'Sesuai bukti listrik padam.')
-            ->assertJsonPath('data.decided_by', 'Admin Sinta')
-            ->assertJsonPath('data.can_decide', false);
+            ->assertJsonPath('data.admin', ['id' => $this->admin->id, 'name' => 'Admin Sinta'])
+            ->assertJsonPath('data.admin_note', 'Sesuai validasi mentor.')
+            ->assertJsonPath('data.recorded', ['clock_in_at' => '08:20', 'clock_out_at' => '16:30']);
 
-        $this->attendance->refresh();
-        expect($this->attendance->clock_out_at)->toBe('17:00:00')
-            ->and($this->attendance->is_corrected)->toBeTrue()
-            ->and($this->attendance->clock_in_office_id)->toBe($this->office->id)
-            ->and(Attendance::query()->count())->toBe(1);
+        expect($attendance->refresh()->only(['clock_in_at', 'clock_out_at', 'is_corrected', 'correction_id']))->toBe([
+            'clock_in_at' => '08:20:00',
+            'clock_out_at' => '16:30:00',
+            'is_corrected' => true,
+            'correction_id' => $correction->id,
+        ])
+            ->and(AuditLog::sole()->only(['admin_name', 'action', 'object', 'detail']))->toBe([
+                'admin_name' => 'Admin Sinta',
+                'action' => 'Koreksi Presensi',
+                'object' => 'Nabila Putri',
+                'detail' => 'Setujui koreksi 6 Okt: 08:20 - 16:30.',
+            ]);
 
-        $notification = Notification::sole();
-        expect($notification->user_id)->toBe($this->rina->id)
-            ->and($notification->text)->toBe('Koreksi absensi 9 Okt disetujui.')
-            ->and($notification->link_path)->toBe('/absensi')
-            ->and($notification->link_params)->toBe(['tab' => 'koreksi', 'open' => $this->correction->id]);
+        // Hasil koreksi selalu Hadir, termasuk hari Terlambat; logbook draft kini bisa dikirim.
+        $day = collect(adminCorrections($this->nabila, 'GET', '/api/intern/attendance')->json('data.days'))->firstWhere('date', '2026-10-06');
+        expect($day)->toMatchArray(['status' => 'present', 'late_minutes' => null, 'missed_clock_out' => false, 'is_corrected' => true, 'logbook_state' => 'missing']);
 
-        $log = AuditLog::sole();
-        expect($log->action)->toBe('Absensi')
-            ->and($log->object)->toBe('Rina Wulandari')
-            ->and($log->detail)->toBe('Setujui koreksi 9 Okt: 08:02 - 17:00.');
-
-        asAdminUser($this->rina, 'GET', '/api/intern/attendance?month=2026-10')
-            ->assertJsonPath('data.days.3.date', '2026-10-09')
-            ->assertJsonPath('data.days.3.status', 'present')
-            ->assertJsonPath('data.days.3.is_corrected', true);
-        asAdminUser($this->admin, 'GET', '/api/admin/menu')->assertJsonPath('data.3.badge', 0);
+        adminCorrections($this->nabila, 'PUT', '/api/intern/logbooks/2026-10-06', ['work' => 'Lengkap.'])->assertOk();
+        expect($attendance->logbook?->refresh()->status)->toBe(LogbookStatus::PendingReview);
     });
 
-    it('lets the admin set final times that differ from the request, and recalculates lateness', function () {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/approve", [
-            'clock_in' => '08:30', 'clock_out' => '17:05', 'note' => 'Jam masuk sesuai CCTV.',
-        ])->assertOk();
-
-        asAdminUser($this->admin, 'GET', "/api/admin/users/{$this->rina->id}/attendance/days/2026-10-09")
-            ->assertJsonPath('data.clock_in_at', '08:30')
-            ->assertJsonPath('data.late_minutes', 30)
-            ->assertJsonPath('data.is_corrected', true);
-    });
-
-    it('creates the attendance for a day without clock in', function () {
-        $absent = AttendanceCorrection::factory()->for($this->budi, 'intern')->create([
-            'date' => '2026-10-08', 'recorded_clock_in' => null, 'recorded_clock_out' => null,
+    it('creates the attendance with the scheduled hours for an absent day', function () {
+        AirportWeeklySchedule::factory()->create([
+            'airport_id' => $this->nabila->internProfile->airport_id,
+            'day_of_week' => 2,
+            'start_time' => '07:30:00',
+            'end_time' => '15:30:00',
+            'effective_from' => '2026-10-01',
         ]);
+        $correction = forwarded($this->nabila, '2026-10-06', ['recorded_status' => AttendanceStatus::Absent, 'recorded_missed_clock_out' => false]);
 
-        asAdminUser($this->admin, 'GET', "/api/admin/corrections/{$absent->id}")->assertJsonPath('data.recorded.status', 'absent');
+        approveCorrection($correction)->assertOk();
 
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$absent->id}/approve", [
-            'clock_in' => '08:00', 'clock_out' => '17:00', 'note' => 'Hadir rapat di luar kantor.',
-        ])
-            ->assertOk()
-            ->assertJsonPath('data.recorded.status', 'present');
-
-        $attendance = Attendance::query()->where('intern_id', $this->budi->id)->sole();
-        expect($attendance->date->toDateString())->toBe('2026-10-08')
-            ->and($attendance->is_corrected)->toBeTrue()
-            ->and($attendance->clock_in_office_id)->toBeNull();
+        expect(Attendance::sole()->only(['date', 'clock_in_at', 'clock_out_at', 'scheduled_start', 'scheduled_end', 'is_corrected', 'clock_in_office_id']))->toMatchArray([
+            'clock_in_at' => '07:30:00',
+            'clock_out_at' => '15:30:00',
+            'scheduled_start' => '07:30:00',
+            'scheduled_end' => '15:30:00',
+            'is_corrected' => true,
+            'clock_in_office_id' => null,
+        ]);
     });
 
-    it('validates the note and the final times', function (array $input, string $field, string $message) {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/approve", [
-            'clock_in' => '08:02', 'clock_out' => '17:00', 'note' => 'Sesuai bukti.', ...$input,
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors([$field => $message]);
+    it('fills the missing clock in and keeps the recorded clock out', function () {
+        $attendance = Attendance::factory()->for($this->nabila, 'intern')->create(['date' => '2026-10-06', 'clock_in_at' => null, 'clock_out_at' => '17:20:00']);
+        Logbook::factory()->pendingReview()->for($attendance)->create();
 
-        expect($this->correction->refresh()->status)->toBe(RequestStatus::Pending);
-    })->with([
-        'catatan kosong' => [['note' => ' '], 'note', 'Catatan verifikasi wajib diisi.'],
-        'clock out lebih awal' => [['clock_out' => '08:00'], 'clock_out', 'Jam clock out harus setelah jam clock in.'],
-        'format jam' => [['clock_in' => '8 pagi'], 'clock_in', 'Format jam tidak valid. Gunakan JJ:MM.'],
-    ]);
+        approveCorrection(forwarded($this->nabila, '2026-10-06', ['recorded_status' => AttendanceStatus::MissedClockIn, 'recorded_missed_clock_out' => false]))->assertOk();
+
+        expect($attendance->refresh()->only(['clock_in_at', 'clock_out_at']))->toBe(['clock_in_at' => '08:00:00', 'clock_out_at' => '17:20:00'])
+            ->and($attendance->logbook?->status)->toBe(LogbookStatus::PendingReview);
+    });
+
+    it('notifies the intern and the mentor', function () {
+        $correction = forwarded($this->nabila, '2026-10-06');
+
+        approveCorrection($correction)->assertOk();
+
+        expect(Notification::query()->orderBy('id')->get(['user_id', 'text', 'link_path'])->toArray())->toBe([
+            ['user_id' => $this->nabila->id, 'text' => 'Koreksi presensi 6 Okt disetujui.', 'link_path' => '/presensi'],
+            ['user_id' => $this->mentor->id, 'text' => 'Koreksi Nabila P. 6 Okt disetujui admin.', 'link_path' => '/koreksi'],
+        ]);
+    });
+
+    it('requires a note', function () {
+        $correction = forwarded($this->nabila, '2026-10-06');
+
+        approveCorrection($correction, null)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['note' => 'Catatan wajib diisi.']);
+
+        expect($correction->refresh()->status)->toBe(CorrectionStatus::PendingAdmin);
+    });
+
+    it('refuses a day that is no longer a working day', function () {
+        Holiday::factory()->create(['date' => '2026-10-06']);
+        $correction = forwarded($this->nabila, '2026-10-06', ['recorded_status' => AttendanceStatus::Absent]);
+
+        approveCorrection($correction)
+            ->assertUnprocessable()
+            ->assertJsonPath('reason', 'not_workday');
+
+        expect(Attendance::count())->toBe(0)->and($correction->refresh()->status)->toBe(CorrectionStatus::PendingAdmin);
+    });
 });
 
-describe('tolak', function () {
-    it('closes the request without touching the attendance', function () {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", ['note' => 'Tidak ada bukti.'])
+describe('tolak dan konflik', function () {
+    it('rejects with a note without touching the attendance', function () {
+        $attendance = Attendance::factory()->for($this->nabila, 'intern')->clockedIn()->create(['date' => '2026-10-06']);
+        $correction = forwarded($this->nabila, '2026-10-06');
+
+        adminCorrections($this->admin, 'POST', "/api/admin/corrections/{$correction->id}/reject", ['note' => 'Sudah dikoreksi di tanggal lain.'])
             ->assertOk()
-            ->assertJsonPath('message', 'Koreksi ditolak. Data absensi tidak berubah.')
-            ->assertJsonPath('data.status', 'rejected')
-            ->assertJsonPath('data.final', null)
-            ->assertJsonPath('data.recorded.status', 'missed_clock_out');
+            ->assertJsonPath('message', 'Koreksi ditolak. Data presensi tidak berubah.')
+            ->assertJsonPath('data.status', 'rejected_by_admin');
 
-        expect($this->attendance->refresh()->clock_out_at)->toBeNull()
-            ->and($this->attendance->is_corrected)->toBeFalse()
-            ->and(Notification::sole()->text)->toBe('Koreksi absensi 9 Okt ditolak.')
-            ->and(AuditLog::sole()->detail)->toBe('Tolak koreksi 9 Okt.');
+        expect($attendance->refresh()->is_corrected)->toBeFalse()
+            ->and(AuditLog::sole()->detail)->toBe('Tolak koreksi 6 Okt.')
+            ->and(Notification::query()->pluck('text')->all())->toBe(['Koreksi presensi 6 Okt ditolak.', 'Koreksi Nabila P. 6 Okt ditolak admin.']);
     });
 
-    it('requires a verification note', function () {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", [])
+    it('cannot process a request still waiting for the mentor', function () {
+        $correction = AttendanceCorrection::factory()->for($this->nabila, 'intern')->create();
+
+        approveCorrection($correction)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['note' => 'Catatan verifikasi wajib diisi.']);
-    });
-});
-
-describe('sudah diproses', function () {
-    it('tells the second admin who already processed the request', function () {
-        $rudi = User::factory()->admin()->create(['name' => 'Admin Rudi']);
-        asAdminUser($rudi, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", ['note' => 'Tidak ada bukti.'])->assertOk();
-
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/approve", [
-            'clock_in' => '08:02', 'clock_out' => '17:00', 'note' => 'Sesuai bukti.',
-        ])
-            ->assertUnprocessable()
-            ->assertJsonPath('reason', 'already_processed')
-            ->assertJsonPath('message', 'Permintaan ini sudah diproses oleh Admin Rudi.');
-
-        expect($this->attendance->refresh()->clock_out_at)->toBeNull()
-            ->and(AuditLog::query()->count())->toBe(1);
+            ->assertExactJson(['message' => 'Koreksi ini masih menunggu mentor.', 'reason' => 'pending_mentor']);
     });
 
-    it('rejects a decision on a request the intern cancelled', function () {
-        asAdminUser($this->rina, 'POST', "/api/intern/attendance-corrections/{$this->correction->id}/cancel")->assertOk();
+    it('tells the second admin who already decided, and refuses cancelled requests', function () {
+        $correction = forwarded($this->nabila, '2026-10-06');
+        approveCorrection($correction)->assertOk();
 
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", ['note' => 'Tidak ada bukti.'])
-            ->assertUnprocessable()
-            ->assertJsonPath('reason', 'cancelled')
-            ->assertJsonPath('message', 'Permintaan ini sudah dibatalkan intern.');
-    });
-
-    it('stops the intern from cancelling after the admin decided', function () {
-        asAdminUser($this->admin, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", ['note' => 'Tidak ada bukti.'])->assertOk();
-
-        asAdminUser($this->rina, 'POST', "/api/intern/attendance-corrections/{$this->correction->id}/cancel")
+        $other = User::factory()->admin()->create();
+        adminCorrections($other, 'POST', "/api/admin/corrections/{$correction->id}/reject", ['note' => 'Tolak.'])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Data ini sudah diproses oleh Admin Sinta.');
+
+        $cancelled = forwarded($this->nabila, '2026-10-07', ['status' => CorrectionStatus::Cancelled]);
+        approveCorrection($cancelled)->assertJsonPath('reason', 'cancelled');
+
+        expect(AuditLog::count())->toBe(1);
     });
 });
 
-it('rejects interns and mentors from the admin correction pages', function (string $role) {
+it('rejects interns and mentors', function (string $role) {
     $actor = User::factory()->{$role}()->create();
+    $correction = forwarded($this->nabila, '2026-10-06');
 
-    asAdminUser($actor, 'GET', '/api/admin/corrections')->assertForbidden();
-    asAdminUser($actor, 'POST', "/api/admin/corrections/{$this->correction->id}/reject", ['note' => 'x'])->assertForbidden();
+    adminCorrections($actor, 'GET', '/api/admin/corrections')->assertForbidden();
+    adminCorrections($actor, 'POST', "/api/admin/corrections/{$correction->id}/approve", ['note' => 'Oke.'])->assertForbidden();
 })->with(['intern', 'mentor']);
+
+it('filters the list and the tab counts by the global airport filter', function () {
+    $other = User::factory()->intern(['mentor_id' => $this->mentor->id])->create();
+    $mine = forwarded($this->nabila, '2026-10-06');
+    forwarded($other, '2026-10-06');
+
+    adminCorrections($this->admin, 'GET', "/api/admin/corrections?airport_id={$this->nabila->internProfile->airport_id}")
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$mine->id])
+        ->assertJsonPath('meta.pending_admin', 1);
+});

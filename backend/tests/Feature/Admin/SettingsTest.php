@@ -1,10 +1,11 @@
 <?php
 
+use App\Models\Airport;
+use App\Models\AirportWeeklySchedule;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Holiday;
 use App\Models\User;
-use App\Models\WorkHourSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -37,82 +38,6 @@ function dayStatus(User $intern, string $date): ?string
     return settingsRequest(test()->admin, 'GET', "/api/admin/users/{$intern->id}/attendance/days/{$date}")->json('data.status');
 }
 
-describe('jam kerja', function () {
-    it('shows nothing before the admin sets work hours, with the fixed 23:59 cutoff', function () {
-        settingsRequest($this->admin, 'GET', '/api/admin/settings/work-hours')
-            ->assertOk()
-            ->assertExactJson(['data' => ['current' => null, 'cutoff' => '23:59', 'history' => []]]);
-    });
-
-    it('schedules new work hours from the effective date and keeps the history', function () {
-        WorkHourSetting::factory()->create(['effective_from' => '2026-01-01']);
-
-        settingsRequest($this->admin, 'POST', '/api/admin/settings/work-hours', [
-            'start_time' => '08:30', 'end_time' => '17:30', 'effective_from' => '2026-10-13',
-        ])
-            ->assertOk()
-            ->assertJsonPath('message', 'Perubahan tersimpan. Data absensi sebelumnya tidak berubah.')
-            ->assertJsonPath('data.current', ['effective_from' => '2026-01-01', 'start' => '08:00', 'end' => '17:00'])
-            ->assertJsonPath('data.history', [
-                ['effective_from' => '2026-10-13', 'start' => '08:30', 'end' => '17:30', 'state' => 'upcoming'],
-                ['effective_from' => '2026-01-01', 'start' => '08:00', 'end' => '17:00', 'state' => 'current'],
-            ]);
-
-        expect(AuditLog::sole()->only(['admin_name', 'action', 'object', 'detail']))->toBe([
-            'admin_name' => 'Sinta Admin',
-            'action' => 'Kalender dan jam kerja',
-            'object' => 'Jam kerja',
-            'detail' => 'Ubah jam kerja menjadi 08:30 - 17:30 mulai 13 Okt 2026.',
-        ]);
-    });
-
-    it('does not change attendance before the effective date', function () {
-        WorkHourSetting::factory()->create(['effective_from' => '2026-01-01']);
-        $rina = settingsIntern($this->mentor, 'Rina Wulandari');
-        Attendance::factory()->for($rina, 'intern')->create(['date' => '2026-10-09', 'clock_in_at' => '08:10:00']);
-
-        settingsRequest($this->admin, 'POST', '/api/admin/settings/work-hours', [
-            'start_time' => '08:30', 'end_time' => '17:00', 'effective_from' => '2026-10-12',
-        ])->assertOk();
-
-        settingsRequest($this->admin, 'GET', "/api/admin/users/{$rina->id}/attendance/days/2026-10-09")
-            ->assertJsonPath('data.late_minutes', 10);
-    });
-
-    it('replaces the setting of the same effective date instead of adding one', function () {
-        WorkHourSetting::factory()->create(['effective_from' => '2026-10-13']);
-
-        settingsRequest($this->admin, 'POST', '/api/admin/settings/work-hours', [
-            'start_time' => '07:30', 'end_time' => '16:30', 'effective_from' => '2026-10-13',
-        ])->assertOk();
-
-        expect(WorkHourSetting::sole()->toHours())->toBe(['start' => '07:30', 'end' => '16:30']);
-    });
-
-    it('validates the form', function (array $data, string $field, string $message) {
-        settingsRequest($this->admin, 'POST', '/api/admin/settings/work-hours', [
-            'start_time' => '08:00', 'end_time' => '17:00', 'effective_from' => '2026-10-13', ...$data,
-        ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors([$field => $message]);
-
-        expect(WorkHourSetting::query()->count())->toBe(0);
-    })->with([
-        'pulang sebelum masuk' => [['end_time' => '07:00'], 'end_time', 'Jam pulang harus setelah jam masuk.'],
-        'pulang sama dengan masuk' => [['end_time' => '08:00'], 'end_time', 'Jam pulang harus setelah jam masuk.'],
-        'tanggal lampau' => [['effective_from' => '2026-10-11'], 'effective_from', 'Tanggal berlaku tidak boleh sebelum hari ini.'],
-        'format jam' => [['start_time' => '8 pagi'], 'start_time', 'Format jam tidak valid. Gunakan JJ:MM.'],
-    ]);
-
-    it('lets today be the effective date', function () {
-        settingsRequest($this->admin, 'POST', '/api/admin/settings/work-hours', [
-            'start_time' => '08:00', 'end_time' => '17:00', 'effective_from' => '2026-10-12',
-        ])
-            ->assertOk()
-            ->assertJsonPath('data.current.effective_from', '2026-10-12');
-    });
-});
-
 describe('kalender libur', function () {
     it('lists additional holidays by date', function () {
         $later = Holiday::factory()->create(['date' => '2026-12-25', 'name' => 'Hari Natal']);
@@ -133,7 +58,7 @@ describe('kalender libur', function () {
             ->assertJsonPath('data.name', 'Cuti Bersama');
 
         expect(AuditLog::sole()->only(['action', 'detail']))->toBe([
-            'action' => 'Kalender dan jam kerja',
+            'action' => 'Kalender Libur',
             'detail' => 'Tambah libur "Cuti Bersama".',
         ]);
     })->with(['2026-10-16', '2026-10-12']);
@@ -167,7 +92,7 @@ describe('kalender libur', function () {
             ->and(dayStatus($budi, '2026-10-02'))->toBe('holiday')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '2 Okt 2026',
-                'detail' => 'Tambah libur "Libur Daerah". 2 absensi dihitung ulang.',
+                'detail' => 'Tambah libur "Libur Daerah". 2 presensi dihitung ulang.',
             ]);
     });
 
@@ -179,9 +104,22 @@ describe('kalender libur', function () {
             ->assertJsonValidationErrors(['date' => $message]);
     })->with([
         'tanpa tanggal' => [['date' => ''], 'Tanggal dan nama libur wajib diisi.'],
-        'sabtu' => [['date' => '2026-10-17'], 'Sabtu dan Minggu sudah libur otomatis.'],
         'sudah libur' => [['date' => '2026-10-16'], 'Tanggal ini sudah menjadi hari libur.'],
     ]);
+
+    it('accepts a weekend date, counting only interns whose airport works that day', function () {
+        $weekendAirport = Airport::factory()->create();
+        AirportWeeklySchedule::query()->where('airport_id', $weekendAirport->id)->where('day_of_week', 6)
+            ->update(['is_workday' => true, 'start_time' => '08:00:00', 'end_time' => '14:00:00']);
+        settingsIntern($this->mentor, 'Rina Wulandari');
+        settingsIntern($this->mentor, 'Budi Sabtu', ['airport_id' => $weekendAirport->id]);
+
+        settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-10', 'name' => 'Libur Daerah'])
+            ->assertUnprocessable()
+            ->assertJsonPath('affected', 1);
+
+        settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-17', 'name' => 'Libur Daerah'])->assertCreated();
+    });
 
     it('requires a name', function () {
         settingsRequest($this->admin, 'POST', '/api/admin/holidays', ['date' => '2026-10-15', 'name' => '  '])
@@ -216,7 +154,7 @@ describe('kalender libur', function () {
         expect(dayStatus($rina, '2026-10-02'))->toBe('absent')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '16 Okt 2026',
-                'detail' => 'Ubah libur "Libur Daerah" (sebelumnya 2 Okt 2026). 1 absensi dihitung ulang.',
+                'detail' => 'Ubah libur "Libur Daerah" (sebelumnya 2 Okt 2026). 1 presensi dihitung ulang.',
             ]);
     });
 
@@ -242,7 +180,7 @@ describe('kalender libur', function () {
             ->and(dayStatus($rina, '2026-10-02'))->toBe('absent')
             ->and(AuditLog::sole()->only(['object', 'detail']))->toBe([
                 'object' => '2 Okt 2026',
-                'detail' => 'Hapus libur "Libur Daerah". 1 absensi dihitung ulang.',
+                'detail' => 'Hapus libur "Libur Daerah". 1 presensi dihitung ulang.',
             ]);
     });
 
@@ -259,8 +197,6 @@ it('rejects interns and mentors from the settings', function (string $role) {
     $actor = User::factory()->{$role}()->create();
     $holiday = Holiday::factory()->create(['date' => '2026-12-25']);
 
-    settingsRequest($actor, 'GET', '/api/admin/settings/work-hours')->assertForbidden();
-    settingsRequest($actor, 'POST', '/api/admin/settings/work-hours', ['start_time' => '08:00', 'end_time' => '17:00', 'effective_from' => '2026-10-13'])->assertForbidden();
     settingsRequest($actor, 'GET', '/api/admin/holidays')->assertForbidden();
     settingsRequest($actor, 'DELETE', "/api/admin/holidays/{$holiday->id}")->assertForbidden();
 })->with(['intern', 'mentor']);

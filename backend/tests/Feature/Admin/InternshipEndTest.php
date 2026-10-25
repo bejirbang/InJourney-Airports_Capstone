@@ -1,8 +1,12 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\FinalPresentation;
+use App\Models\LeaveRequest;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\SystemSettings;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 
@@ -52,6 +56,24 @@ describe('perpanjang magang', function () {
         ]);
 
         internshipRequest($this->admin, 'GET', '/api/admin/dashboard')->assertJsonPath('data.ending_internships.total', 0);
+    });
+
+    it('resets the leave quota from the day of the extension and the presentation reminder', function () {
+        foreach (['2026-08-03', '2026-09-01', '2026-10-05'] as $date) {
+            LeaveRequest::factory()->for($this->rina, 'intern')->approved()->create(['start_date' => $date, 'end_date' => $date, 'created_at' => "{$date} 08:00:00"]);
+        }
+        $this->rina->internProfile->update(['presentation_reminded_at' => '2026-10-10 07:00:00']);
+
+        internshipRequest($this->admin, 'GET', "/api/admin/users/{$this->rina->id}")->assertJsonPath('data.leave_quota.exhausted', true);
+
+        extendInternship($this->rina, '2026-12-31')->assertOk();
+
+        $profile = $this->rina->internProfile->refresh();
+        expect($profile->leave_quota_since->toDateString())->toBe('2026-10-12')
+            ->and($profile->presentation_reminded_at)->toBeNull();
+
+        internshipRequest($this->admin, 'GET', "/api/admin/users/{$this->rina->id}")
+            ->assertJsonPath('data.leave_quota', ['used' => 0, 'limit' => 3, 'remaining' => 3, 'exhausted' => false]);
     });
 
     it('requires a new end date after the current one', function (string $endDate) {
@@ -186,6 +208,65 @@ describe('pengingat akhir magang', function () {
         endingIntern($this->mentor, 'Belum Mulai', '2026-10-16', ['start_date' => '2026-10-13']);
 
         $this->artisan('app:remind-ending-internships')->expectsOutput('0 pengingat akhir magang dikirim.');
+    });
+});
+
+it('uses the reminder days from the settings for the ending list and the reminders', function () {
+    app(SystemSettings::class)->set(SystemSettings::END_REMINDER_DAYS, '3');
+    endingIntern($this->mentor, 'Doni Akbar', '2026-10-15');
+
+    internshipRequest($this->admin, 'GET', '/api/admin/ending-internships')
+        ->assertJsonPath('data.*.intern.name', ['Doni Akbar']);
+
+    $this->artisan('app:remind-ending-internships')->expectsOutput('1 pengingat akhir magang dikirim.');
+    $this->artisan('app:remind-presentations')->expectsOutput('1 pengingat presentasi dikirim.');
+});
+
+describe('pengingat presentasi', function () {
+    it('reminds the intern once from H-7, unless the evidence is already sent', function () {
+        $doni = endingIntern($this->mentor, 'Doni Akbar', '2026-10-19');
+        endingIntern($this->mentor, 'Delapan Hari', '2026-10-20');
+        FinalPresentation::factory()->create(['intern_id' => endingIntern($this->mentor, 'Sudah Kirim', '2026-10-15')->id]);
+        endingIntern($this->mentor, 'Dinonaktifkan', '2026-10-15', attributes: ['is_active' => false]);
+
+        $this->artisan('app:remind-presentations')->expectsOutput('2 pengingat presentasi dikirim.')->assertSuccessful();
+
+        expect(Notification::query()->orderBy('id')->get(['user_id', 'text', 'link_path'])->toArray())->toBe([
+            ['user_id' => $this->rina->id, 'text' => 'Magang Anda berakhir 5 hari lagi. Lakukan presentasi dan kirim buktinya.', 'link_path' => '/presentasi'],
+            ['user_id' => $doni->id, 'text' => 'Magang Anda berakhir 7 hari lagi. Lakukan presentasi dan kirim buktinya.', 'link_path' => '/presentasi'],
+        ])->and($this->rina->internProfile->fresh()->presentation_reminded_at?->toDateTimeString())->toBe('2026-10-12 07:00:00');
+
+        $this->travelTo(Carbon::parse('2026-10-13 07:00:00'));
+        $this->artisan('app:remind-presentations')->expectsOutput('1 pengingat presentasi dikirim.');
+
+        expect(Notification::query()->latest('id')->value('text'))->toBe('Magang Anda berakhir 7 hari lagi. Lakukan presentasi dan kirim buktinya.');
+    });
+
+    it('says today on the last day', function () {
+        $this->rina->internProfile->update(['end_date' => '2026-10-12']);
+
+        $this->artisan('app:remind-presentations')->assertSuccessful();
+
+        expect(Notification::sole()->text)->toBe('Magang Anda berakhir hari ini. Lakukan presentasi dan kirim buktinya.');
+    });
+
+    it('reminds again after the internship is extended', function () {
+        $this->artisan('app:remind-presentations')->expectsOutput('1 pengingat presentasi dikirim.');
+
+        extendInternship($this->rina, '2026-10-30')->assertOk();
+        $this->artisan('app:remind-presentations')->expectsOutput('0 pengingat presentasi dikirim.');
+
+        $this->travelTo(Carbon::parse('2026-10-23 07:00:00'));
+        $this->artisan('app:remind-presentations')->expectsOutput('1 pengingat presentasi dikirim.');
+    });
+
+    it('is scheduled every morning with the other reminders', function () {
+        $events = collect(app(Schedule::class)->events())
+            ->mapWithKeys(fn ($event): array => [trim(str($event->command)->after('artisan')->replace(["'", '"'], '')->value()) => $event->expression]);
+
+        expect($events->get('app:remind-presentations'))->toBe('0 7 * * *')
+            ->and($events->get('app:remind-ending-internships'))->toBe('0 7 * * *')
+            ->and($events->get('app:remind-overdue-leaves'))->toBe('0 * * * *');
     });
 });
 

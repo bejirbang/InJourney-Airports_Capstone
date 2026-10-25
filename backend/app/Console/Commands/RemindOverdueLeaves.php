@@ -10,7 +10,7 @@ class RemindOverdueLeaves extends Command
 {
     protected $signature = 'app:remind-overdue-leaves';
 
-    protected $description = 'Ingatkan admin tentang izin yang belum diproses mentor lebih dari 24 jam';
+    protected $description = 'Ingatkan admin tentang izin yang belum diproses mentor lewat batas leave_escalation_hours';
 
     public function handle(OverdueLeaveReminders $reminders): int
     {

@@ -10,13 +10,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -27,24 +26,25 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string $password
  * @property string|null $remember_token
  * @property Role $role
- * @property string $title
+ * @property int|null $unit_id
  * @property string|null $phone
- * @property string|null $photo_path
  * @property bool $is_active
  * @property bool $must_change_password
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
+ * @property-read Unit|null $unit
  * @property-read InternProfile|null $internProfile
  * @property-read Collection<int, Attendance> $attendances
  * @property-read Collection<int, LeaveRequest> $leaveRequests
- * @property-read Collection<int, Task> $assignedTasks
  * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
  * @property-read Collection<int, Warning> $warnings
  * @property-read int|null $warnings_count
+ * @property-read FinalPresentation|null $finalPresentation
+ * @property-read Assessment|null $assessment
  */
-#[Fillable(['name', 'email', 'password', 'role', 'title', 'phone', 'photo_path', 'is_active', 'must_change_password'])]
-#[Hidden(['password', 'remember_token', 'photo_path'])]
+#[Fillable(['name', 'email', 'password', 'role', 'unit_id', 'phone', 'is_active', 'must_change_password'])]
+#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -70,6 +70,14 @@ class User extends Authenticatable
     protected function email(): Attribute
     {
         return Attribute::make(set: fn (string $value): string => mb_strtolower(trim($value)));
+    }
+
+    /**
+     * @return BelongsTo<Unit, $this>
+     */
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
     }
 
     /**
@@ -112,36 +120,27 @@ class User extends Authenticatable
         return $this->hasMany(Warning::class, 'intern_id');
     }
 
+    /**
+     * @return HasOne<FinalPresentation, $this>
+     */
+    public function finalPresentation(): HasOne
+    {
+        return $this->hasOne(FinalPresentation::class, 'intern_id');
+    }
+
+    /**
+     * @return HasOne<Assessment, $this>
+     */
+    public function assessment(): HasOne
+    {
+        return $this->hasOne(Assessment::class, 'intern_id');
+    }
+
     public function shortName(): string
     {
         $parts = preg_split('/\s+/', trim($this->name)) ?: [];
 
         return count($parts) < 2 ? $this->name : $parts[0].' '.mb_substr($parts[1], 0, 1).'.';
-    }
-
-    /**
-     * @return HasMany<Task, $this>
-     */
-    public function assignedTasks(): HasMany
-    {
-        return $this->hasMany(Task::class, 'intern_id');
-    }
-
-    /**
-     * Alamat foto profil yang bisa langsung dipakai di <img> tanpa header Authorization.
-     * Alamat bertanda tangan dan sama sepanjang hari, jadi browser dapat menyimpannya di cache.
-     */
-    public function photoUrl(): ?string
-    {
-        if ($this->photo_path === null) {
-            return null;
-        }
-
-        return URL::temporarySignedRoute(
-            'users.photo',
-            Date::today()->addDays(2),
-            ['user' => $this->id, 'v' => substr(md5($this->photo_path), 0, 8)],
-        );
     }
 
     public function hasRole(Role $role): bool

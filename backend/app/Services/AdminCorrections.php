@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Enums\RequestStatus;
+use App\Enums\CorrectionStatus;
 use App\Exceptions\ActionRejected;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
@@ -14,35 +14,52 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Admin hanya mengeksekusi pengajuan yang sudah di-ACC mentor. Hasil selalu Hadir: jam yang kosong diisi
+ * jam jadwal hari itu, jam asli tidak ditimpa.
+ */
 class AdminCorrections
 {
-    public const FILTER_ALL = 'all';
+    public const TAB_ALL = 'all';
 
-    public const FILTERS = ['pending', 'approved', 'rejected', 'cancelled', self::FILTER_ALL];
+    public const TABS = ['pending_admin', 'pending_mentor', self::TAB_ALL];
 
-    public const CANCELLED = 'Permintaan ini sudah dibatalkan intern.';
+    public const STILL_WITH_MENTOR = 'Koreksi ini masih menunggu mentor.';
 
-    public function __construct(private AttendanceCalendar $calendar, private Notifier $notifier) {}
+    public const NOT_WORKDAY = 'Tanggal ini sekarang bukan hari kerja, jadi presensinya tidak bisa dikoreksi.';
+
+    public function __construct(
+        private WorkSchedules $schedules,
+        private SystemSettings $settings,
+        private Notifier $notifier,
+    ) {}
 
     /**
-     * @param  array{status?: string|null, intern_id?: int|null, from?: string|null, to?: string|null}  $filters
-     * @return Collection<int, AttendanceCorrection>
+     * Tab menunggu terlama lebih dulu (Menunggu Admin menurut waktu ACC mentor); "Semua" terbaru lebih dulu.
+     *
+     * @return array{corrections: Collection<int, AttendanceCorrection>, counts: array{pending_admin: int, pending_mentor: int}}
      */
-    public function list(array $filters): Collection
+    public function list(?string $tab, ?int $internId, ?int $airportId = null): array
     {
-        $status = $filters['status'] ?? RequestStatus::Pending->value;
-        $pending = $status === RequestStatus::Pending->value;
+        $tab ??= CorrectionStatus::PendingAdmin->value;
+        $pending = $tab !== self::TAB_ALL;
+        $orderColumn = $tab === CorrectionStatus::PendingAdmin->value ? 'mentor_decided_at' : 'created_at';
 
-        return AttendanceCorrection::query()
-            ->with('intern:id,name')
-            ->whereHas('intern')
-            ->when($status !== self::FILTER_ALL, fn (Builder $q) => $q->where('status', $status))
-            ->when($filters['intern_id'] ?? null, fn (Builder $q, int $id) => $q->where('intern_id', $id))
-            ->when($filters['from'] ?? null, fn (Builder $q, string $from) => $q->whereDate('date', '>=', $from))
-            ->when($filters['to'] ?? null, fn (Builder $q, string $to) => $q->whereDate('date', '<=', $to))
-            ->orderBy('created_at', $pending ? 'asc' : 'desc')
+        $corrections = $this->query($airportId)
+            ->with(['intern:id,name', 'mentor:id,name', 'admin:id,name'])
+            ->when($pending, fn (Builder $q) => $q->where('status', $tab))
+            ->when($internId !== null, fn (Builder $q) => $q->where('intern_id', $internId))
+            ->orderBy($orderColumn, $pending ? 'asc' : 'desc')
             ->orderBy('id', $pending ? 'asc' : 'desc')
             ->get();
+
+        return [
+            'corrections' => $corrections,
+            'counts' => [
+                'pending_admin' => $this->query($airportId)->where('status', CorrectionStatus::PendingAdmin)->count(),
+                'pending_mentor' => $this->query($airportId)->where('status', CorrectionStatus::PendingMentor)->count(),
+            ],
+        ];
     }
 
     /**
@@ -58,54 +75,82 @@ class AdminCorrections
             ->all());
     }
 
-    public function currentStatus(AttendanceCorrection $correction, CarbonInterface $now): ?string
+    /**
+     * Data tercatat dan hasil jika disetujui, untuk layar detail.
+     *
+     * @return array{recorded: array{clock_in_at: string|null, clock_out_at: string|null}, result: array{clock_in_at: string, clock_out_at: string}|null}
+     */
+    public function preview(AttendanceCorrection $correction): array
     {
-        $date = $correction->date->toDateString();
-        $day = $this->calendar->days($correction->intern->loadMissing('internProfile'), $date, $date, $now)[$date] ?? null;
+        $attendance = AttendanceCorrections::attendanceOf($correction);
+        [$start, $end] = $this->scheduledHours($correction, $attendance);
 
-        return $day === null ? null : $day['status']->value;
+        return [
+            'recorded' => AttendanceCorrections::recorded($attendance),
+            'result' => $start === null || $end === null ? null : [
+                'clock_in_at' => (string) AttendanceCorrections::time($attendance->clock_in_at ?? $start),
+                'clock_out_at' => (string) AttendanceCorrections::time($attendance->clock_out_at ?? $end),
+            ],
+        ];
     }
 
     /**
+     * Satu transaksi: baris presensi dibuat atau dilengkapi, ditandai Dikoreksi, pengajuan disetujui, dan
+     * Log Aktivitas ditulis.
+     *
      * @throws ActionRejected
      */
-    public function approve(User $admin, AttendanceCorrection $correction, string $clockIn, string $clockOut, string $note, CarbonInterface $now): AttendanceCorrection
+    public function approve(User $admin, AttendanceCorrection $correction, string $note, CarbonInterface $now): AttendanceCorrection
     {
-        $correction = DB::transaction(function () use ($admin, $correction, $clockIn, $clockOut, $note, $now): AttendanceCorrection {
-            $correction = $this->lockPending($correction);
+        $correction = DB::transaction(function () use ($admin, $correction, $note, $now): AttendanceCorrection {
+            $correction = $this->lockForAdmin($correction);
 
-            $times = ['clock_in_at' => $clockIn.':00', 'clock_out_at' => $clockOut.':00', 'is_corrected' => true];
             $attendance = Attendance::query()
                 ->where('intern_id', $correction->intern_id)
                 ->whereDate('date', $correction->date->toDateString())
                 ->lockForUpdate()
                 ->first();
 
-            // Kantor dan koordinat lama tetap; hari tanpa clock in tidak punya kantor.
-            $attendance === null
-                ? Attendance::query()->create(['intern_id' => $correction->intern_id, 'date' => $correction->date->toDateString(), ...$times])
-                : $attendance->update($times);
+            [$start, $end] = $this->scheduledHours($correction, $attendance);
+
+            if ($start === null || $end === null) {
+                throw new ActionRejected(self::NOT_WORKDAY, 'not_workday');
+            }
+
+            $attendance ??= new Attendance([
+                'intern_id' => $correction->intern_id,
+                'date' => $correction->date->toDateString(),
+                'scheduled_start' => $start,
+                'scheduled_end' => $end,
+                'late_tolerance_minutes' => $this->settings->lateToleranceMinutes(),
+            ]);
+
+            $attendance->fill([
+                'clock_in_at' => $attendance->clock_in_at ?? $start,
+                'clock_out_at' => $attendance->clock_out_at ?? $end,
+                'is_corrected' => true,
+                'correction_id' => $correction->id,
+            ])->save();
 
             $correction->update([
-                'status' => RequestStatus::Approved,
-                'decided_by' => $admin->id,
-                'decision_note' => $note,
-                'final_clock_in' => $clockIn.':00',
-                'final_clock_out' => $clockOut.':00',
-                'decided_at' => $now,
+                'status' => CorrectionStatus::Approved,
+                'admin_id' => $admin->id,
+                'admin_note' => $note,
+                'admin_decided_at' => $now,
             ]);
 
             AuditLog::record(
                 $admin,
-                AuditLog::ACTION_ATTENDANCE,
+                AuditLog::ACTION_CORRECTION,
                 $correction->intern->name,
-                'Setujui koreksi '.IndonesianDate::short($correction->date).": {$clockIn} - {$clockOut}.",
+                'Setujui koreksi '.IndonesianDate::short($correction->date).': '
+                    .AttendanceCorrections::time($attendance->clock_in_at).' - '.AttendanceCorrections::time($attendance->clock_out_at).'.',
             );
 
             return $correction;
         });
 
-        $this->notifyIntern($correction, 'disetujui');
+        $this->notifyDecision($correction, 'disetujui');
 
         return $correction;
     }
@@ -116,59 +161,71 @@ class AdminCorrections
     public function reject(User $admin, AttendanceCorrection $correction, string $note, CarbonInterface $now): AttendanceCorrection
     {
         $correction = DB::transaction(function () use ($admin, $correction, $note, $now): AttendanceCorrection {
-            $correction = $this->lockPending($correction);
+            $correction = $this->lockForAdmin($correction);
 
             $correction->update([
-                'status' => RequestStatus::Rejected,
-                'decided_by' => $admin->id,
-                'decision_note' => $note,
-                'decided_at' => $now,
+                'status' => CorrectionStatus::RejectedByAdmin,
+                'admin_id' => $admin->id,
+                'admin_note' => $note,
+                'admin_decided_at' => $now,
             ]);
 
-            AuditLog::record(
-                $admin,
-                AuditLog::ACTION_ATTENDANCE,
-                $correction->intern->name,
-                'Tolak koreksi '.IndonesianDate::short($correction->date).'.',
-            );
+            AuditLog::record($admin, AuditLog::ACTION_CORRECTION, $correction->intern->name, 'Tolak koreksi '.IndonesianDate::short($correction->date).'.');
 
             return $correction;
         });
 
-        $this->notifyIntern($correction, 'ditolak');
+        $this->notifyDecision($correction, 'ditolak');
 
         return $correction;
     }
 
     /**
-     * Dikunci agar dua admin, atau admin dan intern yang membatalkan, tidak memproses bersamaan.
-     *
      * @throws ActionRejected
      */
-    private function lockPending(AttendanceCorrection $correction): AttendanceCorrection
+    private function lockForAdmin(AttendanceCorrection $correction): AttendanceCorrection
     {
-        $correction = AttendanceCorrection::query()->with('intern:id,name')->lockForUpdate()->findOrFail($correction->id);
-
-        if ($correction->status === RequestStatus::Cancelled) {
-            throw new ActionRejected(self::CANCELLED, 'cancelled');
-        }
-
-        if ($correction->status !== RequestStatus::Pending) {
-            $name = $correction->decider()->value('name') ?? 'admin';
-
-            throw new ActionRejected("Permintaan ini sudah diproses oleh {$name}.", 'already_processed');
-        }
-
-        return $correction;
+        return AttendanceCorrections::lock($correction, CorrectionStatus::PendingAdmin, function (AttendanceCorrection $locked): void {
+            if ($locked->status === CorrectionStatus::PendingMentor) {
+                throw new ActionRejected(self::STILL_WITH_MENTOR, 'pending_mentor');
+            }
+        });
     }
 
-    private function notifyIntern(AttendanceCorrection $correction, string $result): void
+    /**
+     * Jam jadwal hari itu: salinan di baris presensi jika ada, selain itu jadwal bandara intern untuk tanggal itu.
+     *
+     * @return array{0: string|null, 1: string|null}
+     */
+    private function scheduledHours(AttendanceCorrection $correction, ?Attendance $attendance): array
     {
-        $this->notifier->send(
-            [$correction->intern_id],
-            'Koreksi absensi '.IndonesianDate::short($correction->date)." {$result}.",
-            '/absensi',
-            ['tab' => 'koreksi', 'open' => $correction->id],
-        );
+        if ($attendance !== null) {
+            return [$attendance->scheduled_start, $attendance->scheduled_end];
+        }
+
+        $schedule = $this->schedules->forIntern($correction->intern->loadMissing('internProfile'), $correction->date->toDateString());
+
+        return $schedule->isWorkday ? [$schedule->start, $schedule->end] : [null, null];
+    }
+
+    private function notifyDecision(AttendanceCorrection $correction, string $result): void
+    {
+        $date = IndonesianDate::short($correction->date);
+
+        $this->notifier->send([$correction->intern_id], "Koreksi presensi {$date} {$result}.", '/presensi', ['tab' => 'koreksi', 'open' => $correction->id]);
+
+        if ($correction->mentor_id !== null) {
+            $this->notifier->send([$correction->mentor_id], "Koreksi {$correction->intern->shortName()} {$date} {$result} admin.", '/koreksi', ['open' => $correction->id]);
+        }
+    }
+
+    /**
+     * @return Builder<AttendanceCorrection>
+     */
+    private function query(?int $airportId = null): Builder
+    {
+        return AttendanceCorrection::query()
+            ->whereHas('intern')
+            ->when($airportId !== null, fn (Builder $q) => $q->whereHas('intern.internProfile', fn (Builder $p) => $p->where('airport_id', $airportId)));
     }
 }

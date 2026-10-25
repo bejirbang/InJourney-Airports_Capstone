@@ -17,6 +17,7 @@ class AdminOfficeResource extends OfficeResource
     {
         return [
             ...parent::toArray($request),
+            'airport' => ['id' => $this->airport->id, 'name' => $this->airport->name],
             'is_active' => $this->is_active,
         ];
     }

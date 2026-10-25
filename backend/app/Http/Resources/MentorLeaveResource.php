@@ -4,11 +4,12 @@ namespace App\Http\Resources;
 
 use App\Enums\RequestStatus;
 use App\Models\LeaveRequest;
-use App\Services\AttendanceCalendar;
+use App\Services\LeaveQuotas;
+use App\Services\SystemSettings;
+use App\Services\WorkSchedules;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * @mixin LeaveRequest
@@ -31,7 +32,7 @@ class MentorLeaveResource extends JsonResource
     {
         $start = $this->start_date->toDateString();
         $now = Date::now();
-        $evidence = $this->evidence_path;
+        $hours = app(SystemSettings::class)->leaveEscalationHours();
 
         return [
             'id' => $this->id,
@@ -39,13 +40,13 @@ class MentorLeaveResource extends JsonResource
             'type' => $this->type->value,
             'start_date' => $start,
             'end_date' => $this->end_date->toDateString(),
-            'working_days' => app(AttendanceCalendar::class)->workingDays($start, $this->end_date->toDateString()),
-            'has_evidence' => $evidence !== null,
+            'working_days' => app(WorkSchedules::class)->workingDays($this->intern, $start, $this->end_date->toDateString()),
+            'evidence_url' => $this->evidence_url,
             'status' => $this->status->value,
             'submitted_at' => $this->created_at?->toIso8601String(),
             'submitted_late' => $this->created_at !== null && $this->created_at->toDateString() > $start,
             'pending_hours' => $this->pendingHours($now),
-            'is_overdue' => $this->isOverduePending($now),
+            'is_overdue' => $this->isOverduePending($now, $hours),
             'decided_by' => $this->decider === null ? null : [
                 'name' => $this->decider->name,
                 'role' => $this->decider->role->value,
@@ -54,10 +55,7 @@ class MentorLeaveResource extends JsonResource
             'can_decide' => $this->status === RequestStatus::Pending,
             'reason' => $this->when($this->detail, fn () => $this->reason),
             'decision_note' => $this->when($this->detail, fn () => $this->decision_note),
-            'evidence' => $this->when($this->detail, fn () => $evidence === null ? null : [
-                'name' => $this->evidenceFileName(),
-                'size' => Storage::exists($evidence) ? Storage::size($evidence) : null,
-            ]),
+            'quota' => $this->when($this->detail, fn () => app(LeaveQuotas::class)->summary($this->intern->loadMissing('internProfile'))),
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Events\NotificationSent;
 use App\Events\NotificationsRead;
 use App\Models\ChatMessage;
 use App\Models\Notification;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
@@ -14,7 +15,7 @@ use Illuminate\Testing\TestResponse;
 beforeEach(function () {
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
 
-    $this->sari = User::factory()->mentor()->create(['name' => 'Sari Wijaya', 'title' => 'UI/UX Lead']);
+    $this->sari = User::factory()->mentor()->create(['name' => 'Sari Wijaya', 'unit_id' => Unit::factory()->create(['name' => 'Divisi IT'])->id]);
     $this->rina = User::factory()->intern(['mentor_id' => $this->sari->id, 'start_date' => '2026-09-01', 'end_date' => '2026-12-31'])->create(['name' => 'Rina Wulandari']);
     $this->admin = User::factory()->admin()->create(['name' => 'Admin Sinta']);
 });
@@ -132,8 +133,7 @@ describe('daftar percakapan', function () {
                 'id' => $this->sari->id,
                 'name' => 'Sari Wijaya',
                 'role' => 'mentor',
-                'title' => 'UI/UX Lead',
-                'photo_url' => null,
+                'unit' => 'Divisi IT',
                 'can_send' => true,
             ])
             ->assertJsonPath('data.1.unread_count', 1)
