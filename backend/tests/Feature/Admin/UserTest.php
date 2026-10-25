@@ -406,8 +406,9 @@ describe('ganti mentor', function () {
 
         expect(AuditLog::sole()->detail)->toBe('Ganti mentor dari Sari Wijaya ke Budi Santoso.');
 
-        asAdmin($this->budi, 'GET', '/api/mentor/menu')->assertJsonPath('data.2.badge', 1);
-        asAdmin($this->mentor, 'GET', '/api/mentor/menu')->assertJsonPath('data.2.badge', 0);
+        // Koreksi yang menunggu mentor dan izin pending ikut pindah ke mentor baru.
+        asAdmin($this->budi, 'GET', '/api/mentor/menu')->assertJsonPath('data.2.badge', 1)->assertJsonPath('data.3.badge', 1);
+        asAdmin($this->mentor, 'GET', '/api/mentor/menu')->assertJsonPath('data.2.badge', 0)->assertJsonPath('data.3.badge', 0);
         asAdmin($this->mentor, 'GET', "/api/mentor/interns/{$this->intern->id}")->assertOk();
     });
 

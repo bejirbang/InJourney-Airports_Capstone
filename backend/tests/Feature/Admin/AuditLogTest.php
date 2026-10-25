@@ -17,7 +17,7 @@ beforeEach(function () {
 
     $this->reset = $at('2026-10-09 16:40:00', $this->dedi, AuditLog::ACTION_ACCOUNT, 'Andi Pratama', 'Reset password.');
     $this->holiday = $at('2026-10-10 10:15:00', $this->sinta, AuditLog::ACTION_CALENDAR, '3 Okt 2026', 'Tambah libur "Libur Daerah". 21 absensi dihitung ulang.');
-    $this->correction = $at('2026-10-10 13:02:00', $this->sinta, AuditLog::ACTION_ATTENDANCE, 'Rina Wulandari', 'Setujui koreksi 9 Okt: 08:02 - 17:00.');
+    $this->correction = $at('2026-10-10 13:02:00', $this->sinta, AuditLog::ACTION_CORRECTION, 'Rina Wulandari', 'Setujui koreksi 9 Okt: 08:02 - 17:00.');
 
     $this->travelTo(Carbon::parse('2026-10-12 10:00:00'));
 });
@@ -37,7 +37,7 @@ it('lists admin actions newest first', function () {
             'id' => $this->correction->id,
             'created_at' => '2026-10-10T13:02:00+07:00',
             'admin' => ['id' => $this->sinta->id, 'name' => 'Sinta Admin'],
-            'action' => 'Absensi',
+            'action' => 'Koreksi Presensi',
             'object' => 'Rina Wulandari',
             'detail' => 'Setujui koreksi 9 Okt: 08:02 - 17:00.',
         ])
@@ -94,7 +94,7 @@ it('offers the admins found in the log and every action type', function () {
                 ['id' => $this->dedi->id, 'name' => 'Dedi Admin'],
                 ['id' => $this->sinta->id, 'name' => 'Sinta Admin'],
             ],
-            'actions' => ['Akun', 'Absensi', 'Izin', 'Kalender dan jam kerja', 'Lokasi kantor', 'Warning', 'Pengumuman', 'Laporan'],
+            'actions' => ['Akun', 'Absensi', 'Koreksi Presensi', 'Izin', 'Kalender dan jam kerja', 'Lokasi kantor', 'Warning', 'Pengumuman', 'Laporan'],
         ]]);
 });
 

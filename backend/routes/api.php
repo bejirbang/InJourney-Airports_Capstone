@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
+use App\Http\Controllers\Admin\CorrectionController as AdminCorrectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\EndingInternshipController as AdminEndingInternshipController;
 use App\Http\Controllers\Admin\HolidayController as AdminHolidayController;
@@ -16,11 +17,13 @@ use App\Http\Controllers\Admin\WarningController as AdminWarningController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ProfileController;
 use App\Http\Controllers\Intern\AttendanceController as InternAttendanceController;
+use App\Http\Controllers\Intern\AttendanceCorrectionController as InternCorrectionController;
 use App\Http\Controllers\Intern\DashboardController as InternDashboardController;
 use App\Http\Controllers\Intern\LeaveController as InternLeaveController;
 use App\Http\Controllers\Intern\LogbookController as InternLogbookController;
 use App\Http\Controllers\Intern\MenuController as InternMenuController;
 use App\Http\Controllers\Intern\OfficeController as InternOfficeController;
+use App\Http\Controllers\Mentor\CorrectionController as MentorCorrectionController;
 use App\Http\Controllers\Mentor\DashboardController as MentorDashboardController;
 use App\Http\Controllers\Mentor\InternController as MentorInternController;
 use App\Http\Controllers\Mentor\LeaveCalendarController as MentorLeaveCalendarController;
@@ -69,6 +72,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/logbooks/{date}', [InternLogbookController::class, 'show'])->name('logbooks.show');
             Route::put('/logbooks/{date}', [InternLogbookController::class, 'update'])->name('logbooks.update');
 
+            Route::get('/attendance-corrections', [InternCorrectionController::class, 'index'])->name('corrections.index');
+            Route::post('/attendance-corrections', [InternCorrectionController::class, 'store'])->name('corrections.store');
+            Route::get('/attendance-corrections/{correction}', [InternCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
+            Route::post('/attendance-corrections/{correction}/cancel', [InternCorrectionController::class, 'cancel'])->name('corrections.cancel');
+
             Route::get('/leaves', [InternLeaveController::class, 'index'])->name('leaves.index');
             Route::get('/leaves/working-days', [InternLeaveController::class, 'workingDays'])->name('leaves.working-days');
             Route::post('/leaves', [InternLeaveController::class, 'store'])->name('leaves.store');
@@ -86,6 +94,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/interns/{intern}/attendance/days/{date}', [MentorInternController::class, 'day'])->name('interns.attendance.day');
             Route::get('/interns/{intern}/logbooks', [MentorInternController::class, 'logbooks'])->name('interns.logbooks');
             Route::get('/interns/{intern}/leaves', [MentorInternController::class, 'leaves'])->name('interns.leaves');
+            Route::get('/interns/{intern}/corrections', [MentorInternController::class, 'corrections'])->name('interns.corrections');
+
+            Route::get('/corrections', [MentorCorrectionController::class, 'index'])->name('corrections.index');
+            Route::get('/corrections/{correction}', [MentorCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
+            Route::post('/corrections/{correction}/approve', [MentorCorrectionController::class, 'approve'])->name('corrections.approve');
+            Route::post('/corrections/{correction}/reject', [MentorCorrectionController::class, 'reject'])->name('corrections.reject');
 
             Route::get('/leaves', [MentorLeaveController::class, 'index'])->name('leaves.index');
             Route::get('/leaves/{leave}', [MentorLeaveController::class, 'show'])->whereNumber('leave')->name('leaves.show');
@@ -116,6 +130,11 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/users/{user}/attendance/days/{date}', [AdminInternRecordController::class, 'day'])->name('users.attendance.day');
             Route::get('/users/{user}/leaves', [AdminInternRecordController::class, 'leaves'])->name('users.leaves');
             Route::get('/users/{user}/corrections', [AdminInternRecordController::class, 'corrections'])->name('users.corrections');
+
+            Route::get('/corrections', [AdminCorrectionController::class, 'index'])->name('corrections.index');
+            Route::get('/corrections/{correction}', [AdminCorrectionController::class, 'show'])->whereNumber('correction')->name('corrections.show');
+            Route::post('/corrections/{correction}/approve', [AdminCorrectionController::class, 'approve'])->name('corrections.approve');
+            Route::post('/corrections/{correction}/reject', [AdminCorrectionController::class, 'reject'])->name('corrections.reject');
 
             Route::get('/leaves', [AdminLeaveController::class, 'index'])->name('leaves.index');
             Route::get('/leaves/{leave}', [AdminLeaveController::class, 'show'])->whereNumber('leave')->name('leaves.show');

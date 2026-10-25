@@ -958,10 +958,11 @@ Ikut berubah di Tahap 2:
 
 ### Tahap 3 - Koreksi presensi dua tahap
 
-- [ ] Intern: ajukan (tanggal + alasan, tanpa bukti), batalkan saat `pending_mentor`/`pending_admin`. Satu pengajuan aktif per tanggal.
-- [ ] Mentor (baru): daftar, ACC (catatan opsional) atau Tolak (catatan wajib).
-- [ ] Admin: hanya `pending_admin`, catatan wajib, eksekusi dalam satu transaksi (isi jam kosong dari jadwal, `is_corrected`, `correction_id`, audit log). Tab Menunggu Mentor hanya baca.
-- [ ] Notifikasi: mentor saat diajukan, admin saat di-ACC (bukan saat diajukan), intern di setiap keputusan.
+- [x] Intern (25 Okt 2026), `/api/intern/attendance-corrections` (index, store, show, `cancel`): `date` + `reason` (wajib, maks 1000), tanpa bukti. Hanya hari kerja yang sudah lewat dalam periode magang ("Pilih hari kerja yang sudah lewat, dalam periode magang.") dengan status Terlambat, Lupa Clock In, Tidak Hadir, atau tanda Lupa Clock Out ("Presensi tanggal ini tidak perlu dikoreksi."). Menyimpan `recorded_status`, `recorded_missed_clock_out`, dan `mentor_id` saat diajukan. Satu pengajuan aktif per tanggal ("Sudah ada pengajuan koreksi untuk tanggal ini.", juga dijaga unique index). Batal selama `pending_mentor`/`pending_admin` dengan update bersyarat; selain itu "Data ini sudah diproses oleh [nama]."
+- [x] Mentor, `/api/mentor/corrections` (`tab` `waiting`/`all`, `intern_id`), show, `approve` (catatan opsional, menjadi `pending_admin`), `reject` (catatan wajib, `rejected_by_mentor`). Hak akses lewat `mentor_id` pada pengajuan (`AttendanceCorrectionPolicy::manage`). Tab Koreksi di detail intern: `/api/mentor/interns/{intern}/corrections`. Menu mentor ditambah `corrections` dengan angka menunggu.
+- [x] Admin, `/api/admin/corrections` (`tab` `pending_admin`/`pending_mentor`/`all`, `intern_id`; meta jumlah per tab dan daftar intern), show dengan `recorded` dan `result` (hasil jika disetujui), `approve`/`reject` dengan catatan wajib. Pengajuan `pending_mentor` ditolak "Koreksi ini masih menunggu mentor." Setujui dalam satu transaksi: baris presensi dibuat (Tidak Hadir) atau hanya jam kosong yang diisi jam jadwal (salinan di baris, atau jadwal bandara tanggal itu), `is_corrected`, `correction_id`, Log Aktivitas kategori baru **Koreksi Presensi** ("Setujui koreksi 6 Okt: 08:00 - 17:00."). Tanggal yang kini bukan hari kerja ditolak (`not_workday`).
+- [x] Notifikasi: mentor saat diajukan ("Nabila P. mengajukan koreksi presensi 6 Okt."); intern saat mentor ACC ("... disetujui mentor, menunggu admin.") atau tolak ("... ditolak mentor."); admin aktif saat mentor ACC ("Koreksi Nabila P. 6 Okt menunggu keputusan admin."); intern dan mentor saat admin memutuskan ("Koreksi presensi 6 Okt disetujui." / "Koreksi Nabila P. 6 Okt disetujui admin."). Pembatalan oleh intern tidak mengirim notifikasi.
+- Respons koreksi sama untuk ketiga role (`AttendanceCorrectionResource`) dengan `can_cancel` (intern) dan `can_decide` (pihak yang sedang ditunggu). Setelah disetujui, logbook hari itu yang belum terkirim muncul sebagai `missing` dan bisa dikirim intern (Tahap 2).
 
 ### Tahap 4 - Izin
 

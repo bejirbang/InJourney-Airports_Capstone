@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Mentor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mentor\InternIndexRequest;
 use App\Http\Requests\Shared\AttendanceHistoryRequest;
+use App\Http\Resources\AttendanceCorrectionResource;
 use App\Models\User;
 use App\Services\AttendanceHistory;
 use App\Services\MentorInterns;
@@ -68,6 +69,17 @@ class InternController extends Controller
         Gate::authorize('viewAsMentor', $intern);
 
         return response()->json(['data' => $this->interns->leaves($intern, $this->relation($request, $intern))]);
+    }
+
+    public function corrections(User $intern): JsonResponse
+    {
+        Gate::authorize('viewAsMentor', $intern);
+
+        return response()->json(['data' => AttendanceCorrectionResource::collection($intern->attendanceCorrections()
+            ->with(['mentor:id,name', 'admin:id,name'])
+            ->latest()
+            ->latest('id')
+            ->get())]);
     }
 
     private function relation(Request $request, User $intern): string

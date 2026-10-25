@@ -26,6 +26,8 @@ class AuditLog extends Model
 
     public const ACTION_ATTENDANCE = 'Absensi';
 
+    public const ACTION_CORRECTION = 'Koreksi Presensi';
+
     public const ACTION_LEAVE = 'Izin';
 
     public const ACTION_CALENDAR = 'Kalender dan jam kerja';
@@ -39,6 +41,7 @@ class AuditLog extends Model
     public const ACTIONS = [
         self::ACTION_ACCOUNT,
         self::ACTION_ATTENDANCE,
+        self::ACTION_CORRECTION,
         self::ACTION_LEAVE,
         self::ACTION_CALENDAR,
         self::ACTION_OFFICE,

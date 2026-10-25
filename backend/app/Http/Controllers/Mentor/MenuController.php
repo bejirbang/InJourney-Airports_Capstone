@@ -6,6 +6,7 @@ use App\Enums\RequestStatus;
 use App\Http\Controllers\Controller;
 use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Services\MentorCorrections;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,17 +16,21 @@ class MenuController extends Controller
     public const MENU = [
         ['key' => 'dashboard', 'path' => '/mentor/dashboard'],
         ['key' => 'interns', 'path' => '/mentor/interns'],
+        ['key' => 'corrections', 'path' => '/mentor/corrections'],
         ['key' => 'leaves', 'path' => '/mentor/leaves'],
         ['key' => 'leave_calendar', 'path' => '/mentor/leave-calendar'],
         ['key' => 'performance', 'path' => '/mentor/performance'],
     ];
 
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(Request $request, MentorCorrections $corrections): JsonResponse
     {
         /** @var User $mentor */
         $mentor = $request->user();
 
-        $badges = ['leaves' => $this->pendingLeaves($mentor)];
+        $badges = [
+            'corrections' => $corrections->pendingCount($mentor),
+            'leaves' => $this->pendingLeaves($mentor),
+        ];
 
         $menu = array_map(
             fn (array $item): array => [...$item, 'badge' => $badges[$item['key']] ?? null],
