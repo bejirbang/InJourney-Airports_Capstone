@@ -13,3 +13,5 @@ Schedule::command('app:remind-overdue-leaves')->hourly()->withoutOverlapping();
 Schedule::command('app:remind-ending-internships')->dailyAt('07:00')->withoutOverlapping();
 
 Schedule::command('app:remind-presentations')->dailyAt('07:00')->withoutOverlapping();
+
+Schedule::command('app:prune-idle-tokens')->dailyAt('02:00')->withoutOverlapping();

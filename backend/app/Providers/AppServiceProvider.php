@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +21,21 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureRateLimiting();
+        $this->configureSessionTimeout();
+    }
+
+    /**
+     * Token ditolak (401 "Sesi Anda sudah berakhir") jika tidak dipakai selama `sanctum.idle_minutes`.
+     */
+    protected function configureSessionTimeout(): void
+    {
+        Sanctum::authenticateAccessTokensUsing(function (PersonalAccessToken $token, bool $isValid): bool {
+            $lastActivity = $token->last_used_at ?? $token->created_at;
+
+            return $isValid
+                && $lastActivity !== null
+                && $lastActivity->greaterThan(Date::now()->subMinutes((int) config('sanctum.idle_minutes')));
+        });
     }
 
     protected function configureRateLimiting(): void

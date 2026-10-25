@@ -218,6 +218,8 @@ it('does not allow a second clock in after clock out', function () {
 
 it('cannot close yesterday after 23:59: it stays missed clock out with a draft logbook', function () {
     $this->travelTo(Carbon::parse('2026-10-13 07:00:00'));
+    // Login ulang: sesi kemarin sudah berakhir karena tidak aktif lebih dari 30 menit.
+    $this->token = $this->intern->createToken('api')->plainTextToken;
 
     clockOut()->assertJsonPath('reason', 'before_work_end');
 

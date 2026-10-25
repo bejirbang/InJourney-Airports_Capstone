@@ -988,10 +988,10 @@ Ikut berubah di Tahap 2:
 - [x] Notifikasi: admin aktif saat bukti masuk antrean ("Rizki P. mengirim bukti presentasi akhir.", hanya kiriman pertama atau setelah revisi, bukan setiap ganti link) dan saat penilaian disubmit ("Penilaian Rizki P. sudah disubmit."); intern saat disetujui/revisi ("Presentasi akhir Anda disetujui." / "Bukti presentasi perlu diperbaiki.") dan saat dinilai ("Penilaian akhir Anda sudah tersedia."); mentor "Rizki P. siap dinilai." saat persetujuan presentasi atau logbook (termasuk Setujui banyak) membuka penilaian. Jika presentasi disetujui tetapi belum siap dinilai: "Presentasi akhir Rizki P. disetujui." (mentor hanya menerima salah satu).
 - [x] Admin: kelola unit `/api/admin/units` (daftar dengan `user_count`, tambah, ubah nama, `deactivate`/`activate`, tanpa hapus). Nama unik tanpa beda huruf besar ("Nama unit sudah dipakai."). Log Aktivitas kategori baru **Unit**.
 
-Perlu keputusan (belum diubah):
+Diputuskan pemilik repo (25 Okt 2026), kode tidak diubah:
 
-- Intern yang magangnya sudah berakhir ditolak middleware `active`, jadi tidak bisa melihat nilai jika mentor menyubmit setelah `end_date`. Pilihan: izinkan login terbatas setelah magang berakhir, atau minta mentor menilai sebelum hari terakhir.
-- Penilaian bisa disubmit sebelum `end_date` jika syarat terpenuhi. Hari presensi sesudahnya tetap wajib berlogbook (KPI, Rekap Logbook) tetapi tidak lagi menahan penilaian.
+- Intern yang magangnya sudah berakhir tetap tidak bisa login, termasuk untuk melihat nilai. Presentasi dilakukan sejak H-7, jadi penilaian harus sudah ada sebelum magang selesai.
+- Penilaian boleh disubmit sebelum `end_date` jika syarat terpenuhi. Hari presensi sesudahnya tetap wajib berlogbook (KPI, Rekap Logbook) tetapi tidak lagi menahan penilaian.
 
 ### Tahap 7 - Warning, notifikasi, scheduler
 
@@ -1129,7 +1129,7 @@ Backend mengirim alamat pendek; frontend memetakannya ke halaman role penerima.
 - [ ] **PHP2Shell (CVE-2026-109618 dan CVE-2026-109619, RCE tanpa login di mesin PHP).** Perbarui PHP ke 8.4.27, 8.5.12, atau 8.3.36 ke atas di semua mesin (lokal Laragon saat ini 8.4.12, masih rentan) dan jadikan syarat host production. Sampai diperbarui: `session.upload_progress.enabled=0` dan `post_max_size` kecil (aplikasi hanya butuh 2 MB per file) di `php.ini`, lalu restart worker PHP.
 
 - [ ] ~~Jalankan `php artisan migrate` untuk kolom tambahan lama.~~ Diganti `migrate:fresh --seed` setelah rombak skema (lihat Tahap 1).
-- [ ] Pasang cron `schedule:run` di server production (pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin dan presentasi H-7 ke intern setiap hari).
+- [ ] Pasang cron `schedule:run` di server production (pengingat izin pending ke admin setiap jam, pengingat akhir magang ke admin dan presentasi H-7 ke intern setiap hari, hapus token tidak aktif setiap malam).
 - [ ] Development: jalankan `php artisan reverb:start` dan `php artisan queue:work` bersama server API, karena broadcast lewat queue (`QUEUE_CONNECTION=database`). Tanpa worker, data tetap tersimpan tetapi tidak dikirim real-time.
 - [ ] Production: Reverb dan queue worker dijaga Supervisor, lewat `wss://` di belakang reverse proxy; isi `REVERB_ALLOWED_ORIGINS` dengan host frontend.
 - [x] ~~Admin: jumlah hari Terlambat di daftar menu Absensi.~~ Ada di Admin Presensi (`recap.late`, Tahap 8).
@@ -1164,7 +1164,7 @@ Perubahan yang muncul dari keputusan di atas atau dari integrasi dicatat di sini
 
 - [ ] Intern yang diperpanjang setelah magangnya lewat (misalnya selesai 9 Okt, diperpanjang 12 Okt sampai 30 Nov): hari kerja 10-11 Okt kini masuk periode magang dan terbaca Tidak Hadir, karena periode disimpan sebagai satu rentang `start_date` sampai `end_date`. Dokumen tidak membahas jeda periode. Pilihan: biarkan (admin memakai koreksi), atau simpan tanggal aktif kembali agar hari jeda tidak dihitung.
 
-- [ ] Masa berlaku token. Saat ini `expiration` di `config/sanctum.php` bernilai `null`, jadi token berlaku sampai logout, direset admin, atau akun dinonaktifkan.
+- [x] Masa berlaku token (25 Okt 2026): sesi berakhir setelah **30 menit tanpa aktivitas** (`sanctum.idle_minutes`, env `SANCTUM_IDLE_MINUTES`). Dihitung dari `last_used_at` token (atau `created_at` jika belum pernah dipakai) lewat `Sanctum::authenticateAccessTokensUsing` di `AppServiceProvider`; setiap request yang berhasil memperpanjang sesi. Token kedaluwarsa mendapat 401 "Sesi Anda sudah berakhir. Silakan masuk lagi." `expiration` tetap `null` (tanpa batas absolut). Token tidak aktif dihapus setiap hari 02:00 oleh `app:prune-idle-tokens`. Catatan FE: jangan memanggil API di latar belakang secara berkala (misalnya polling), karena itu menjaga sesi tetap hidup; pembaruan real-time sudah lewat WebSocket. Saat menerima 401, putuskan koneksi Reverb lalu kembali ke login.
 
 ## Masih terbuka
 
