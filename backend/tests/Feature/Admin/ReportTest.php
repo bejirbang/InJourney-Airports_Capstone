@@ -136,9 +136,9 @@ it('lists scores per indicator, final score, assessor, and submit date', functio
     $rows = xlsxSheets(reportRequest($this->admin, 'export', ['from' => '2026-10-01', 'to' => '2026-10-31', 'sheets' => ['assessment']])->assertOk())['Rekap Penilaian'];
 
     $header = $rows[array_search('Nama', array_column($rows, 0), true)];
-    expect(array_slice($header, 8))->toBe(['Kehadiran', 'Kualitas', 'Nilai Akhir', 'Mentor Penilai', 'Tanggal Submit'])
-        ->and(array_slice(tableRows($rows)[1], 8))->toBe([90, 85, 87.5, 'Sari Wijaya', '2026-10-10'])
-        ->and(array_slice(tableRows($rows)[0], 8))->toBe(['', '', '', '', '']);
+    expect(array_slice($header, 8))->toBe(['Kehadiran', 'Kualitas', 'Nilai Akhir', 'Predikat', 'Mentor Penilai', 'Tanggal Submit'])
+        ->and(array_slice(tableRows($rows)[1], 8))->toBe([90, 85, 87.5, 'Baik Sekali', 'Sari Wijaya', '2026-10-10'])
+        ->and(array_slice(tableRows($rows)[0], 8))->toBe(['', '', '', '', '', '']);
 });
 
 it('filters by airport, mentor, several interns, and exhausted quota, with a preview count', function () {

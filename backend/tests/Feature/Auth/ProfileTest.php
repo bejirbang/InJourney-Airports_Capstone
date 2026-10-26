@@ -69,8 +69,10 @@ it('shows the intern profile with unit, airport, campus, mentor, and period', fu
     $intern = User::factory()->intern([
         'mentor_id' => $mentor->id,
         'airport_id' => $airport->id,
+        'institution_type' => 'universitas',
         'university' => 'Telkom University',
         'major' => 'Sistem Informasi',
+        'student_number' => '1202210001',
         'start_date' => '2026-09-01',
         'end_date' => now()->addMonth()->toDateString(),
     ])->create();
@@ -81,8 +83,10 @@ it('shows the intern profile with unit, airport, campus, mentor, and period', fu
         ->assertJsonPath('data.intern_profile', [
             'mentor' => ['id' => $mentor->id, 'name' => 'Sari Wijaya'],
             'airport' => ['id' => $airport->id, 'name' => 'Soekarno-Hatta'],
+            'institution_type' => 'universitas',
             'university' => 'Telkom University',
             'major' => 'Sistem Informasi',
+            'student_number' => '1202210001',
             'start_date' => '2026-09-01',
             'end_date' => now()->addMonth()->toDateString(),
         ])

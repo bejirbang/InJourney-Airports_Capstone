@@ -98,10 +98,11 @@ it('shows the submitted scores per indicator without letting the admin edit', fu
     assessmentRecap($this->admin, "/api/admin/assessments/{$this->putri->id}")
         ->assertOk()
         ->assertJsonPath('data.indicators', [
-            ['id' => $this->attendance->id, 'name' => 'Kehadiran', 'description' => null, 'weight' => null, 'score' => 90],
-            ['id' => $this->quality->id, 'name' => 'Kualitas kerja', 'description' => null, 'weight' => null, 'score' => 85],
+            ['id' => $this->attendance->id, 'category' => null, 'name' => 'Kehadiran', 'description' => null, 'weight' => null, 'score' => 90],
+            ['id' => $this->quality->id, 'category' => null, 'name' => 'Kualitas kerja', 'description' => null, 'weight' => null, 'score' => 85],
         ])
         ->assertJsonPath('data.final_score', 87.5)
+        ->assertJsonPath('data.predicate', 'Baik Sekali')
         ->assertJsonPath('data.assessed_by', 'Sari Wijaya')
         ->assertJsonPath('data.can_edit', false);
 });
@@ -111,7 +112,9 @@ it('hides draft scores from the admin', function () {
         ->assertOk()
         ->assertJsonPath('data.status', 'draft')
         ->assertJsonPath('data.indicators.*.score', [null, null])
-        ->assertJsonPath('data.final_score', null);
+        ->assertJsonPath('data.final_score', null)
+        ->assertJsonPath('data.predicate', null)
+        ->assertJsonPath('data.notes', null);
 });
 
 it('rejects accounts that are not interns', function () {
@@ -132,6 +135,7 @@ it('shows the intern their scores only after submission', function () {
         ->assertOk()
         ->assertJsonPath('data.available', true)
         ->assertJsonPath('data.final_score', 87.5)
+        ->assertJsonPath('data.predicate', 'Baik Sekali')
         ->assertJsonPath('data.assessed_by', 'Sari Wijaya')
         ->assertJsonPath('data.indicators.*.score', [90, 85]);
 });

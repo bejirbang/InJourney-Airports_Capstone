@@ -55,7 +55,7 @@ class UserController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string} $input */
+        /** @var array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, institution_type?: string, university?: string, major?: string, student_number?: string, start_date?: string, end_date?: string} $input */
         $input = $request->validated();
         $result = $this->accounts->create($admin, $input);
 
@@ -75,7 +75,7 @@ class UserController extends Controller
         /** @var User $admin */
         $admin = $request->user();
 
-        /** @var array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string} $input */
+        /** @var array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, institution_type?: string, university?: string, major?: string, student_number?: string, start_date?: string, end_date?: string} $input */
         $input = $request->validated();
         $user = $this->accounts->update($admin, $user, $input);
 

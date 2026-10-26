@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Enums\InstitutionType;
 use App\Enums\Role;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
@@ -25,9 +26,13 @@ class UserFormRequest extends FormRequest
 
     public const AIRPORT_REQUIRED = 'Pilih lokasi magang.';
 
+    public const INSTITUTION_TYPE_REQUIRED = 'Pilih jenis institusi: universitas atau sekolah.';
+
     public const UNIVERSITY_REQUIRED = 'Asal universitas wajib diisi.';
 
     public const MAJOR_REQUIRED = 'Jurusan wajib diisi.';
+
+    public const STUDENT_NUMBER_REQUIRED = 'NIM/NIS wajib diisi.';
 
     public const PERIOD_INVALID = 'Tanggal selesai harus sesudah tanggal mulai.';
 
@@ -43,7 +48,7 @@ class UserFormRequest extends FormRequest
             $this->merge(['email' => mb_strtolower(trim($this->input('email')))]);
         }
 
-        foreach (['university', 'major'] as $field) {
+        foreach (['university', 'major', 'student_number'] as $field) {
             if (is_string($this->input($field))) {
                 $this->merge([$field => trim($this->input($field))]);
             }
@@ -83,8 +88,10 @@ class UserFormRequest extends FormRequest
 
         if ($isIntern) {
             $rules['airport_id'] = ['required', 'integer', $this->activeOrCurrent('airports', $editing?->internProfile?->airport_id)];
+            $rules['institution_type'] = ['required', Rule::enum(InstitutionType::class)];
             $rules['university'] = ['required', 'string', 'max:255'];
             $rules['major'] = ['required', 'string', 'max:255'];
+            $rules['student_number'] = ['required', 'string', 'max:30'];
             $rules['start_date'] = ['required', 'date_format:Y-m-d'];
             // Tanggal selesai tidak boleh sebelum tanggal mulai; magang satu hari diperbolehkan.
             $rules['end_date'] = ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'];
@@ -112,10 +119,13 @@ class UserFormRequest extends FormRequest
             'unit_id.*' => self::UNIT_REQUIRED,
             'mentor_id.*' => self::MENTOR_REQUIRED,
             'airport_id.*' => self::AIRPORT_REQUIRED,
+            'institution_type.*' => self::INSTITUTION_TYPE_REQUIRED,
             'university.max' => 'Asal universitas maksimal 255 karakter.',
             'university.*' => self::UNIVERSITY_REQUIRED,
             'major.max' => 'Jurusan maksimal 255 karakter.',
             'major.*' => self::MAJOR_REQUIRED,
+            'student_number.max' => 'NIM/NIS maksimal 30 karakter.',
+            'student_number.*' => self::STUDENT_NUMBER_REQUIRED,
             'start_date.*' => self::PERIOD_INVALID,
             'end_date.*' => self::PERIOD_INVALID,
         ];

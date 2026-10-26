@@ -13,11 +13,12 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property string $name
+ * @property string|null $city
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'is_active'])]
+#[Fillable(['name', 'city', 'is_active'])]
 class Airport extends Model
 {
     /** @use HasFactory<AirportFactory> */

@@ -47,7 +47,7 @@ class AssessmentController extends Controller
         /** @var User $mentor */
         $mentor = $request->user();
 
-        $this->assessments->save($mentor, $intern, $request->scores(), $submit, Date::now());
+        $this->assessments->save($mentor, $intern, $request->scores(), $request->notes(), $submit, Date::now());
 
         return response()->json([
             'message' => $message,

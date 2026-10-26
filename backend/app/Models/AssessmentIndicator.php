@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
+ * @property string|null $category
  * @property string $name
  * @property string|null $description
  * @property string|null $weight
@@ -19,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'description', 'weight', 'sort_order', 'is_active'])]
+#[Fillable(['category', 'name', 'description', 'weight', 'sort_order', 'is_active'])]
 class AssessmentIndicator extends Model
 {
     /** @use HasFactory<AssessmentIndicatorFactory> */

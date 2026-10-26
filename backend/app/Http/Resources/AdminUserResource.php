@@ -43,8 +43,10 @@ class AdminUserResource extends JsonResource
             'status' => app(AccountAccess::class)->status($this->resource)->value,
             'mentor' => $mentor === null ? null : ['id' => $mentor->id, 'name' => $mentor->name],
             'airport' => $profile === null ? null : ['id' => $profile->airport->id, 'name' => $profile->airport->name],
+            'institution_type' => $profile?->institution_type?->value,
             'university' => $profile?->university,
             'major' => $profile?->major,
+            'student_number' => $profile?->student_number,
             'start_date' => $profile?->start_date->toDateString(),
             'end_date' => $profile?->end_date->toDateString(),
             ...($this->detail === null ? [] : [

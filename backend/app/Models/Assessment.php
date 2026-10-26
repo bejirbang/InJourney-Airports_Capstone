@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property int $intern_id
  * @property int|null $mentor_id
  * @property string|null $final_score
+ * @property string|null $notes
  * @property AssessmentStatus $status
  * @property Carbon|null $submitted_at
  * @property Carbon|null $created_at
@@ -25,7 +26,7 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $mentor
  * @property-read Collection<int, AssessmentScore> $scores
  */
-#[Fillable(['intern_id', 'mentor_id', 'final_score', 'status', 'submitted_at'])]
+#[Fillable(['intern_id', 'mentor_id', 'final_score', 'notes', 'status', 'submitted_at'])]
 class Assessment extends Model
 {
     /** @use HasFactory<AssessmentFactory> */

@@ -22,6 +22,7 @@ class AirportFactory extends Factory
     {
         return [
             'name' => 'Bandara '.fake()->unique()->city(),
+            'city' => null,
             'is_active' => true,
         ];
     }

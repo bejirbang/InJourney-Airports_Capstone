@@ -85,7 +85,7 @@ Ponsel: menu bawah **Beranda, Logbook, Koreksi, Izin, Lainnya**. Lainnya berisi 
 | Izin | Pengajuan izin | /mentor/leaves |
 | Kalender Izin | Kalender izin intern bimbingan | /mentor/leave-calendar |
 | Performa Intern | Rekap kehadiran dan KPI | /mentor/performance |
-| Penilaian | Penilaian akhir intern | /mentor/assessments |
+| Input Nilai | Penilaian akhir intern berdasarkan 9 indikator | /mentor/assessments |
 
 Menu yang **tidak ada**: Task (dihapus), Laporan/Export, Pengaturan, Log Aktivitas, Pengumuman (hanya menerima).
 
@@ -423,11 +423,13 @@ Setiap angka bisa diklik untuk melihat daftar harinya. **[Keputusan: dashboard b
 
 **Tujuan:** mentor memberi nilai akhir per indikator. Nilai menjadi dasar sertifikat, menggantikan formulir kertas. **[Keputusan]**
 
-**Aturan:**
+**Aturan:** (diperbarui 26 Okt 2026, menu **Input Nilai**)
 - Penilaian baru terbuka jika **presentasi akhir sudah disetujui admin** dan **semua logbook sudah disetujui mentor**. **[Keputusan]**
-- Indikator dan rumus **dari mitra (masih ditunggu)**. Layar dirancang mengikuti daftar indikator dari sistem, jadi tidak perlu diubah saat indikator datang. **[Keputusan]**
-- Nilai 0-100 per indikator, nilai akhir dihitung otomatis. **[Keputusan]**
-- Bisa disimpan sebagai draft. Setelah **Submit**, terkunci dan admin diberi tahu. **[Usulan]**
+- **9 indikator tetap** dari formulir "Penilaian Magang", dikelompokkan per kategori: Motivasi (Perhatian terhadap Instruksi/Petunjuk, Disiplin Kerja, Inisiatif), Kemampuan Kerja (Pengetahuan tentang Pekerjaan, Kualitas Pekerjaan / Keterampilan, Efektivitas Penggunaan Waktu Kerja), Kepribadian (Keberhasilan, Kemampuan Menyesuaikan Diri dengan Lingkungan, Tanggung Jawab). **[Keputusan]**
+- Nilai **bilangan bulat 0-100** per indikator. Nilai akhir = **rata-rata**, 2 desimal, dihitung di server. **[Keputusan]**
+- **Predikat** dari nilai akhir: ≥ 86 Baik Sekali, ≥ 71 Baik, ≥ 60 Cukup, < 60 Kurang. Dihitung di server. **[Keputusan]**
+- **Catatan** mentor opsional, maksimal 1000 karakter. Ikut tercetak di PDF Penilaian. **[Keputusan]**
+- Bisa disimpan sebagai draft. Setelah **Submit**, terkunci dan admin diberi tahu. Setiap perubahan nilai dan submit tercatat di Log Aktivitas. **[Keputusan]**
 
 ### 11.1 Daftar penilaian
 
@@ -447,30 +449,38 @@ Setiap angka bisa diklik untuk melihat daftar harinya. **[Keputusan: dashboard b
 ### 11.2 Formulir
 
 ```
-+--------------------------------------------------+
-| Penilaian - Rizki Pratama                        |
-| Periode: 1 Sep - 31 Des 2026                     |
-|                                                  |
-| Indikator (dari mitra)          Nilai (0-100)    |
-| Kehadiran                       [ 90 ]           |
-| Kedisiplinan                    [ 85 ]           |
-| Kualitas kerja                  [ 80 ]           |
-| Komunikasi                      [ 88 ]           |
-| ...                                              |
-|                                                  |
-| Nilai akhir (otomatis)          85,75            |
-|                                                  |
-| Setelah submit nilai tidak bisa diubah.          |
-|               [ Simpan Draft ]  [ Submit ]       |
-+--------------------------------------------------+
++---------------------------------------------------------+
+| Input Nilai - Rizki Pratama                             |
+| Periode: 1 Sep - 31 Des 2026                            |
+|                                                         |
+| Indikator                                 Nilai (0-100) |
+| MOTIVASI                                                |
+| 1 Perhatian terhadap Instruksi/Petunjuk   [ 90 ]        |
+| 2 Disiplin Kerja                          [ 85 ]        |
+| 3 Inisiatif                               [ 80 ]        |
+| KEMAMPUAN KERJA                                         |
+| 4 Pengetahuan tentang Pekerjaan           [ 88 ]        |
+| 5 Kualitas Pekerjaan / Keterampilan       [ 84 ]        |
+| 6 Efektivitas Penggunaan Waktu Kerja      [ 82 ]        |
+| KEPRIBADIAN                                             |
+| 7 Keberhasilan                            [ 86 ]        |
+| 8 Kemampuan Menyesuaikan Diri ...         [ 90 ]        |
+| 9 Tanggung Jawab                          [ 92 ]        |
+|                                                         |
+| Nilai rata-rata (otomatis)   86,33   Predikat: Baik Sekali |
+| Catatan  [______________________________________]       |
+|                                                         |
+| Setelah submit nilai tidak bisa diubah.                 |
+|                    [ Simpan Draft ]  [ Submit ]         |
++---------------------------------------------------------+
 ```
-
-Contoh indikator di atas hanya ilustrasi sampai indikator resmi diterima.
 
 | Validasi | Pesan |
 |---|---|
 | Nilai kosong saat submit | "Isi semua nilai sebelum submit." |
 | Nilai di luar 0-100 | "Nilai harus antara 0 dan 100." |
+| Nilai bukan bilangan bulat | "Nilai harus berupa bilangan bulat." |
+| Catatan lebih dari 1000 karakter | "Catatan maksimal 1000 karakter." |
 | Syarat belum terpenuhi (dicek ulang di server) | "Penilaian belum bisa dilakukan: [alasan]." |
 
 Dialog Submit: "Submit penilaian Rizki? Nilai akan dikirim ke admin dan tidak bisa diubah." Tombol **Submit Penilaian**.
@@ -557,7 +567,7 @@ Aturan umum: badge selalu bertekst, tanggal "Sen, 12 Okt 2026", waktu 24 jam, to
 | Izin | Setujui atau Tolak izin intern bimbingan | Mengubah izin yang sudah diputuskan |
 | Warning | Membaca catatan intern bimbingan | Membuat atau mengubah |
 | Performa | Melihat rekap dan KPI | Export |
-| Penilaian | Mengisi dan submit penilaian intern bimbingan setelah syarat terpenuhi | Mengubah setelah submit, menilai intern lain |
+| Input Nilai | Mengisi nilai 9 indikator dan catatan, submit penilaian intern bimbingan setelah syarat terpenuhi | Mengubah setelah submit, menilai intern lain, export PDF |
 | Presentasi | Melihat status | Memverifikasi (hak admin) |
 | Laporan, Pengaturan, Log | - | Semua |
 
@@ -575,7 +585,7 @@ Aturan umum: badge selalu bertekst, tanggal "Sen, 12 Okt 2026", waktu 24 jam, to
 | 4 | Izin | Mentor memproses, admin final setelah 24 jam. Bukti berupa link |
 | 5 | Terlambat | Terlihat oleh mentor |
 | 6 | Warning | Mentor membaca catatan intern bimbingannya |
-| 7 | Penilaian | Terbuka setelah presentasi disetujui dan semua logbook disetujui. Indikator dari mitra |
+| 7 | Penilaian | Menu Input Nilai. Terbuka setelah presentasi disetujui dan semua logbook disetujui. 9 indikator tetap, nilai bulat 0-100, rata-rata dan predikat dihitung server, catatan opsional (26 Okt 2026) |
 | 8 | KPI | Kehadiran, tepat waktu, logbook disetujui, jumlah revisi |
 | 9 | Notifikasi terlambat | Tidak ada |
 
@@ -583,6 +593,6 @@ Aturan umum: badge selalu bertekst, tanggal "Sen, 12 Okt 2026", waktu 24 jam, to
 
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Indikator dan rumus penilaian | Menunggu dari mitra |
+| 1 | Indikator dan rumus penilaian | **Selesai 26 Okt 2026**: 9 indikator formulir Penilaian Magang, rata-rata, predikat |
 | 2 | Koreksi nilai setelah submit | Usulan: mentor menghubungi admin, admin bisa membuka kembali penilaian. Perlu konfirmasi |
 | 3 | Setujui banyak logbook sekaligus | Usulan untuk mengurangi klik. Perlu konfirmasi bahwa mitra tidak mewajibkan membaca satu per satu |

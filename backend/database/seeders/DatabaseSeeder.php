@@ -18,8 +18,18 @@ class DatabaseSeeder extends Seeder
 
     public const UNITS = ['Divisi IT', 'Human Capital', 'Operasional Bandara', 'Keuangan'];
 
-    /** Indikator contoh untuk development. Indikator asli menunggu dari mitra. */
-    public const INDICATORS = ['Kedisiplinan', 'Kualitas Kerja', 'Komunikasi', 'Inisiatif', 'Kerja Sama'];
+    /** Sembilan indikator formulir Penilaian Magang, urut sesuai formulir: [kategori, indikator]. */
+    public const INDICATORS = [
+        ['Motivasi', 'Perhatian terhadap Instruksi/Petunjuk'],
+        ['Motivasi', 'Disiplin Kerja'],
+        ['Motivasi', 'Inisiatif'],
+        ['Kemampuan Kerja', 'Pengetahuan tentang Pekerjaan'],
+        ['Kemampuan Kerja', 'Kualitas Pekerjaan / Keterampilan'],
+        ['Kemampuan Kerja', 'Efektivitas Penggunaan Waktu Kerja'],
+        ['Kepribadian', 'Keberhasilan'],
+        ['Kepribadian', 'Kemampuan Menyesuaikan Diri dengan Lingkungan'],
+        ['Kepribadian', 'Tanggung Jawab'],
+    ];
 
     public function run(): void
     {
@@ -31,13 +41,13 @@ class DatabaseSeeder extends Seeder
 
         $units = collect(self::UNITS)->mapWithKeys(fn (string $name): array => [$name => Unit::factory()->create(['name' => $name])]);
 
-        foreach (self::INDICATORS as $order => $name) {
-            AssessmentIndicator::factory()->create(['name' => $name, 'sort_order' => $order + 1]);
+        foreach (self::INDICATORS as $order => [$category, $name]) {
+            AssessmentIndicator::factory()->create(['category' => $category, 'name' => $name, 'weight' => null, 'sort_order' => $order + 1]);
         }
 
         // Jadwal mingguan bawaan factory: Senin-Jumat 08:00-17:00.
-        $soetta = Airport::factory()->create(['name' => 'Soekarno-Hatta']);
-        $halim = Airport::factory()->create(['name' => 'Halim Perdanakusuma']);
+        $soetta = Airport::factory()->create(['name' => 'Soekarno-Hatta', 'city' => 'Tangerang']);
+        $halim = Airport::factory()->create(['name' => 'Halim Perdanakusuma', 'city' => 'Jakarta']);
 
         foreach ([['Terminal 1', -6.1270, 106.6531], ['Terminal 2', -6.1240, 106.6610], ['Terminal 3', -6.1197, 106.6635]] as [$name, $lat, $lng]) {
             Office::factory()->for($soetta)->create(['name' => $name, 'latitude' => $lat, 'longitude' => $lng]);
@@ -65,8 +75,10 @@ class DatabaseSeeder extends Seeder
         User::factory()->intern([
             'mentor_id' => $mentor->id,
             'airport_id' => $halim->id,
+            'institution_type' => 'universitas',
             'university' => 'Institut Teknologi Bandung',
             'major' => 'Sistem Informasi',
+            'student_number' => '18221001',
         ])->mustChangePassword()->create([
             'name' => 'Intern Baru',
             'email' => 'intern.baru@injourney.test',

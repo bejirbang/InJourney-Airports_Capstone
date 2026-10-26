@@ -33,7 +33,7 @@ class AirportController extends Controller
     {
         /** @var User $admin */
         $admin = $request->user();
-        $airport = $this->airports->create($admin, $request->airportName(), $request->string('effective_from')->value(), AirportRequest::days($request));
+        $airport = $this->airports->create($admin, $request->airportName(), $request->city(), $request->string('effective_from')->value(), AirportRequest::days($request));
 
         return response()->json([
             'message' => 'Bandara ditambahkan. Tambahkan titik presensi agar intern bisa clock in.',
@@ -45,7 +45,7 @@ class AirportController extends Controller
     {
         /** @var User $admin */
         $admin = $request->user();
-        $airport = $this->airports->rename($admin, $airport, $request->airportName());
+        $airport = $this->airports->rename($admin, $airport, $request->airportName(), $request->city($airport));
 
         return response()->json(['message' => 'Perubahan tersimpan.', 'data' => $this->airports->detail($airport, Date::now())]);
     }

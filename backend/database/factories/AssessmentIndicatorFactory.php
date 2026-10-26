@@ -16,6 +16,7 @@ class AssessmentIndicatorFactory extends Factory
     public function definition(): array
     {
         return [
+            'category' => null,
             'name' => ucfirst(fake()->unique()->word()),
             'description' => null,
             'weight' => null,

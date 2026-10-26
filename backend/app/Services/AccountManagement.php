@@ -49,7 +49,7 @@ class AccountManagement
     }
 
     /**
-     * @param  array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string}  $data
+     * @param  array{name: string, email: string, role: string, unit_id?: int|string, mentor_id?: int|string, airport_id?: int|string, institution_type?: string, university?: string, major?: string, student_number?: string, start_date?: string, end_date?: string}  $data
      * @return array{user: User, temporary_password: string}
      */
     public function create(User $admin, array $data): array
@@ -73,8 +73,10 @@ class AccountManagement
                     'user_id' => $user->id,
                     'mentor_id' => $data['mentor_id'] ?? null,
                     'airport_id' => $data['airport_id'] ?? null,
+                    'institution_type' => $data['institution_type'] ?? null,
                     'university' => $data['university'] ?? null,
                     'major' => $data['major'] ?? null,
+                    'student_number' => $data['student_number'] ?? null,
                     'start_date' => $data['start_date'] ?? null,
                     'end_date' => $data['end_date'] ?? null,
                     'leave_quota_since' => $data['start_date'] ?? null,
@@ -96,7 +98,7 @@ class AccountManagement
     }
 
     /**
-     * @param  array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, university?: string, major?: string, start_date?: string, end_date?: string}  $data
+     * @param  array{name: string, email: string, unit_id?: int|string, airport_id?: int|string, institution_type?: string, university?: string, major?: string, student_number?: string, start_date?: string, end_date?: string}  $data
      */
     public function update(User $admin, User $user, array $data): User
     {
@@ -112,8 +114,10 @@ class AccountManagement
             if ($profile !== null && isset($data['start_date'], $data['end_date'])) {
                 $profile->fill([
                     'airport_id' => $data['airport_id'] ?? $profile->airport_id,
+                    'institution_type' => $data['institution_type'] ?? $profile->institution_type,
                     'university' => $data['university'] ?? $profile->university,
                     'major' => $data['major'] ?? $profile->major,
+                    'student_number' => $data['student_number'] ?? $profile->student_number,
                     'start_date' => $data['start_date'],
                     'end_date' => $data['end_date'],
                 ]);

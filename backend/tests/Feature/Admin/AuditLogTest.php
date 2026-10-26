@@ -94,7 +94,7 @@ it('offers the admins found in the log and every action type', function () {
                 ['id' => $this->dedi->id, 'name' => 'Dedi Admin'],
                 ['id' => $this->sinta->id, 'name' => 'Sinta Admin'],
             ],
-            'actions' => ['Akun', 'Presensi', 'Koreksi Presensi', 'Izin', 'Presentasi', 'Lokasi & Jadwal', 'Kalender Libur', 'Pengaturan Umum', 'Unit', 'Warning', 'Pengumuman', 'Laporan'],
+            'actions' => ['Akun', 'Presensi', 'Koreksi Presensi', 'Izin', 'Presentasi', 'Penilaian', 'Lokasi & Jadwal', 'Kalender Libur', 'Pengaturan Umum', 'Unit', 'Warning', 'Pengumuman', 'Laporan'],
         ]]);
 });
 

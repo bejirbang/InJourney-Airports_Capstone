@@ -20,7 +20,11 @@ it('seeds development data: units, airports with offices and schedules, accounts
         ->and($soetta->weeklySchedules()->count())->toBe(7)
         ->and(Airport::query()->where('name', 'Halim Perdanakusuma')->sole()->offices()->count())->toBe(1)
         ->and(AssessmentIndicator::query()->count())->toBe(count(DatabaseSeeder::INDICATORS))
-        ->and(SystemSetting::query()->count())->toBe(4);
+        ->and(SystemSetting::query()->count())->toBe(5)
+        ->and(SystemSetting::query()->where('key', 'report_region_name')->value('value'))->toBe('Kantor Regional I')
+        ->and(AssessmentIndicator::query()->orderBy('sort_order')->pluck('category')->unique()->values()->all())->toBe(['Motivasi', 'Kemampuan Kerja', 'Kepribadian'])
+        ->and(AssessmentIndicator::query()->whereNotNull('weight')->exists())->toBeFalse()
+        ->and($soetta->city)->toBe('Tangerang');
 
     $intern = User::query()->where('email', 'intern@injourney.test')->sole();
 
@@ -34,7 +38,7 @@ it('seeds only the settings in production data and can run twice', function () {
     $this->seed(ProductionSeeder::class);
     $this->seed(ProductionSeeder::class);
 
-    expect(SystemSetting::query()->count())->toBe(4)
+    expect(SystemSetting::query()->count())->toBe(5)
         ->and(User::query()->count())->toBe(0)
         ->and(Airport::query()->count())->toBe(0);
 });

@@ -40,8 +40,10 @@ class UserResource extends JsonResource
             'intern_profile' => $this->when($profile !== null, fn (): array => [
                 'mentor' => ['id' => $profile->mentor->id, 'name' => $profile->mentor->name],
                 'airport' => ['id' => $profile->airport->id, 'name' => $profile->airport->name],
+                'institution_type' => $profile->institution_type?->value,
                 'university' => $profile->university,
                 'major' => $profile->major,
+                'student_number' => $profile->student_number,
                 'start_date' => $profile->start_date->toDateString(),
                 'end_date' => $profile->end_date->toDateString(),
             ]),

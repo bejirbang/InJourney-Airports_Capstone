@@ -8,6 +8,34 @@ class IndonesianDate
 {
     private const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
+    private const FULL_MONTHS = [
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+    ];
+
+    private const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+    /**
+     * "26 Oktober 2026", untuk dokumen resmi.
+     */
+    public static function long(CarbonInterface $date): string
+    {
+        return $date->day.' '.self::monthYear($date);
+    }
+
+    /**
+     * "Oktober 2026".
+     */
+    public static function monthYear(CarbonInterface $date): string
+    {
+        return self::FULL_MONTHS[$date->month - 1].' '.$date->year;
+    }
+
+    public static function dayName(CarbonInterface $date): string
+    {
+        return self::DAYS[$date->dayOfWeek];
+    }
+
     public static function short(CarbonInterface $date): string
     {
         return $date->day.' '.self::MONTHS[$date->month - 1];

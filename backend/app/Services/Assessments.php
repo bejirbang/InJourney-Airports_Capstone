@@ -11,6 +11,7 @@ use App\Models\Assessment;
 use App\Models\AssessmentIndicator;
 use App\Models\AssessmentScore;
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\FinalPresentation;
 use App\Models\InternProfile;
 use App\Models\User;
@@ -39,6 +40,14 @@ class Assessments
     public const INCOMPLETE = 'Isi semua nilai sebelum submit.';
 
     public const NOT_AVAILABLE = 'Penilaian akan tersedia setelah presentasi disetujui, semua logbook disetujui, dan mentor menyelesaikan penilaian.';
+
+    /** Batas bawah nilai akhir per predikat, dari yang tertinggi. */
+    public const PREDICATES = [
+        'Baik Sekali' => 86,
+        'Baik' => 71,
+        'Cukup' => 60,
+        'Kurang' => 0,
+    ];
 
     public function __construct(private Notifier $notifier) {}
 
@@ -128,6 +137,7 @@ class Assessments
         $submitted = $assessment?->isSubmitted() ?? false;
         $indicators = $submitted ? null : $this->activeIndicators();
         $draftScores = $forMentor ? $this->scoreMap($assessment) : [];
+        $finalScore = $indicators === null ? $summary['final_score'] : self::finalScore($indicators, $draftScores);
 
         return [
             'intern' => $this->identity($intern),
@@ -151,7 +161,9 @@ class Assessments
                     ...$this->indicator($indicator),
                     'score' => $draftScores[$indicator->id] ?? null,
                 ])->all()),
-            'final_score' => $indicators === null ? $summary['final_score'] : self::finalScore($indicators, $draftScores),
+            'final_score' => $finalScore,
+            'predicate' => $finalScore === null ? null : self::predicate($finalScore),
+            'notes' => $forMentor || $submitted ? $assessment?->notes : null,
             'can_edit' => $forMentor && $summary['can_assess'],
         ];
     }
@@ -170,6 +182,8 @@ class Assessments
         return [
             'available' => true,
             'final_score' => (float) $assessment->final_score,
+            'predicate' => self::predicate((float) $assessment->final_score),
+            'notes' => $assessment->notes,
             'submitted_at' => $assessment->submitted_at?->toIso8601String(),
             'assessed_by' => $assessment->mentor?->name,
             'indicators' => $this->submittedIndicators($assessment),
@@ -178,16 +192,17 @@ class Assessments
 
     /**
      * Simpan draft atau submit. Syarat dicek ulang di dalam transaksi; profil intern dikunci agar dua penyimpanan
-     * bersamaan tidak membuat dua baris atau menimpa penilaian yang baru saja disubmit.
+     * bersamaan tidak membuat dua baris atau menimpa penilaian yang baru saja disubmit. Setiap perubahan nilai atau
+     * catatan, dan setiap submit, menambah Log Aktivitas atas nama mentor.
      *
-     * @param  array<int, float>  $scores  nilai per id indikator aktif, tanpa nilai kosong
+     * @param  array<int, int>  $scores  nilai per id indikator aktif, tanpa nilai kosong
      *
      * @throws ActionRejected
      * @throws ValidationException
      */
-    public function save(User $mentor, User $intern, array $scores, bool $submit, CarbonInterface $now): Assessment
+    public function save(User $mentor, User $intern, array $scores, ?string $notes, bool $submit, CarbonInterface $now): Assessment
     {
-        $assessment = DB::transaction(function () use ($mentor, $intern, $scores, $submit, $now): Assessment {
+        $assessment = DB::transaction(function () use ($mentor, $intern, $scores, $notes, $submit, $now): Assessment {
             InternProfile::query()->where('user_id', $intern->id)->lockForUpdate()->firstOrFail();
             $assessment = Assessment::query()->where('intern_id', $intern->id)->lockForUpdate()->first();
 
@@ -216,11 +231,15 @@ class Assessments
                 throw ValidationException::withMessages(['scores' => self::INCOMPLETE]);
             }
 
+            $previousScores = $this->scoreMap($assessment);
+            $previousNotes = $assessment?->notes;
+
             $assessment ??= new Assessment(['intern_id' => $intern->id]);
             $assessment->fill([
                 'mentor_id' => $mentor->id,
                 'status' => $submit ? AssessmentStatus::Submitted : AssessmentStatus::Draft,
                 'final_score' => $submit ? $finalScore : null,
+                'notes' => $notes,
                 'submitted_at' => $submit ? $now : null,
             ])->save();
 
@@ -228,6 +247,18 @@ class Assessments
 
             foreach ($scores as $indicatorId => $score) {
                 $assessment->scores()->create(['indicator_id' => $indicatorId, 'score' => $score]);
+            }
+
+            ksort($scores);
+            ksort($previousScores);
+
+            if ($submit || $scores !== $previousScores || $notes !== $previousNotes) {
+                AuditLog::record(
+                    $mentor,
+                    AuditLog::ACTION_ASSESSMENT,
+                    $intern->name,
+                    $this->auditDetail($indicators, $scores, $submit ? $finalScore : null, $notes !== $previousNotes),
+                );
             }
 
             return $assessment;
@@ -270,7 +301,7 @@ class Assessments
      * Null jika belum ada indikator atau masih ada nilai kosong.
      *
      * @param  Collection<int, AssessmentIndicator>  $indicators
-     * @param  array<int, float>  $scores
+     * @param  array<int, int|float>  $scores
      */
     public static function finalScore(Collection $indicators, array $scores): ?float
     {
@@ -293,6 +324,20 @@ class Assessments
         }
 
         return round($total / $weights, 2);
+    }
+
+    /**
+     * Predikat dari nilai akhir: >= 86 Baik Sekali, >= 71 Baik, >= 60 Cukup, selain itu Kurang.
+     */
+    public static function predicate(float $finalScore): string
+    {
+        foreach (self::PREDICATES as $label => $min) {
+            if ($finalScore >= $min) {
+                return $label;
+            }
+        }
+
+        return 'Kurang';
     }
 
     /**
@@ -459,7 +504,7 @@ class Assessments
     }
 
     /**
-     * @return array<int, float>
+     * @return array<int, int>
      */
     private function scoreMap(?Assessment $assessment): array
     {
@@ -467,7 +512,26 @@ class Assessments
             return [];
         }
 
-        return $assessment->scores->mapWithKeys(fn (AssessmentScore $score): array => [$score->indicator_id => (float) $score->score])->all();
+        return $assessment->scores->mapWithKeys(fn (AssessmentScore $score): array => [$score->indicator_id => $score->value()])->all();
+    }
+
+    /**
+     * "Simpan draft penilaian. Nilai: Disiplin Kerja 85, Inisiatif 80. Catatan diubah."
+     *
+     * @param  Collection<int, AssessmentIndicator>  $indicators
+     * @param  array<int, int>  $scores
+     */
+    private function auditDetail(Collection $indicators, array $scores, ?float $finalScore, bool $notesChanged): string
+    {
+        $values = $indicators
+            ->filter(fn (AssessmentIndicator $indicator): bool => isset($scores[$indicator->id]))
+            ->map(fn (AssessmentIndicator $indicator): string => $indicator->name.' '.$scores[$indicator->id])
+            ->implode(', ');
+
+        return ($finalScore === null ? 'Simpan draft penilaian.' : 'Submit penilaian.')
+            .' Nilai: '.($values === '' ? '-' : $values).'.'
+            .($finalScore === null ? '' : ' Nilai akhir '.number_format($finalScore, 2, ',', '').' ('.self::predicate($finalScore).').')
+            .($notesChanged ? ' Catatan diubah.' : '');
     }
 
     /**
@@ -483,17 +547,18 @@ class Assessments
 
         return array_values($assessment->scores
             ->sortBy(fn (AssessmentScore $score): string => sprintf('%010d-%010d', $score->indicator->sort_order, $score->indicator_id))
-            ->map(fn (AssessmentScore $score): array => [...$this->indicator($score->indicator), 'score' => (float) $score->score])
+            ->map(fn (AssessmentScore $score): array => [...$this->indicator($score->indicator), 'score' => $score->value()])
             ->all());
     }
 
     /**
-     * @return array{id: int, name: string, description: string|null, weight: float|null}
+     * @return array{id: int, category: string|null, name: string, description: string|null, weight: float|null}
      */
     private function indicator(AssessmentIndicator $indicator): array
     {
         return [
             'id' => $indicator->id,
+            'category' => $indicator->category,
             'name' => $indicator->name,
             'description' => $indicator->description,
             'weight' => $indicator->weight === null ? null : (float) $indicator->weight,

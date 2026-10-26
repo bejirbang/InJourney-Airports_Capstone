@@ -1126,6 +1126,42 @@ Backend mengirim alamat pendek; frontend memetakannya ke halaman role penerima.
 - [ ] design-mentor 17.2 no. 2 dan design-admin 20.2 no. 4-5 sudah diputuskan: penilaian tidak bisa dibuka kembali, unit berupa daftar pilihan.
 - [ ] Prototipe frontend masih berbasis Task, Daily Report, dan upload file. Perlu disesuaikan setelah endpoint baru siap.
 
+## Penilaian mentor dan export PDF (26 Okt 2026)
+
+Sumber: `backend/update26okt.md`. Keputusan lama "mentor tidak punya fitur penilaian" tidak berlaku.
+
+- [x] **Migration baru** (bukan mengubah migration lama, sesuai dokumen perubahan), dibuat dengan `php database/generate_migrations.php` agar timestamp sesuai waktu dijalankan (script melewati migration yang sudah ada; hapus script setelah hasilnya di-commit): `add_identity_columns_to_intern_profiles_table` (`institution_type` enum `universitas`/`sekolah`, `student_number` NIM/NIS maks 30), `add_category_to_assessment_indicators_table`, `add_notes_to_assessments_table`, `add_city_to_airports_table`. Semua `nullable`; kewajiban isi lewat FormRequest. Setelah merge: `composer install` lalu `php artisan migrate:fresh --seed`.
+- [x] **Identitas intern**: `POST/PUT /api/admin/users` untuk intern mewajibkan `institution_type` (`universitas`/`sekolah`, "Pilih jenis institusi: universitas atau sekolah.") dan `student_number` (wajib, maks 30, di-trim; "NIM/NIS wajib diisi.", "NIM/NIS maksimal 30 karakter."). Ubah data intern lama juga wajib mengisi keduanya. Dikirim di `AdminUserResource`, `UserResource.intern_profile`, dan identitas Intern Saya mentor. Enum PHP `App\Enums\InstitutionType` memakai nilai Indonesia sesuai dokumen perubahan (pengecualian dari aturan kode bahasa Inggris).
+- [x] **Indikator**: `DatabaseSeeder::INDICATORS` diganti 9 indikator [kategori, nama], `weight` null (rata-rata biasa). Ditampilkan dengan `category` di semua keluaran indikator.
+- [x] **Input Nilai mentor** (`PUT`/`POST .../submit /api/mentor/assessments/{intern}`): `scores.*.score` bilangan bulat 0-100 ("Nilai harus berupa bilangan bulat.", "Nilai harus antara 0 dan 100."); `notes` opsional, di-trim, maks 1000 ("Catatan maksimal 1000 karakter."). Formulir dikirim utuh: `notes` yang tidak dikirim berarti dikosongkan. Gate tetap (presentasi disetujui + semua logbook disetujui, mentor saat ini lewat `UserPolicy::assess`). Semua indikator aktif wajib terisi saat submit (sudah ada).
+- [x] **Predikat** `Assessments::predicate()` (≥ 86 Baik Sekali, ≥ 71 Baik, ≥ 60 Cukup, < 60 Kurang), dihitung dari nilai akhir yang dibulatkan 2 desimal di server. Keluaran detail mentor/admin dan intern ditambah `predicate` dan `notes` (admin melihat catatan hanya setelah submit, sama dengan nilai). Nilai per indikator kini dikirim sebagai integer.
+- [x] **Log Aktivitas Penilaian**: kategori baru `Penilaian` di `AuditLog::ACTIONS` (opsi filter ikut bertambah). Dicatat atas nama **mentor** (`admin_id`/`admin_name` berisi mentor) saat simpan draft yang mengubah nilai atau catatan, dan setiap submit. Contoh: "Submit penilaian. Nilai: Disiplin Kerja 85, .... Nilai akhir 85,67 (Baik). Catatan diubah." Simpan draft tanpa perubahan tidak dicatat.
+- [x] **Excel**: Rekap Penilaian ditambah kolom `Predikat`; nilai per indikator ditulis integer.
+- [x] **PDF** (`barryvdh/laravel-dompdf` ^3.1, `AdminPdfReports`, template `resources/views/pdf/{layout,identity,daftar-kehadiran,penilaian}.blade.php`): `POST /api/admin/reports/attendance-pdf` (`intern_id`, `month` YYYY-MM) dan `POST /api/admin/reports/assessment-pdf` (`intern_id`). Respons `application/pdf`, `Content-Disposition: attachment; filename="daftar-kehadiran_{slug-nama}_{YYYY-MM}.pdf"` / `"penilaian_{slug-nama}.pdf"`. Hanya role admin (middleware), `intern_id` divalidasi harus akun intern yang belum dihapus ("Intern tidak ditemukan."), jadi id mentor/admin tidak bisa dipakai. Setiap export menambah Log Aktivitas kategori Laporan. Semua teks di template memakai `{{ }}`; baris baru di kegiatan/catatan lewat CSS `white-space: pre-line`, bukan `{!! !!}`.
+- [x] **Kota bandara**: `airports.city` bisa diisi admin (opsional, maks 100) di `POST /api/admin/airports` dan `PUT /api/admin/airports/{id}`; `PUT` tanpa `city` mempertahankan kota lama. Ditambahkan karena tanpa ini kota di PDF selalu kosong untuk bandara baru. Ikut di daftar dan detail bandara (`city`). Log Aktivitas: "Ubah kota menjadi "...".".
+- [x] **`system_settings.report_region_name`** (awal "Kantor Regional I") masuk `SystemSettings::DEFAULTS`, jadi diisi oleh `DatabaseSeeder` dan `ProductionSeeder`. Belum bisa diubah dari layar Pengaturan Umum (dokumen tidak memintanya).
+- [x] Test: `tests/Feature/Admin/PdfReportTest.php` (isi baris, escape, unduhan, penolakan, role), tambahan di `Mentor/AssessmentTest` (catatan, nilai bulat, Log Aktivitas, predikat), `Admin/AirportTest` (kota), `Admin/UserTest` (validasi identitas). 808 test, Pint, PHPStan lulus.
+
+### Keputusan kecil (tidak tertulis di dokumen perubahan)
+
+- PDF Daftar Kehadiran: hari kerja = hari yang tidak berstatus Libur menurut jadwal bandara dan kalender libur, dalam periode magang, sampai hari ini. Hari ini hanya tampil jika sudah ada presensi atau izin. Keterangan: Hadir, Terlambat, Lupa Clock In, Izin, Tidak Hadir, ditambah ", Lupa Clock Out" dan " (Dikoreksi)". Kegiatan = isi logbook yang sudah dikirim; logbook draft dan hari izin ditulis "-". Bulan di luar periode magang ditolak (`outside_internship`); bulan tanpa hari kerja yang bisa dicetak ditolak (`no_data`).
+- Tanggal tanda tangan: Daftar Kehadiran = tanggal cetak; Penilaian = tanggal submit, agar cetak ulang menghasilkan dokumen yang sama. Kota kosong = hanya tanggal.
+- Indikator tanpa kategori dikelompokkan sebagai "Lainnya" di PDF.
+- Label identitas mengikuti `institution_type`: "Asal Universitas"/"NIM" atau "Asal Sekolah"/"NIS"; jika kosong (data lama) "Asal Universitas/Sekolah"/"NIM/NIS".
+- Kop PDF: "INJOURNEY AIRPORTS" dan `report_region_name`. Template kertas asli (`Daftar Kehadiran Magang.pdf`, `Penilaian Magang.pdf`) tidak ada di repo, jadi tata letak disusun dari poin-poin dokumen perubahan; sesuaikan bila templatenya tersedia.
+- Pengecualian `CLAUDE.md`: folder `resources/views/pdf` ditambahkan hanya untuk template PDF (bukan halaman web).
+
+### Catatan integrasi frontend (26 Okt 2026)
+
+| Layar | Endpoint | Perubahan |
+| --- | --- | --- |
+| Admin Tambah/Ubah Akun intern | `POST/PUT /api/admin/users` | Field wajib baru `institution_type` (`universitas`/`sekolah`) dan `student_number`; respons ikut mengirim keduanya |
+| Mentor Input Nilai (menu `assessments`, label "Input Nilai") | `GET/PUT /api/mentor/assessments/{intern}`, `POST /{intern}/submit` | Kirim `notes`; nilai harus integer; indikator punya `category` untuk pengelompokan; tampilkan `final_score` dan `predicate` dari server |
+| Admin Penilaian, Intern Catatan | `GET /api/admin/assessments/{user}`, `GET /api/intern/assessment` | Tambah `predicate`, `notes`, `indicators[].category` |
+| Admin Laporan | `POST /api/admin/reports/attendance-pdf`, `POST /api/admin/reports/assessment-pdf` | Unduh sebagai blob (`responseType: 'blob'`), nama file dari `Content-Disposition`. Error 422 berupa JSON (`reason`: `outside_internship`, `no_data`, `not_submitted`, atau `errors`) |
+| Admin Lokasi & Jadwal | `POST/PUT /api/admin/airports` | Field opsional `city` |
+| Admin Log Aktivitas | `GET /api/admin/audit-logs/options` | Kategori baru "Penilaian" (pelakunya mentor) |
+
 ## Berikutnya
 
 - [ ] **PHP2Shell (CVE-2026-109618 dan CVE-2026-109619, RCE tanpa login di mesin PHP).** Perbarui PHP ke 8.4.27, 8.5.12, atau 8.3.36 ke atas di semua mesin (lokal Laragon saat ini 8.4.12, masih rentan) dan jadikan syarat host production. Sampai diperbarui: `session.upload_progress.enabled=0` dan `post_max_size` kecil (aplikasi hanya butuh 2 MB per file) di `php.ini`, lalu restart worker PHP.

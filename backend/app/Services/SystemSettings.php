@@ -17,11 +17,15 @@ class SystemSettings
 
     public const LEAVE_ESCALATION_HOURS = 'leave_escalation_hours';
 
+    /** Nama kantor di kop dokumen PDF, misalnya "Kantor Regional I". */
+    public const REPORT_REGION_NAME = 'report_region_name';
+
     public const DEFAULTS = [
         self::LATE_TOLERANCE_MINUTES => '15',
         self::LEAVE_QUOTA => '3',
         self::END_REMINDER_DAYS => '7',
         self::LEAVE_ESCALATION_HOURS => '24',
+        self::REPORT_REGION_NAME => 'Kantor Regional I',
     ];
 
     /** @var array<string, string>|null */
@@ -66,5 +70,10 @@ class SystemSettings
     public function leaveEscalationHours(): int
     {
         return (int) $this->get(self::LEAVE_ESCALATION_HOURS);
+    }
+
+    public function reportRegionName(): string
+    {
+        return $this->get(self::REPORT_REGION_NAME);
     }
 }
