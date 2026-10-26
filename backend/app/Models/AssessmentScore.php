@@ -31,6 +31,14 @@ class AssessmentScore extends Model
     }
 
     /**
+     * Nilai diisi bilangan bulat 0-100; kolom tetap desimal.
+     */
+    public function value(): int
+    {
+        return (int) round((float) $this->score);
+    }
+
+    /**
      * @return BelongsTo<Assessment, $this>
      */
     public function assessment(): BelongsTo

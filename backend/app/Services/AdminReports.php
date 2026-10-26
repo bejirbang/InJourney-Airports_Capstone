@@ -290,12 +290,13 @@ class AdminReports
         foreach ($interns as $intern) {
             $assessment = $intern->assessment;
             $submitted = $assessment?->isSubmitted() ?? false;
-            $scores = $submitted ? $assessment->scores->mapWithKeys(fn (AssessmentScore $s): array => [$s->indicator_id => (float) $s->score])->all() : [];
+            $scores = $submitted ? $assessment->scores->mapWithKeys(fn (AssessmentScore $s): array => [$s->indicator_id => $s->value()])->all() : [];
 
             $rows[] = [
                 ...$this->identity($intern),
-                ...array_values($indicators->map(fn (AssessmentIndicator $indicator): ?float => $scores[$indicator->id] ?? null)->all()),
+                ...array_values($indicators->map(fn (AssessmentIndicator $indicator): ?int => $scores[$indicator->id] ?? null)->all()),
                 $submitted ? (float) $assessment->final_score : null,
+                $submitted ? Assessments::predicate((float) $assessment->final_score) : null,
                 $submitted ? $assessment->mentor?->name : null,
                 $submitted ? $assessment->submitted_at?->format('Y-m-d') : null,
             ];
@@ -303,7 +304,7 @@ class AdminReports
 
         return [
             self::SHEETS['assessment'],
-            [...self::IDENTITY, ...array_values($indicators->pluck('name')->all()), 'Nilai Akhir', 'Mentor Penilai', 'Tanggal Submit'],
+            [...self::IDENTITY, ...array_values($indicators->pluck('name')->all()), 'Nilai Akhir', 'Predikat', 'Mentor Penilai', 'Tanggal Submit'],
             $rows,
         ];
     }

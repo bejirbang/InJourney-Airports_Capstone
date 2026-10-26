@@ -32,6 +32,9 @@ class AuditLog extends Model
 
     public const ACTION_PRESENTATION = 'Presentasi';
 
+    /** Dicatat oleh mentor (simpan draft dan submit), bukan admin. */
+    public const ACTION_ASSESSMENT = 'Penilaian';
+
     public const ACTION_CALENDAR = 'Kalender Libur';
 
     public const ACTION_OFFICE = 'Lokasi & Jadwal';
@@ -50,6 +53,7 @@ class AuditLog extends Model
         self::ACTION_CORRECTION,
         self::ACTION_LEAVE,
         self::ACTION_PRESENTATION,
+        self::ACTION_ASSESSMENT,
         self::ACTION_OFFICE,
         self::ACTION_CALENDAR,
         self::ACTION_SETTINGS,

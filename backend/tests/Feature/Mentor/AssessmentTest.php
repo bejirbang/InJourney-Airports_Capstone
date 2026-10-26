@@ -5,6 +5,7 @@ use App\Models\Assessment;
 use App\Models\AssessmentIndicator;
 use App\Models\AssessmentScore;
 use App\Models\Attendance;
+use App\Models\AuditLog;
 use App\Models\FinalPresentation;
 use App\Models\Logbook;
 use App\Models\Notification;
@@ -50,9 +51,9 @@ function logbookOn(User $intern, string $date, ?string $status, array $attendanc
     return $day;
 }
 
-function scoresPayload(array $scores): array
+function scoresPayload(array $scores, array $extra = []): array
 {
-    return ['scores' => array_map(fn (int $id, $score): array => ['indicator_id' => $id, 'score' => $score], array_keys($scores), $scores)];
+    return ['scores' => array_map(fn (int $id, $score): array => ['indicator_id' => $id, 'score' => $score], array_keys($scores), $scores), ...$extra];
 }
 
 function mentorAssessments(User $user, string $method, string $uri, array $data = []): TestResponse
@@ -133,33 +134,52 @@ describe('formulir', function () {
             ->assertJsonPath('data.status', 'ready')
             ->assertJsonPath('data.can_edit', true)
             ->assertJsonPath('data.indicators.*.name', ['Kehadiran', 'Kedisiplinan', 'Kualitas kerja'])
-            ->assertJsonPath('data.indicators.0', ['id' => $this->attendance->id, 'name' => 'Kehadiran', 'description' => null, 'weight' => null, 'score' => null])
-            ->assertJsonPath('data.final_score', null);
+            ->assertJsonPath('data.indicators.0', ['id' => $this->attendance->id, 'category' => null, 'name' => 'Kehadiran', 'description' => null, 'weight' => null, 'score' => null])
+            ->assertJsonPath('data.final_score', null)
+            ->assertJsonPath('data.predicate', null)
+            ->assertJsonPath('data.notes', null);
     });
 
     it('saves a partial draft and computes the final score once every score is filled', function () {
         mentorAssessments($this->mentor, 'PUT', "/api/mentor/assessments/{$this->rizki->id}", scoresPayload([
             $this->attendance->id => 90,
             $this->discipline->id => null,
-            $this->quality->id => 80.5,
-        ]))
+            $this->quality->id => 80,
+        ], ['notes' => '  Teliti.  ']))
             ->assertOk()
             ->assertJsonPath('message', 'Draft penilaian tersimpan.')
             ->assertJsonPath('data.status', 'draft')
-            ->assertJsonPath('data.indicators.*.score', [90, null, 80.5])
+            ->assertJsonPath('data.indicators.*.score', [90, null, 80])
             ->assertJsonPath('data.final_score', null)
+            ->assertJsonPath('data.notes', 'Teliti.')
             ->assertJsonPath('data.can_edit', true);
 
         mentorAssessments($this->mentor, 'PUT', "/api/mentor/assessments/{$this->rizki->id}", scoresPayload([
             $this->attendance->id => 90,
             $this->discipline->id => 85,
             $this->quality->id => 80,
-        ]))->assertJsonPath('data.final_score', 85);
+        ], ['notes' => 'Teliti.']))
+            ->assertJsonPath('data.final_score', 85)
+            ->assertJsonPath('data.predicate', 'Baik');
 
         expect(Assessment::sole()->status)->toBe(AssessmentStatus::Draft)
             ->and(Assessment::sole()->final_score)->toBeNull()
+            ->and(Assessment::sole()->notes)->toBe('Teliti.')
             ->and(AssessmentScore::count())->toBe(3)
-            ->and(Notification::count())->toBe(0);
+            ->and(Notification::count())->toBe(0)
+            ->and(AuditLog::query()->orderBy('id')->get(['admin_id', 'admin_name', 'action', 'object', 'detail'])->toArray())->toBe([
+                ['admin_id' => $this->mentor->id, 'admin_name' => 'Sari Wijaya', 'action' => 'Penilaian', 'object' => 'Rizki Pratama', 'detail' => 'Simpan draft penilaian. Nilai: Kehadiran 90, Kualitas kerja 80. Catatan diubah.'],
+                ['admin_id' => $this->mentor->id, 'admin_name' => 'Sari Wijaya', 'action' => 'Penilaian', 'object' => 'Rizki Pratama', 'detail' => 'Simpan draft penilaian. Nilai: Kehadiran 90, Kedisiplinan 85, Kualitas kerja 80.'],
+            ]);
+    });
+
+    it('does not log a draft save that changes nothing', function () {
+        $payload = scoresPayload([$this->attendance->id => 90], ['notes' => 'Baik.']);
+
+        mentorAssessments($this->mentor, 'PUT', "/api/mentor/assessments/{$this->rizki->id}", $payload)->assertOk();
+        mentorAssessments($this->mentor, 'PUT', "/api/mentor/assessments/{$this->rizki->id}", $payload)->assertOk();
+
+        expect(AuditLog::count())->toBe(1);
     });
 
     it('submits, stores the final score, locks the assessment, and notifies the admin and the intern', function () {
@@ -168,17 +188,20 @@ describe('formulir', function () {
         mentorAssessments($this->mentor, 'POST', "/api/mentor/assessments/{$this->rizki->id}/submit", scoresPayload([
             $this->attendance->id => 90,
             $this->discipline->id => 85,
-            $this->quality->id => 82.25,
-        ]))
+            $this->quality->id => 82,
+        ], ['notes' => 'Rajin dan teliti.']))
             ->assertOk()
             ->assertJsonPath('message', 'Penilaian disubmit dan dikirim ke admin.')
             ->assertJsonPath('data.status', 'submitted')
-            ->assertJsonPath('data.final_score', 85.75)
+            ->assertJsonPath('data.final_score', 85.67)
+            ->assertJsonPath('data.predicate', 'Baik')
+            ->assertJsonPath('data.notes', 'Rajin dan teliti.')
             ->assertJsonPath('data.submitted_at', '2026-12-28T10:00:00+07:00')
             ->assertJsonPath('data.assessed_by', 'Sari Wijaya')
             ->assertJsonPath('data.can_edit', false);
 
-        expect(Assessment::sole()->final_score)->toBe('85.75')
+        expect(Assessment::sole()->final_score)->toBe('85.67')
+            ->and(AuditLog::sole()->detail)->toBe('Submit penilaian. Nilai: Kehadiran 90, Kedisiplinan 85, Kualitas kerja 82. Nilai akhir 85,67 (Baik). Catatan diubah.')
             ->and(Notification::query()->orderBy('id')->get(['user_id', 'text', 'link_path', 'link_params'])->toArray())->toBe([
                 ['user_id' => $this->admin->id, 'text' => 'Penilaian Rizki P. sudah disubmit.', 'link_path' => '/penilaian', 'link_params' => ['open' => $this->rizki->id]],
                 ['user_id' => $this->rizki->id, 'text' => 'Penilaian akhir Anda sudah tersedia.', 'link_path' => '/catatan', 'link_params' => null],
@@ -189,7 +212,12 @@ describe('formulir', function () {
             ->assertJsonPath('reason', 'already_submitted')
             ->assertJsonPath('message', 'Penilaian ini sudah disubmit dan tidak bisa diubah.');
 
-        expect(AssessmentScore::query()->where('indicator_id', $this->attendance->id)->value('score'))->toBe('90.00');
+        expect(AssessmentScore::query()->where('indicator_id', $this->attendance->id)->value('score'))->toBe('90.00')
+            ->and(AuditLog::count())->toBe(1);
+
+        mentorAssessments($this->rizki, 'GET', '/api/intern/assessment')
+            ->assertJsonPath('data.predicate', 'Baik')
+            ->assertJsonPath('data.notes', 'Rajin dan teliti.');
     });
 
     it('keeps the submitted scores even after an indicator is deactivated', function () {
@@ -224,7 +252,9 @@ describe('formulir', function () {
     })->with([
         'di atas 100' => [fn () => scoresPayload([$this->attendance->id => 101]), 'scores.0.score', 'Nilai harus antara 0 dan 100.'],
         'negatif' => [fn () => scoresPayload([$this->attendance->id => -1]), 'scores.0.score', 'Nilai harus antara 0 dan 100.'],
-        'bukan angka' => [fn () => scoresPayload([$this->attendance->id => 'baik']), 'scores.0.score', 'Nilai harus antara 0 dan 100.'],
+        'bukan angka' => [fn () => scoresPayload([$this->attendance->id => 'baik']), 'scores.0.score', 'Nilai harus berupa bilangan bulat.'],
+        'desimal' => [fn () => scoresPayload([$this->attendance->id => 80.5]), 'scores.0.score', 'Nilai harus berupa bilangan bulat.'],
+        'catatan terlalu panjang' => [fn () => scoresPayload([$this->attendance->id => 80], ['notes' => str_repeat('a', 1001)]), 'notes', 'Catatan maksimal 1000 karakter.'],
         'indikator nonaktif' => [fn () => scoresPayload([$this->retired->id => 80]), 'scores.0.indicator_id', 'Indikator tidak valid.'],
         'tanpa scores' => [fn () => [], 'scores', 'Isi nilai penilaian.'],
     ]);
@@ -332,3 +362,16 @@ describe('nilai akhir', function () {
             ->and(Assessments::finalScore(new Collection, []))->toBeNull();
     });
 });
+
+it('derives the predicate from the final score', function (float $score, string $predicate) {
+    expect(Assessments::predicate($score))->toBe($predicate);
+})->with([
+    [100.0, 'Baik Sekali'],
+    [86.0, 'Baik Sekali'],
+    [85.99, 'Baik'],
+    [71.0, 'Baik'],
+    [70.99, 'Cukup'],
+    [60.0, 'Cukup'],
+    [59.99, 'Kurang'],
+    [0.0, 'Kurang'],
+]);
