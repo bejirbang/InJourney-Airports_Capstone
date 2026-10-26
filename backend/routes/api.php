@@ -228,6 +228,8 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
             Route::get('/reports/options', [AdminReportController::class, 'options'])->name('reports.options');
             Route::post('/reports/preview', [AdminReportController::class, 'preview'])->name('reports.preview');
             Route::post('/reports/export', [AdminReportController::class, 'export'])->name('reports.export');
+            Route::post('/reports/attendance-pdf', [AdminReportController::class, 'attendancePdf'])->name('reports.attendance-pdf');
+            Route::post('/reports/assessment-pdf', [AdminReportController::class, 'assessmentPdf'])->name('reports.assessment-pdf');
 
             Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');
             Route::get('/audit-logs/options', [AdminAuditLogController::class, 'options'])->name('audit-logs.options');

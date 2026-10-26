@@ -34,6 +34,7 @@ it('seeds the defaults once without overwriting changed values', function () {
         'late_tolerance_minutes' => '10',
         'leave_quota' => '3',
         'end_reminder_days' => '7',
+        'report_region_name' => 'Kantor Regional I',
         'leave_escalation_hours' => '24',
     ]);
 });
