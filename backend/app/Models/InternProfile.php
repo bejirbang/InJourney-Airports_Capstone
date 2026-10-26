@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\InstitutionType;
 use App\Enums\Role;
 use Carbon\CarbonInterface;
 use Database\Factories\InternProfileFactory;
@@ -17,8 +18,10 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property int $mentor_id
  * @property int $airport_id
+ * @property InstitutionType|null $institution_type
  * @property string $university
  * @property string $major
+ * @property string|null $student_number
  * @property Carbon $start_date
  * @property Carbon $end_date
  * @property Carbon $leave_quota_since
@@ -31,7 +34,7 @@ use Illuminate\Support\Carbon;
  * @property-read Airport $airport
  */
 #[Fillable([
-    'user_id', 'mentor_id', 'airport_id', 'university', 'major', 'start_date', 'end_date',
+    'user_id', 'institution_type', 'mentor_id', 'airport_id', 'university', 'major', 'student_number', 'start_date', 'end_date',
     'leave_quota_since', 'presentation_reminded_at', 'ending_notified_for',
 ])]
 class InternProfile extends Model
@@ -45,6 +48,7 @@ class InternProfile extends Model
     protected function casts(): array
     {
         return [
+            'institution_type' => InstitutionType::class,
             'start_date' => 'date',
             'end_date' => 'date',
             'leave_quota_since' => 'date',

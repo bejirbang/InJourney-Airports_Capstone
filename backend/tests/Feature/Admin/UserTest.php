@@ -50,8 +50,10 @@ function newIntern(array $overrides = []): array
         'unit_id' => test()->unit->id,
         'mentor_id' => test()->mentor->id,
         'airport_id' => test()->airport->id,
+        'institution_type' => 'universitas',
         'university' => 'Universitas Indonesia',
         'major' => 'Teknik Informatika',
+        'student_number' => '2210511001',
         'start_date' => '2026-10-15',
         'end_date' => '2027-01-15',
         ...$overrides,
@@ -78,8 +80,10 @@ describe('daftar pengguna', function () {
                 'status' => 'active',
                 'mentor' => ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'],
                 'airport' => ['id' => $this->airport->id, 'name' => 'Soekarno-Hatta'],
+                'institution_type' => 'universitas',
                 'university' => 'Universitas Indonesia',
                 'major' => 'Teknik Informatika',
+                'student_number' => $andi->internProfile->student_number,
                 'start_date' => '2026-09-01',
                 'end_date' => '2026-12-31',
             ])
@@ -156,8 +160,10 @@ describe('tambah akun', function () {
             ->assertJsonPath('data.mentor', ['id' => $this->mentor->id, 'name' => 'Sari Wijaya'])
             ->assertJsonPath('data.unit', ['id' => $this->unit->id, 'name' => 'Divisi IT'])
             ->assertJsonPath('data.airport', ['id' => $this->airport->id, 'name' => 'Soekarno-Hatta'])
+            ->assertJsonPath('data.institution_type', 'universitas')
             ->assertJsonPath('data.university', 'Universitas Indonesia')
             ->assertJsonPath('data.major', 'Teknik Informatika')
+            ->assertJsonPath('data.student_number', '2210511001')
             ->assertJsonPath('data.start_date', '2026-10-15')
             ->assertJsonPath('data.end_date', '2027-01-15')
             ->assertJsonPath('data.must_change_password', true)
@@ -232,6 +238,10 @@ describe('tambah akun', function () {
         'bandara nonaktif' => [['airport_id' => 888], 'airport_id', 'Pilih lokasi magang.'],
         'tanpa universitas' => [['university' => ' '], 'university', 'Asal universitas wajib diisi.'],
         'tanpa jurusan' => [['major' => null], 'major', 'Jurusan wajib diisi.'],
+        'tanpa jenis institusi' => [['institution_type' => null], 'institution_type', 'Pilih jenis institusi: universitas atau sekolah.'],
+        'jenis institusi asing' => [['institution_type' => 'kursus'], 'institution_type', 'Pilih jenis institusi: universitas atau sekolah.'],
+        'tanpa NIM/NIS' => [['student_number' => ' '], 'student_number', 'NIM/NIS wajib diisi.'],
+        'NIM/NIS terlalu panjang' => [['student_number' => str_repeat('1', 31)], 'student_number', 'NIM/NIS maksimal 30 karakter.'],
     ]);
 
     it('creates an admin without a unit', function () {
@@ -292,8 +302,10 @@ describe('detail dan ubah data', function () {
             'email' => 'andi.putra@injourney.test',
             'unit_id' => $this->unit->id,
             'airport_id' => $halim->id,
-            'university' => 'Universitas Gadjah Mada',
-            'major' => 'Ilmu Komputer',
+            'institution_type' => 'sekolah',
+            'university' => 'SMK Negeri 1 Jakarta',
+            'major' => 'Rekayasa Perangkat Lunak',
+            'student_number' => '0051234567',
             'role' => 'admin',
             'mentor_id' => $budi->id,
             'start_date' => '2026-09-01',
@@ -305,8 +317,10 @@ describe('detail dan ubah data', function () {
             ->assertJsonPath('data.email', 'andi.putra@injourney.test')
             ->assertJsonPath('data.unit.id', $this->unit->id)
             ->assertJsonPath('data.airport', ['id' => $halim->id, 'name' => 'Halim Perdanakusuma'])
-            ->assertJsonPath('data.university', 'Universitas Gadjah Mada')
-            ->assertJsonPath('data.major', 'Ilmu Komputer')
+            ->assertJsonPath('data.institution_type', 'sekolah')
+            ->assertJsonPath('data.university', 'SMK Negeri 1 Jakarta')
+            ->assertJsonPath('data.major', 'Rekayasa Perangkat Lunak')
+            ->assertJsonPath('data.student_number', '0051234567')
             ->assertJsonPath('data.role', 'intern')
             ->assertJsonPath('data.mentor.id', $this->mentor->id)
             ->assertJsonPath('data.end_date', '2027-01-31');
@@ -340,8 +354,8 @@ describe('detail dan ubah data', function () {
 
         asAdmin($this->admin, 'PUT', "/api/admin/users/{$intern->id}", [
             'name' => 'Andi Pratama', 'email' => $intern->email, 'unit_id' => $intern->unit_id,
-            'airport_id' => $intern->internProfile->airport_id, 'university' => 'UI', 'major' => 'TI',
-            'start_date' => '2026-10-19', 'end_date' => '2026-12-31',
+            'airport_id' => $intern->internProfile->airport_id, 'institution_type' => 'universitas', 'university' => 'UI', 'major' => 'TI',
+            'student_number' => '123', 'start_date' => '2026-10-19', 'end_date' => '2026-12-31',
         ])->assertOk();
 
         expect($intern->internProfile->refresh()->leave_quota_since->toDateString())->toBe('2026-10-19');
