@@ -7,7 +7,7 @@ Sistem web untuk mengelola intern InJourney Airports: presensi berbasis lokasi, 
 | Bagian | Status |
 | --- | --- |
 | Dokumen desain | Revisi dari wawancara mitra 22 Okt 2026 (design-intern Draft 3, design-mentor Draft 2, design-admin Draft 3) |
-| Backend (Laravel API) | Selesai mengikuti dokumen desain terbaru: presensi, logbook, koreksi dua tahap, izin dengan kuota, presentasi, penilaian, Lokasi & Jadwal, dashboard, laporan, notifikasi, chat. Murni API, sudah diuji (774 test) |
+| Backend (Laravel API) | Selesai mengikuti dokumen desain terbaru: presensi, logbook, koreksi dua tahap, izin dengan kuota, presentasi, penilaian, Lokasi & Jadwal, dashboard, laporan, notifikasi, chat. Murni API, sudah diuji (808 test) |
 | Frontend (TanStack Start) | Prototipe dengan data contoh, **masih berbasis desain lama** (Task, Daily Report, upload file). Belum tersambung ke API |
 | Deployment | Belum. Host untuk API dan WebSocket belum dipilih |
 
@@ -48,12 +48,12 @@ Satu intern tepat satu mentor. Mentor tidak terikat bandara.
 | Koreksi presensi | Dua tahap: intern mengajukan, mentor ACC, admin mengeksekusi. Hasil selalu Hadir + Dikoreksi |
 | Izin | Izin Sakit dan Izin Urgent dengan link bukti Google Drive/Docs. Kuota per masa magang. Admin mengambil alih jika mentor tidak memproses lewat batas jam |
 | Presentasi akhir | Intern mengirim link bukti mulai H-7, admin memverifikasi |
-| Penilaian | Mentor menilai per indikator setelah presentasi disetujui dan semua logbook disetujui. Nilai akhir otomatis, terkunci setelah submit |
+| Penilaian | Menu Input Nilai: mentor mengisi 9 indikator (nilai bulat 0-100) dan catatan setelah presentasi dan semua logbook disetujui. Rata-rata dan predikat dihitung server, terkunci setelah submit |
 | Lokasi & Jadwal | Bandara (lokasi magang) dengan titik presensi, jadwal mingguan, dan jadwal khusus |
 | Dashboard | Per role, kartu bisa diklik, antrean tindakan. Admin punya filter bandara global |
 | Performa | KPI pemantauan untuk mentor: Kehadiran, Tepat waktu, Logbook disetujui, Revisi logbook |
 | Warning | Catatan admin tentang intern, terbaca oleh intern dan mentornya |
-| Laporan | Export Excel 4 sheet: Rekap Presensi, Izin, Logbook, Penilaian |
+| Laporan | Export Excel 4 sheet (Rekap Presensi, Izin, Logbook, Penilaian), PDF Daftar Kehadiran per intern per bulan, dan PDF Penilaian |
 | Chat, notifikasi, pengumuman | Real-time lewat WebSocket |
 | Log aktivitas | Jejak semua tindakan admin, hanya bisa dibaca |
 
@@ -86,6 +86,7 @@ Browser (frontend TanStack Start, di Vercel)
 | Database | PostgreSQL | Lokal saat development, Supabase saat production |
 | Real time | Laravel Reverb (WebSocket) | Chat, notifikasi, status online. Tanpa layanan pihak ketiga |
 | Excel | OpenSpout | Butuh ekstensi PHP `zip` |
+| PDF | laravel-dompdf | Template Blade di `backend/resources/views/pdf` |
 | Peta | Leaflet + OpenStreetMap | Di frontend. Backend menyimpan koordinat dan menghitung jarak |
 
 ## Struktur repo
@@ -185,7 +186,7 @@ Panduan lengkap ada di [`backend/progress.md`](backend/progress.md), bagian **"C
 4. **Menu dan angka badge** dari `GET /api/{intern|mentor|admin}/menu`.
 5. **WebSocket** lewat Reverb: channel privat `users.{id}`, otorisasi di `POST /api/broadcasting/auth` dengan Bearer token yang sama.
 6. **Filter bandara admin** dikirim sebagai `airport_id`; pilihan bandara dari `GET /api/admin/airports`.
-7. **Export Excel** diambil lewat `fetch` lalu disimpan sebagai blob; nama file dari header `Content-Disposition`.
+7. **Export Excel dan PDF** diambil lewat `fetch` lalu disimpan sebagai blob; nama file dari header `Content-Disposition`.
 8. **CORS**: development otomatis mengizinkan `localhost` port apa pun. Production mengisi `FRONTEND_URL` dengan domain Vercel.
 
 ## Deployment
@@ -206,7 +207,7 @@ Yang wajib disiapkan di host production:
 
 ## Hal yang masih terbuka
 
-- Indikator dan rumus penilaian resmi dari mitra (saat ini indikator contoh dari seeder), dan konfirmasi toleransi terlambat 15 menit.
+- Konfirmasi toleransi terlambat 15 menit dari mitra. (Indikator penilaian sudah ditetapkan 26 Okt 2026: 9 indikator formulir Penilaian Magang.)
 - Host untuk API dan Reverb.
 - Intern yang diperpanjang setelah magangnya lewat: hari jeda terbaca Tidak Hadir.
 - Penanganan GPS kurang akurat dan VPN saat validasi lokasi.

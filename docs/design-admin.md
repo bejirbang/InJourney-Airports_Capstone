@@ -93,7 +93,7 @@ Isi:
 | Penilaian | Rekap nilai akhir intern | /admin/assessments |
 | Warning | Catatan per intern | /admin/warnings |
 | Pengumuman | Pengumuman per role | /admin/announcements |
-| Laporan | Export Excel | /admin/reports |
+| Laporan | Export Excel Presensi, PDF Daftar Kehadiran, PDF Penilaian | /admin/reports |
 | Lokasi & Jadwal | Kantor, radius, jadwal mingguan, jadwal khusus | /admin/offices |
 | Pengaturan | Kalender libur dan pengaturan umum | /admin/settings |
 | Log Aktivitas | Jejak tindakan admin | /admin/audit-log |
@@ -149,8 +149,10 @@ Aksi [...]: Lihat detail, Ubah, Ganti mentor (intern), Perpanjang magang (intern
 | -- Tampil jika role = Intern --                  |
 | Mentor *            [Pilih mentor            v]  |
 | Lokasi magang *     [Pilih kantor            v]  |
-| Universitas *       [_________________________]  |
+| Jenis institusi *   ( ) Universitas ( ) Sekolah  |
+| Universitas/Sekolah*[_________________________]  |
 | Jurusan *           [_________________________]  |
+| NIM/NIS *           [_________________________]  |
 | Tanggal mulai *     [__/__/____]                 |
 | Tanggal selesai *   [__/__/____]                 |
 |                                                  |
@@ -166,7 +168,9 @@ Aksi [...]: Lihat detail, Ubah, Ganti mentor (intern), Perpanjang magang (intern
 | Unit | Wajib untuk Intern dan Mentor | "Unit wajib diisi." |
 | Mentor | Wajib untuk Intern, mentor aktif | "Pilih mentor untuk intern ini." |
 | Lokasi magang | Wajib untuk Intern, kantor aktif | "Pilih lokasi magang." |
+| Jenis institusi | Wajib untuk Intern: universitas atau sekolah (26 Okt 2026) | "Pilih jenis institusi: universitas atau sekolah." |
 | Universitas, Jurusan | Wajib untuk Intern | "Universitas wajib diisi." / "Jurusan wajib diisi." |
+| NIM/NIS | Wajib untuk Intern, maksimal 30 karakter (26 Okt 2026) | "NIM/NIS wajib diisi." |
 | Tanggal selesai | Setelah tanggal mulai | "Tanggal selesai harus sesudah tanggal mulai." |
 
 Password sementara tampil **sekali** dengan tombol Salin. Pengguna wajib mengganti di login pertama. Role tidak bisa diubah setelah akun dibuat. **[Keputusan dan Usulan sebelumnya]**
@@ -407,7 +411,7 @@ Tab **Belum kirim** menampilkan intern yang sudah H-7 tetapi belum mengirim, aga
 +------------------------------------------------------------------------+
 ```
 
-Detail menampilkan nilai per indikator, nilai akhir, mentor, dan waktu submit. Admin tidak bisa mengubah nilai. **[Usulan]**
+Detail menampilkan nilai per indikator (dikelompokkan per kategori), nilai akhir, predikat, catatan mentor, mentor, dan waktu submit. Admin tidak bisa mengubah nilai, tetapi bisa mencetak **PDF Penilaian** (lihat Bagian 15.3). **[Keputusan 26 Okt 2026]**
 
 ---
 
@@ -597,7 +601,7 @@ Satu file, satu sheet per jenis rekap. Setiap baris = satu intern.
 | Rekap Presensi | Identitas, hari kerja, Hadir, Terlambat, Lupa Clock In, Lupa Clock Out, Izin, Tidak Hadir, Dikoreksi, persentase kehadiran |
 | Rekap Izin | Identitas, kuota terpakai (dari 3), total hari izin, Sakit, Urgent, ditandai jika kuota habis |
 | Rekap Logbook | Identitas, Disetujui, Menunggu Review, Revisi, Belum diisi |
-| Rekap Penilaian | Identitas, nilai per indikator, nilai akhir, mentor penilai, tanggal submit |
+| Rekap Penilaian | Identitas, nilai per indikator, nilai akhir, predikat, mentor penilai, tanggal submit |
 
 Identitas: nama, email, unit, lokasi magang, universitas, jurusan, mentor, periode magang.
 
@@ -610,11 +614,30 @@ Baris judul berisi periode dan filter yang dipakai. Kolom angka sudah berformat 
 
 Setiap export tercatat di Log Aktivitas.
 
+### 15.3 Dokumen PDF (26 Okt 2026)
+
+Selain Excel, admin bisa menarik dua dokumen PDF per intern untuk ditandatangani basah. **[Keputusan]**
+
+| Dokumen | Pilihan | Isi |
+|---|---|---|
+| PDF Daftar Kehadiran | Intern, bulan | Kop (InJourney Airports, nama kantor regional dari pengaturan), identitas (Nama, Asal Universitas/Sekolah, Jurusan, Unit Penempatan, Periode Magang, Bulan/Tahun). Satu baris per hari kerja: Tanggal, Jam Masuk, Jam Keluar, Kegiatan (logbook), Keterangan (status presensi). Izin tetap tampil dengan Keterangan "Izin"; akhir pekan dan libur tidak tampil. Penutup: "[kota], [tanggal]", kolom tanda tangan Pembimbing dan Peserta Magang |
+| PDF Penilaian | Intern | Hanya jika penilaian sudah disubmit. Identitas termasuk NIM/NIS, 9 indikator per kategori, nilai rata-rata, predikat, catatan mentor. Penutup: "[kota], [tanggal submit]", tanda tangan Pembimbing |
+
+Kota diambil dari kota bandara (diisi di Lokasi & Jadwal). Logbook yang masih draft tidak dicetak.
+
+| Kondisi | Pesan |
+|---|---|
+| Bulan di luar periode magang | "Bulan yang dipilih di luar periode magang intern ini." |
+| Belum ada hari kerja | "Belum ada hari kerja yang bisa dicetak pada bulan ini." |
+| Penilaian belum disubmit | "Penilaian intern ini belum disubmit mentor." |
+
+Setiap export PDF tercatat di Log Aktivitas kategori Laporan.
+
 ---
 
 ## 16. Alur 14 - Log Aktivitas, Chat, Profil
 
-**Log Aktivitas:** hanya baca, tidak bisa diubah. Kategori aksi: Akun, Presensi, Koreksi Presensi, Izin, Presentasi, Lokasi & Jadwal, Kalender Libur, Pengaturan Umum, Warning, Pengumuman, Laporan. **[Keputusan, kategori diperbarui]**
+**Log Aktivitas:** hanya baca, tidak bisa diubah. Kategori aksi: Akun, Presensi, Koreksi Presensi, Izin, Presentasi, Penilaian (dicatat atas nama mentor, 26 Okt 2026), Lokasi & Jadwal, Kalender Libur, Pengaturan Umum, Warning, Pengumuman, Laporan. **[Keputusan, kategori diperbarui]**
 
 **Chat:** admin bisa chat dengan semua pengguna, tidak bisa membaca chat orang lain. **[Keputusan]**
 
@@ -664,11 +687,11 @@ Dialog konfirmasi wajib untuk: nonaktifkan akun, ganti mentor, reset password, p
 | Izin | Keputusan final untuk izin lewat 24 jam, Setujui hanya jika ada link bukti | Mengubah izin yang sudah diproses mentor |
 | Logbook | Melihat | Mereview (hak mentor) |
 | Presentasi | Setujui atau Revisi | - |
-| Penilaian | Melihat dan export | Mengisi atau mengubah nilai |
+| Penilaian | Melihat dan export (Excel, PDF Penilaian) | Mengisi atau mengubah nilai |
 | Warning | Membuat, mengubah dalam 24 jam | Menghapus |
 | Lokasi & Jadwal | Mengatur kantor, radius, jadwal mingguan, jadwal khusus | Menghapus kantor |
 | Pengaturan | Kalender libur dan pengaturan umum | Mengubah batas 23:59 |
-| Laporan | Export Excel | Format lain |
+| Laporan | Export Excel Presensi, PDF Daftar Kehadiran, PDF Penilaian | Format lain |
 | Chat | Chat dengan semua | Membaca chat orang lain |
 | Log | Melihat | Mengubah atau menghapus |
 
@@ -698,7 +721,7 @@ Dialog konfirmasi wajib untuk: nonaktifkan akun, ganti mentor, reset password, p
 
 | No | Topik | Keterangan |
 |---|---|---|
-| 1 | Indikator dan rumus penilaian | Menunggu mitra |
+| 1 | Indikator dan rumus penilaian | **Selesai 26 Okt 2026**: 9 indikator, rata-rata, predikat |
 | 2 | Toleransi terlambat 15 menit | Menunggu konfirmasi mitra, bisa diubah di Pengaturan Umum |
 | 3 | E-sertifikat otomatis | Di luar cakupan versi ini |
 | 4 | Membuka kembali penilaian yang sudah disubmit | Usulan: admin bisa membuka kembali agar mentor memperbaiki. Perlu konfirmasi |

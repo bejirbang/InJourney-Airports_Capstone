@@ -641,7 +641,7 @@ Kondisi kosong: "Tidak ada catatan untuk Anda."
 
 ### 13.2 Nilai akhir
 
-- Setelah mentor menyubmit penilaian, intern dapat melihat nilai per indikator dan nilai akhir di halaman ini. **[Usulan, lihat Bagian 20]**
+- Setelah mentor menyubmit penilaian, intern dapat melihat nilai per indikator, nilai akhir, predikat (Baik Sekali, Baik, Cukup, Kurang), dan catatan mentor di halaman ini (26 Okt 2026). **[Usulan, lihat Bagian 20]**
 - Sebelum dinilai: "Penilaian akan tersedia setelah presentasi disetujui, semua logbook disetujui, dan mentor menyelesaikan penilaian."
 
 ---
