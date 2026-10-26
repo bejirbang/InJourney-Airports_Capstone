@@ -100,10 +100,10 @@ class AdminAirports
      *
      * @throws ValidationException
      */
-    public function create(User $admin, string $name, string $effectiveFrom, array $days): Airport
+    public function create(User $admin, string $name, ?string $city, string $effectiveFrom, array $days): Airport
     {
-        return $this->guardUniqueName(function () use ($admin, $name, $effectiveFrom, $days): Airport {
-            $airport = Airport::query()->create(['name' => $name, 'is_active' => true]);
+        return $this->guardUniqueName(function () use ($admin, $name, $city, $effectiveFrom, $days): Airport {
+            $airport = Airport::query()->create(['name' => $name, 'city' => $city, 'is_active' => true]);
             $this->writeWeekly($airport, $effectiveFrom, $days);
 
             AuditLog::record(
@@ -120,19 +120,29 @@ class AdminAirports
     /**
      * @throws ValidationException
      */
-    public function rename(User $admin, Airport $airport, string $name): Airport
+    public function rename(User $admin, Airport $airport, string $name, ?string $city): Airport
     {
-        return $this->guardUniqueName(function () use ($admin, $airport, $name): Airport {
+        return $this->guardUniqueName(function () use ($admin, $airport, $name, $city): Airport {
             $oldName = $airport->name;
-            $airport->fill(['name' => $name]);
+            $airport->fill(['name' => $name, 'city' => $city]);
 
-            if (! $airport->isDirty('name')) {
+            if (! $airport->isDirty(['name', 'city'])) {
                 return $airport;
+            }
+
+            $details = [];
+
+            if ($airport->isDirty('name')) {
+                $details[] = "Ubah nama bandara dari \"{$oldName}\".";
+            }
+
+            if ($airport->isDirty('city')) {
+                $details[] = 'Ubah kota menjadi "'.($city ?? '-').'".';
             }
 
             $airport->save();
 
-            AuditLog::record($admin, AuditLog::ACTION_OFFICE, $airport->name, "Ubah nama bandara dari \"{$oldName}\".");
+            AuditLog::record($admin, AuditLog::ACTION_OFFICE, $airport->name, implode(' ', $details));
 
             return $airport;
         });
@@ -444,6 +454,7 @@ class AdminAirports
         return [
             'id' => $airport->id,
             'name' => $airport->name,
+            'city' => $airport->city,
             'is_active' => $airport->is_active,
             'active_offices' => (int) ($airport->getAttribute('active_offices_count') ?? 0),
             'active_interns' => $activeInterns,

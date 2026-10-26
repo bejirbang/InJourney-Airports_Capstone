@@ -7,8 +7,8 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 /**
- * Tambah bandara (nama + jadwal mingguan pertama, wajib 7 hari) dan ubah nama (`PUT`, hanya nama). Aturan hari
- * dipakai ulang oleh WeeklyScheduleRequest.
+ * Tambah bandara (nama, kota, jadwal mingguan pertama wajib 7 hari) dan ubah nama/kota (`PUT`). Kota opsional; dipakai
+ * di dokumen PDF. `PUT` tanpa `city` mempertahankan kota lama. Aturan hari dipakai ulang oleh WeeklyScheduleRequest.
  */
 class AirportRequest extends FormRequest
 {
@@ -31,8 +31,10 @@ class AirportRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        if (is_string($this->input('name'))) {
-            $this->merge(['name' => trim($this->input('name'))]);
+        foreach (['name', 'city'] as $field) {
+            if (is_string($this->input($field))) {
+                $this->merge([$field => trim($this->input($field))]);
+            }
         }
     }
 
@@ -41,7 +43,7 @@ class AirportRequest extends FormRequest
      */
     public function rules(): array
     {
-        $rules = ['name' => ['required', 'string', 'max:255']];
+        $rules = ['name' => ['required', 'string', 'max:255'], 'city' => ['sometimes', 'nullable', 'string', 'max:100']];
 
         return $this->editing() === null ? [...$rules, ...self::weeklyRules(true)] : $rules;
     }
@@ -83,6 +85,7 @@ class AirportRequest extends FormRequest
             'name.required' => self::NAME_REQUIRED,
             'name.string' => self::NAME_REQUIRED,
             'name.max' => 'Nama bandara maksimal 255 karakter.',
+            'city.*' => 'Kota maksimal 100 karakter.',
             ...self::weeklyMessages(),
         ];
     }
@@ -166,6 +169,20 @@ class AirportRequest extends FormRequest
     public function airportName(): string
     {
         return $this->string('name')->value();
+    }
+
+    /**
+     * Kosong disimpan null. Saat mengubah, tanpa `city` berarti kota lama dipertahankan.
+     */
+    public function city(?Airport $current = null): ?string
+    {
+        if (! $this->has('city')) {
+            return $current?->city;
+        }
+
+        $city = $this->string('city')->value();
+
+        return $city === '' ? null : $city;
     }
 
     private function editing(): ?Airport

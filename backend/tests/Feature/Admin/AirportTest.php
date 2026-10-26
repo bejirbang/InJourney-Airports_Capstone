@@ -96,6 +96,30 @@ describe('bandara', function () {
         expect(AuditLog::sole()->detail)->toBe('Ubah nama bandara dari "Soekarno-Hatta".');
     });
 
+    it('stores the city used on PDF documents and keeps it when the edit omits it', function () {
+        airportRequest($this->admin, 'POST', '/api/admin/airports', [
+            'name' => 'Kualanamu', 'city' => ' Deli Serdang ', 'effective_from' => '2026-10-12', 'days' => weekDays(),
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.city', 'Deli Serdang');
+
+        airportRequest($this->admin, 'PUT', "/api/admin/airports/{$this->soetta->id}", ['name' => 'Soekarno-Hatta', 'city' => 'Tangerang'])
+            ->assertOk()
+            ->assertJsonPath('data.city', 'Tangerang');
+
+        airportRequest($this->admin, 'PUT', "/api/admin/airports/{$this->soetta->id}", ['name' => 'Soetta'])
+            ->assertOk()
+            ->assertJsonPath('data.city', 'Tangerang');
+
+        airportRequest($this->admin, 'PUT', "/api/admin/airports/{$this->soetta->id}", ['name' => 'Soetta', 'city' => str_repeat('a', 101)])
+            ->assertJsonValidationErrors(['city' => 'Kota maksimal 100 karakter.']);
+
+        expect(AuditLog::query()->where('object', '!=', 'Kualanamu')->orderBy('id')->pluck('detail')->all())->toBe([
+            'Ubah kota menjadi "Tangerang".',
+            'Ubah nama bandara dari "Soekarno-Hatta".',
+        ]);
+    });
+
     it('cannot deactivate an airport that still hosts active or upcoming interns', function () {
         $intern = User::factory()->intern(['airport_id' => $this->soetta->id, 'start_date' => '2026-11-01', 'end_date' => '2027-01-31'])->create();
 
