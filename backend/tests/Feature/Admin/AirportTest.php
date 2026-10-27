@@ -57,6 +57,7 @@ describe('bandara', function () {
     it('creates an airport together with its first weekly schedule and logs it', function () {
         $response = airportRequest($this->admin, 'POST', '/api/admin/airports', [
             'name' => ' Kualanamu ',
+            'city' => 'Deli Serdang',
             'effective_from' => '2026-10-12',
             'days' => weekDays('07:30', '16:30'),
         ])
@@ -81,6 +82,8 @@ describe('bandara', function () {
             ->assertJsonValidationErrors([$field => $message]);
     })->with([
         'nama kosong' => [fn () => ['name' => ' ', 'effective_from' => '2026-10-12', 'days' => weekDays()], 'name', 'Nama bandara wajib diisi.'],
+        'tanpa kota' => [fn () => ['name' => 'Baru', 'effective_from' => '2026-10-12', 'days' => weekDays()], 'city', 'Kota wajib diisi.'],
+        'kota kosong' => [fn () => ['name' => 'Baru', 'city' => ' ', 'effective_from' => '2026-10-12', 'days' => weekDays()], 'city', 'Kota wajib diisi.'],
         'nama dipakai' => [fn () => ['name' => 'soekarno-hatta', 'effective_from' => '2026-10-12', 'days' => weekDays()], 'name', 'Nama bandara sudah dipakai.'],
         'tanggal lampau' => [fn () => ['name' => 'Baru', 'effective_from' => '2026-10-11', 'days' => weekDays()], 'effective_from', 'Tanggal berlaku tidak boleh di masa lalu.'],
         'kurang dari 7 hari' => [fn () => ['name' => 'Baru', 'effective_from' => '2026-10-12', 'days' => array_slice(weekDays(), 0, 5)], 'days', 'Isi jadwal untuk ketujuh hari.'],

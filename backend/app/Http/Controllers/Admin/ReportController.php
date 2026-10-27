@@ -19,6 +19,9 @@ class ReportController extends Controller
 
     public const PDF = 'application/pdf';
 
+    /** Dokumen berisi data pribadi (NIM, nilai): browser dan proxy tidak boleh menyimpan salinannya. */
+    public const NO_STORE = ['Cache-Control' => 'no-store, private', 'Pragma' => 'no-cache'];
+
     public function __construct(private AdminReports $reports, private AdminPdfReports $pdfs) {}
 
     public function options(): JsonResponse
@@ -38,7 +41,7 @@ class ReportController extends Controller
         $file = $this->reports->export($admin, $request->filters(), Date::now());
 
         return response()
-            ->download($file['path'], $file['filename'], ['Content-Type' => self::XLSX])
+            ->download($file['path'], $file['filename'], ['Content-Type' => self::XLSX, ...self::NO_STORE])
             ->deleteFileAfterSend();
     }
 
@@ -66,6 +69,7 @@ class ReportController extends Controller
         return response($file['content'], 200, [
             'Content-Type' => self::PDF,
             'Content-Disposition' => 'attachment; filename="'.$file['filename'].'"',
+            ...self::NO_STORE,
         ]);
     }
 }

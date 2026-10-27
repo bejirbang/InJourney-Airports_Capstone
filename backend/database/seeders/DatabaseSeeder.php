@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\Airport;
-use App\Models\AssessmentIndicator;
 use App\Models\Office;
 use App\Models\Unit;
 use App\Models\User;
@@ -18,19 +17,6 @@ class DatabaseSeeder extends Seeder
 
     public const UNITS = ['Divisi IT', 'Human Capital', 'Operasional Bandara', 'Keuangan'];
 
-    /** Sembilan indikator formulir Penilaian Magang, urut sesuai formulir: [kategori, indikator]. */
-    public const INDICATORS = [
-        ['Motivasi', 'Perhatian terhadap Instruksi/Petunjuk'],
-        ['Motivasi', 'Disiplin Kerja'],
-        ['Motivasi', 'Inisiatif'],
-        ['Kemampuan Kerja', 'Pengetahuan tentang Pekerjaan'],
-        ['Kemampuan Kerja', 'Kualitas Pekerjaan / Keterampilan'],
-        ['Kemampuan Kerja', 'Efektivitas Penggunaan Waktu Kerja'],
-        ['Kepribadian', 'Keberhasilan'],
-        ['Kepribadian', 'Kemampuan Menyesuaikan Diri dengan Lingkungan'],
-        ['Kepribadian', 'Tanggung Jawab'],
-    ];
-
     public function run(): void
     {
         if (app()->isProduction()) {
@@ -41,9 +27,7 @@ class DatabaseSeeder extends Seeder
 
         $units = collect(self::UNITS)->mapWithKeys(fn (string $name): array => [$name => Unit::factory()->create(['name' => $name])]);
 
-        foreach (self::INDICATORS as $order => [$category, $name]) {
-            AssessmentIndicator::factory()->create(['category' => $category, 'name' => $name, 'weight' => null, 'sort_order' => $order + 1]);
-        }
+        $this->call(AssessmentIndicatorSeeder::class);
 
         // Jadwal mingguan bawaan factory: Senin-Jumat 08:00-17:00.
         $soetta = Airport::factory()->create(['name' => 'Soekarno-Hatta', 'city' => 'Tangerang']);

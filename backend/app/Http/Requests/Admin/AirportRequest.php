@@ -7,14 +7,16 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 /**
- * Tambah bandara (nama, kota, jadwal mingguan pertama wajib 7 hari) dan ubah nama/kota (`PUT`). Kota opsional; dipakai
- * di dokumen PDF. `PUT` tanpa `city` mempertahankan kota lama. Aturan hari dipakai ulang oleh WeeklyScheduleRequest.
+ * Tambah bandara (nama, kota, jadwal mingguan pertama wajib 7 hari) dan ubah nama/kota (`PUT`). Kota dipakai di dokumen
+ * PDF, jadi wajib saat tambah; `PUT` tanpa `city` mempertahankan kota lama. Aturan hari dipakai ulang oleh WeeklyScheduleRequest.
  */
 class AirportRequest extends FormRequest
 {
     public const NAME_REQUIRED = 'Nama bandara wajib diisi.';
 
     public const NAME_TAKEN = 'Nama bandara sudah dipakai.';
+
+    public const CITY_REQUIRED = 'Kota wajib diisi.';
 
     public const EFFECTIVE_PAST = 'Tanggal berlaku tidak boleh di masa lalu.';
 
@@ -45,7 +47,9 @@ class AirportRequest extends FormRequest
     {
         $rules = ['name' => ['required', 'string', 'max:255'], 'city' => ['sometimes', 'nullable', 'string', 'max:100']];
 
-        return $this->editing() === null ? [...$rules, ...self::weeklyRules(true)] : $rules;
+        return $this->editing() === null
+            ? [...$rules, 'city' => ['required', 'string', 'max:100'], ...self::weeklyRules(true)]
+            : $rules;
     }
 
     /**
@@ -85,7 +89,9 @@ class AirportRequest extends FormRequest
             'name.required' => self::NAME_REQUIRED,
             'name.string' => self::NAME_REQUIRED,
             'name.max' => 'Nama bandara maksimal 255 karakter.',
-            'city.*' => 'Kota maksimal 100 karakter.',
+            'city.required' => self::CITY_REQUIRED,
+            'city.string' => self::CITY_REQUIRED,
+            'city.max' => 'Kota maksimal 100 karakter.',
             ...self::weeklyMessages(),
         ];
     }

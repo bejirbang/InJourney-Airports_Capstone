@@ -113,11 +113,37 @@ describe('daftar kehadiran', function () {
             ->not->toContain('<b>W</b>');
     });
 
+    it('prints the partner form title with the region, the month below it, and the two-level table header', function () {
+        pdfDay($this->rina, '2026-10-01');
+
+        $html = view('pdf.daftar-kehadiran', app(AdminPdfReports::class)->attendanceData($this->rina, '2026-10', now()))->render();
+
+        expect($html)->toContain('PESERTA MAGANG/PKL PT ANGKASA PURA INDONESIA')
+            ->toContain('KANTOR REGIONAL I')
+            ->toContain('OKTOBER 2026')
+            ->toContain('<th colspan="2">Jam</th>')
+            ->toContain('Menyetujui,')
+            ->not->toContain('>No<')
+            ->not->toContain('INJOURNEY AIRPORTS');
+    });
+
+    it('still prints the current mentor after the mentor account is deleted', function () {
+        pdfDay($this->rina, '2026-10-01');
+        $this->sari->delete();
+
+        $data = app(AdminPdfReports::class)->attendanceData($this->rina->fresh(), '2026-10', now());
+
+        expect($data['mentor_name'])->toBe('Sari Wijaya');
+    });
+
     it('downloads the PDF and logs the export', function () {
         $response = pdfRequest($this->admin, 'attendance', ['intern_id' => $this->rina->id, 'month' => '2026-10'])
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf')
-            ->assertHeader('Content-Disposition', 'attachment; filename="daftar-kehadiran_rina-wulandari_2026-10.pdf"');
+            ->assertHeader('Content-Disposition', 'attachment; filename="daftar-kehadiran_rina-wulandari_2026-10.pdf"')
+            ->assertHeader('Pragma', 'no-cache');
+
+        expect($response->headers->get('Cache-Control'))->toContain('no-store')->toContain('private');
 
         expect(substr((string) $response->getContent(), 0, 4))->toBe('%PDF')
             ->and(AuditLog::sole()->only(['admin_name', 'action', 'object', 'detail']))->toBe([
@@ -163,7 +189,8 @@ describe('penilaian', function () {
             ['Motivasi', 'Disiplin Kerja', 1, 90],
             ['Motivasi', 'Inisiatif', 2, 85],
             ['Kepribadian', 'Tanggung Jawab', 3, 82],
-            [null, 'Tambahan', 4, 86],
+            [null, 'Tambahan', 0, 86],
+            [null, 'Penutup', 4, 84],
         ];
         $this->assessment = Assessment::factory()->submitted('85.75')->create([
             'intern_id' => $this->rina->id,
@@ -178,7 +205,7 @@ describe('penilaian', function () {
         }
     });
 
-    it('groups the scores per category with the average, predicate, notes, and the submit date', function () {
+    it('groups the scores per numbered category with indicators numbered from 1, uncategorized last', function () {
         app(SystemSettings::class)->set(SystemSettings::REPORT_REGION_NAME, 'Kantor Regional II');
 
         $data = app(AdminPdfReports::class)->assessmentData($this->rina, now());
@@ -188,18 +215,47 @@ describe('penilaian', function () {
             ->and($data['identity']['number_label'])->toBe('NIS')
             ->and($data['identity']['student_number'])->toBe('0051234567')
             ->and($data['groups'])->toBe([
-                'Motivasi' => [
+                ['number' => 1, 'name' => 'MOTIVASI', 'indicators' => [
                     ['number' => 1, 'name' => 'Disiplin Kerja', 'score' => 90],
                     ['number' => 2, 'name' => 'Inisiatif', 'score' => 85],
-                ],
-                'Kepribadian' => [['number' => 3, 'name' => 'Tanggung Jawab', 'score' => 82]],
-                'Lainnya' => [['number' => 4, 'name' => 'Tambahan', 'score' => 86]],
+                ]],
+                ['number' => 2, 'name' => 'KEPRIBADIAN', 'indicators' => [['number' => 1, 'name' => 'Tanggung Jawab', 'score' => 82]]],
+                ['number' => 3, 'name' => 'LAINNYA', 'indicators' => [
+                    ['number' => 1, 'name' => 'Tambahan', 'score' => 86],
+                    ['number' => 2, 'name' => 'Penutup', 'score' => 84],
+                ]],
             ])
             ->and($data['final_score'])->toBe('85,75')
             ->and($data['predicate'])->toBe('Baik')
             ->and($data['notes'])->toBe('Pertahankan semangat.')
             ->and($data['mentor_name'])->toBe('Sari Wijaya')
             ->and($data['place_date'])->toBe('Tangerang, 20 Oktober 2026');
+    });
+
+    it('prints the partner form title without the region, the score legend, and no predicate row', function () {
+        app(SystemSettings::class)->set(SystemSettings::REPORT_REGION_NAME, 'Kantor Regional II');
+
+        $html = view('pdf.penilaian', app(AdminPdfReports::class)->assessmentData($this->rina, now()))->render();
+
+        expect($html)->toContain('PENILAIAN PESERTA MAGANG / PKL')
+            ->toContain('PT ANGKASA PURA INDONESIA')
+            ->toContain('DAFTAR NILAI')
+            ->toContain('NILAI RATA-RATA')
+            ->toContain('86-100 : Baik Sekali')
+            ->toContain('&lt;60 : Kurang')
+            ->toContain('CATATAN: Pertahankan semangat.')
+            ->toContain('1. Disiplin Kerja')
+            ->not->toContain('Kantor Regional')
+            ->not->toContain('KANTOR REGIONAL')
+            ->not->toContain('Predikat');
+    });
+
+    it('prints a dotted line when there are no notes', function () {
+        $this->assessment->update(['notes' => null]);
+
+        $html = view('pdf.penilaian', app(AdminPdfReports::class)->assessmentData($this->rina, now()))->render();
+
+        expect($html)->toContain('CATATAN: .....');
     });
 
     it('omits the city when the airport has none and escapes the notes', function () {
@@ -218,7 +274,10 @@ describe('penilaian', function () {
         $response = pdfRequest($this->admin, 'assessment', ['intern_id' => $this->rina->id])
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf')
-            ->assertHeader('Content-Disposition', 'attachment; filename="penilaian_rina-wulandari.pdf"');
+            ->assertHeader('Content-Disposition', 'attachment; filename="penilaian_rina-wulandari.pdf"')
+            ->assertHeader('Pragma', 'no-cache');
+
+        expect($response->headers->get('Cache-Control'))->toContain('no-store');
 
         expect(substr((string) $response->getContent(), 0, 4))->toBe('%PDF')
             ->and(AuditLog::sole()->detail)->toBe('Export PDF Penilaian.');
@@ -238,6 +297,22 @@ describe('penilaian', function () {
             ->assertUnprocessable()
             ->assertJsonPath('reason', 'not_submitted');
     });
+});
+
+it('allows ten exports per minute per admin across the export routes', function () {
+    foreach (range(1, 5) as $i) {
+        pdfRequest($this->admin, 'attendance', ['intern_id' => $this->rina->id, 'month' => '2027-01'])->assertUnprocessable();
+        pdfRequest($this->admin, 'assessment', ['intern_id' => $this->rina->id])->assertUnprocessable();
+    }
+
+    pdfRequest($this->admin, 'assessment', ['intern_id' => $this->rina->id])->assertTooManyRequests();
+    app('auth')->forgetGuards();
+    $this->postJson('/api/admin/reports/export', [], ['Authorization' => 'Bearer '.$this->admin->createToken('api')->plainTextToken])->assertTooManyRequests();
+
+    $this->travel(61)->seconds();
+
+    pdfRequest($this->admin, 'assessment', ['intern_id' => $this->rina->id])->assertUnprocessable();
+    pdfRequest(User::factory()->admin()->create(), 'assessment', ['intern_id' => $this->rina->id])->assertUnprocessable();
 });
 
 it('is only for admins', function (string $role, string $type) {

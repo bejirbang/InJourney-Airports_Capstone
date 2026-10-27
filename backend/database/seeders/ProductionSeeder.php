@@ -7,13 +7,13 @@ use Illuminate\Database\Seeder;
 
 /**
  * Data awal production: `php artisan db:seed --class=ProductionSeeder --force`. Aman dijalankan ulang.
- * Admin pertama dibuat dengan `php artisan app:create-admin`. Indikator penilaian ditambahkan di sini
- * setelah mitra mengirimkannya.
+ * Berisi pengaturan bawaan dan sembilan indikator penilaian. Admin pertama dibuat dengan `php artisan app:create-admin`.
  */
 class ProductionSeeder extends Seeder
 {
     public function run(): void
     {
         SystemSettings::seedDefaults();
+        $this->call(AssessmentIndicatorSeeder::class);
     }
 }

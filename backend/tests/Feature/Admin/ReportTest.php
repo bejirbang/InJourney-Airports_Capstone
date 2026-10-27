@@ -94,6 +94,9 @@ it('writes one sheet per selected recap with the intern identity and numeric col
         ->assertOk()
         ->assertDownload('laporan-intern_2026-10-05_2026-10-09.xlsx');
 
+    expect($response->headers->get('Cache-Control'))->toContain('no-store')
+        ->and($response->headers->get('Pragma'))->toBe('no-cache');
+
     $sheets = xlsxSheets($response);
     expect(array_keys($sheets))->toBe(['Rekap Presensi', 'Rekap Izin', 'Rekap Logbook', 'Rekap Penilaian'])
         ->and($sheets['Rekap Presensi'][2][0])->toBe('Periode: 5 Okt 2026 - 9 Okt 2026')
