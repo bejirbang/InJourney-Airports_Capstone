@@ -25,7 +25,7 @@ import {
   attendanceApi,
   getToken,
   type ApiTodayState,
-  type DailyReportData,
+  type InternLogbookDay,
   type GeoPosition,
   type OfficeInfo,
 } from "@/lib/api";
@@ -137,10 +137,13 @@ function useOffices() {
   });
 }
 
-function useDailyReport() {
+/** Logbook hari ini dari `GET /api/intern/logbooks/{date}`; tanggal ikut query dashboard. */
+function useLogbook() {
+  const todayQuery = useTodayStatus();
+  const date = todayQuery.data?.date ?? TODAY;
   return useQuery({
-    queryKey: ["intern", "daily-report"],
-    queryFn: () => attendanceApi.dailyReport(internToken()),
+    queryKey: ["intern", "logbook", date],
+    queryFn: () => attendanceApi.logbook(internToken(), date),
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -150,6 +153,7 @@ const STATE_LABEL: Record<ApiTodayState, string> = {
   not_clocked_in: "Belum Clock In",
   clocked_in: "Sudah Clock In",
   clocked_out: "Sudah Clock Out",
+  missed_clock_in: "Lupa Clock In",
   holiday: "Libur",
   on_leave: "Izin",
   outside_period: "Di luar periode",
@@ -281,10 +285,16 @@ export function TodayCard({ large = false }: { large?: boolean }) {
   const [locError, setLocError] = useState<{ kind: "in" | "out"; text: string } | null>(null);
   const [needReport, setNeedReport] = useState(false);
   const [officeId, setOfficeId] = useState<number | null>(null);
+  // Lupa Clock In: logbook belum punya baris presensi, jadi diisi inline saat clock out.
+  const [missedWork, setMissedWork] = useState("");
   const locatingRef = useRef(false);
 
-  const kind: "in" | "out" = today?.state === "clocked_in" ? "out" : "in";
-  const actionable = today?.state === "not_clocked_in" || today?.state === "clocked_in";
+  const kind: "in" | "out" =
+    today?.state === "clocked_in" || today?.state === "missed_clock_in" ? "out" : "in";
+  const actionable =
+    today?.state === "not_clocked_in" ||
+    today?.state === "clocked_in" ||
+    today?.state === "missed_clock_in";
 
   /** Baca GPS browser. `after` dipanggil dengan posisi bila berhasil. */
   const readLocation = useCallback((after?: (p: GeoPosition) => void) => {
@@ -330,12 +340,25 @@ export function TodayCard({ large = false }: { large?: boolean }) {
   const submit = (action: "in" | "out", p: GeoPosition) => {
     if (busy) return;
     setLocError(null);
+    // Lupa Clock In: server membuat baris presensi baru, jadi logbook wajib ikut dikirim.
+    const inlineWork = action === "out" && today?.state === "missed_clock_in";
+    if (inlineWork && !missedWork.trim()) {
+      setLocError({ kind: "out", text: "Isi apa yang Anda kerjakan hari ini." });
+      return;
+    }
     setBusy(action);
-    const call = action === "in" ? attendanceApi.clockIn : attendanceApi.clockOut;
     // Token diambil di dalam rantai promise: kalau sesi sudah habis, error-nya
     // masuk ke catch dan tombol tidak menggantung di keadaan "Memeriksa lokasi...".
     void Promise.resolve()
-      .then(() => call(internToken(), p))
+      .then(() =>
+        action === "in"
+          ? attendanceApi.clockIn(internToken(), p)
+          : attendanceApi.clockOut(
+              internToken(),
+              p,
+              inlineWork ? { work: missedWork.trim() } : undefined,
+            ),
+      )
       .then(async (result) => {
         await queryClient.invalidateQueries({ queryKey: ["intern"] });
         if (action === "in") {
@@ -346,7 +369,7 @@ export function TodayCard({ large = false }: { large?: boolean }) {
       })
       .catch((err: unknown) => {
         if (err instanceof ApiError) {
-          if (err.reason === "daily_report_missing") setNeedReport(true);
+          if (err.reason === "logbook_missing") setNeedReport(true);
           setLocError({ kind: action, text: err.message });
         } else {
           setLocError({
@@ -378,13 +401,15 @@ export function TodayCard({ large = false }: { large?: boolean }) {
     ? "Memuat status hari ini..."
     : today.state === "clocked_out"
       ? `Hadir, clock out ${today.clock_out_at ?? ""}`
-      : today.state === "holiday"
-        ? `Hari ini libur: ${today.holiday_name ?? "akhir pekan"}`
-        : today.state === "on_leave"
-          ? `Izin hari ini (${today.leave_type === "sick" ? "sakit" : "urgent"})`
-          : today.state === "outside_period"
-            ? "Di luar periode magang."
-            : STATE_LABEL[today.state];
+      : today.state === "missed_clock_in"
+        ? "Lupa Clock In. Isi logbook lalu clock out."
+        : today.state === "holiday"
+          ? `Hari ini libur: ${today.holiday_name ?? "akhir pekan"}`
+          : today.state === "on_leave"
+            ? `Izin hari ini (${today.leave_type === "sick" ? "sakit" : "urgent"})`
+            : today.state === "outside_period"
+              ? "Di luar periode magang."
+              : STATE_LABEL[today.state];
 
   return (
     <section className={`panel today-card ${large ? "large" : ""}`}>
@@ -395,7 +420,7 @@ export function TodayCard({ large = false }: { large?: boolean }) {
         </div>
         <span className="text-[11px] text-muted-foreground">
           Jam kerja:{" "}
-          {today?.work_hours ? `${today.work_hours.start} - ${today.work_hours.end}` : "Belum diatur"}
+          {today?.schedule ? `${today.schedule.start} - ${today.schedule.end}` : "Belum diatur"}
         </span>
       </header>
       <div className="attendance-body">
@@ -493,9 +518,9 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                 )}
               </>
             )}
-            {today.state === "clocked_in" && (
+            {(today.state === "clocked_in" || today.state === "missed_clock_in") && (
               <>
-                {!today.daily_report_sent ? (
+                {today.state === "clocked_in" && !today.logbook ? (
                   <>
                     <Button className="clock-button" disabled>
                       <LogOut />
@@ -518,6 +543,16 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                   </>
                 ) : (
                   <>
+                    {today.state === "missed_clock_in" && (
+                      <label className="form-field text-[12px]">
+                        Yang saya kerjakan hari ini *
+                        <textarea
+                          className="!min-h-16"
+                          value={missedWork}
+                          onChange={(e) => setMissedWork(e.target.value)}
+                        />
+                      </label>
+                    )}
                     {offices.length > 0 && (
                       <GeoBox
                         kind="out"
@@ -536,6 +571,8 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                         !!busy ||
                         geo === "membaca" ||
                         !today.has_active_office ||
+                        !today.can_clock_out ||
+                        (today.state === "missed_clock_in" && !missedWork.trim()) ||
                         officesQuery.isPending
                       }
                     >
@@ -550,13 +587,26 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                       <div className="loc-error" role="alert">
                         <span>{locationMessage("tanpa-kantor", "out")}</span>
                       </div>
+                    ) : !today.can_clock_out ? (
+                      // Server menolak clock out sebelum jam pulang; tunjukkan jam acuannya.
+                      <p className="attendance-note">
+                        <MapPin size={11} />
+                        Clock out bisa dilakukan mulai {today.clock_out_from ?? "jam pulang"}.
+                      </p>
                     ) : (
-                      errorBox("out") || (
+                      errorBox("out") ||
+                      (today.state === "missed_clock_in" && !missedWork.trim() ? (
+                        <p className="attendance-note">
+                          <MapPin size={11} />
+                          Isi pekerjaan Anda dulu; pada Lupa Clock In logbook dikirim bersama clock
+                          out.
+                        </p>
+                      ) : (
                         <p className="attendance-note">
                           <MapPin size={11} />
                           Lokasi diperiksa lagi saat clock out (radius clock out).
                         </p>
-                      )
+                      ))
                     )}
                   </>
                 )}
@@ -594,10 +644,13 @@ export function TodayCard({ large = false }: { large?: boolean }) {
 function DailyReportCard({ focus }: { focus: boolean }) {
   const queryClient = useQueryClient();
   const todayQuery = useTodayStatus();
-  const reportQuery = useDailyReport();
+  const reportQuery = useLogbook();
   const today = todayQuery.data?.today;
   const date = todayQuery.data?.date ?? TODAY;
-  const report: DailyReportData | null = reportQuery.data ?? null;
+  // Logbook hari ini: null sebelum clock in/diisi; action menentukan masih bisa diedit atau tidak.
+  const day: InternLogbookDay | undefined = reportQuery.data;
+  const report = day?.logbook ?? null;
+  const action = day?.action ?? null;
   const ref = useRef<HTMLElement>(null);
   const [editing, setEditing] = useState(false);
   const [work, setWork] = useState("");
@@ -609,7 +662,7 @@ function DailyReportCard({ focus }: { focus: boolean }) {
     if (focus) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [focus]);
 
-  // Form mengikuti laporan terbaru dari server (struktur identik dijaga react-query).
+  // Form mengikuti logbook terbaru dari server (struktur identik dijaga react-query).
   useEffect(() => {
     if (report) {
       setWork(report.work);
@@ -618,8 +671,10 @@ function DailyReportCard({ focus }: { focus: boolean }) {
   }, [report]);
 
   const state = today?.state;
+  const worked = state === "clocked_in" || state === "clocked_out" || state === "missed_clock_in";
   const sent = report !== null;
-  const locked = report !== null && !report.editable;
+  // Terkunci bila server tidak menyediakan aksi (menunggu review mentor atau sudah disetujui).
+  const locked = report !== null && action === null;
   const save = (e: FormEvent) => {
     e.preventDefault();
     const err = validateReport(work);
@@ -627,7 +682,7 @@ function DailyReportCard({ focus }: { focus: boolean }) {
     if (err) return;
     setBusy(true);
     attendanceApi
-      .saveDailyReport(internToken(), { work: work.trim(), notes: notes.trim() })
+      .saveLogbook(internToken(), date, { work: work.trim(), notes: notes.trim() })
       .then(async (result) => {
         await queryClient.invalidateQueries({ queryKey: ["intern"] });
         setEditing(false);
@@ -649,9 +704,7 @@ function DailyReportCard({ focus }: { focus: boolean }) {
           <h2>Daily Report - {formatDate(date)}</h2>
           <p>Laporan tentang apa yang Anda kerjakan hari ini. Berbeda dari Task.</p>
         </div>
-        {(state === "clocked_in" || state === "clocked_out") && (
-          <Status status={sent ? "Terkirim" : "Belum dikirim"} />
-        )}
+        {worked && <Status status={sent ? "Terkirim" : "Belum dikirim"} />}
       </header>
       <div className="px-5 pb-5">
         {todayQuery.isPending || reportQuery.isPending ? (
@@ -660,13 +713,16 @@ function DailyReportCard({ focus }: { focus: boolean }) {
           <Empty>Clock in dulu untuk mengisi Daily Report.</Empty>
         ) : state === "holiday" || state === "on_leave" || state === "outside_period" ? (
           <Empty>Tidak ada Daily Report hari ini.</Empty>
-        ) : (state === "clocked_in" || state === "clocked_out") && sent && !editing ? (
+        ) : state === "missed_clock_in" && !sent ? (
+          // Belum ada baris presensi, jadi logbook dikirim bersama Clock Out di kartu Hari Ini.
+          <Empty>Lupa Clock In. Isi pekerjaan pada kartu Hari Ini, lalu Clock Out.</Empty>
+        ) : worked && sent && !editing ? (
           <div className="grid gap-3">
             <DetailList
               items={[
                 ["Yang saya kerjakan", report?.work],
                 ["Kendala atau catatan", report?.notes || "-"],
-                ["Terakhir disimpan", formatShortTime(report?.sent_at ?? "")],
+                ["Terakhir disimpan", formatShortTime(report?.updated_at ?? "")],
               ]}
             />
             {locked ? (
@@ -682,7 +738,7 @@ function DailyReportCard({ focus }: { focus: boolean }) {
               </div>
             )}
           </div>
-        ) : (state === "clocked_in" || state === "clocked_out") && !reportQuery.isError ? (
+        ) : worked && !reportQuery.isError ? (
           <form className="form-grid" onSubmit={save}>
             <label className="form-field">
               Yang saya kerjakan hari ini *

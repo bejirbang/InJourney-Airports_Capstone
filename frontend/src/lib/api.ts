@@ -32,7 +32,7 @@ export const toMockRole: Record<ApiRole, Role> = {
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string[]> | undefined;
-  /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `daily_report_missing`. */
+  /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `logbook_missing`. */
   reason: string | undefined;
 
   constructor(message: string, status: number, fields?: Record<string, string[]>, reason?: string) {
@@ -144,24 +144,39 @@ const unwrap = <T>(body: { data?: T } | T): T =>
     : (body as T);
 
 export type ApiTodayState =
-  "not_clocked_in" | "clocked_in" | "clocked_out" | "holiday" | "on_leave" | "outside_period";
+  | "not_clocked_in"
+  | "clocked_in"
+  | "clocked_out"
+  /** Sudah lewat jam pulang tanpa clock in: hanya Clock Out yang tersedia. */
+  | "missed_clock_in"
+  | "holiday"
+  | "on_leave"
+  | "outside_period";
 
 export interface TodayStatus {
   state: ApiTodayState;
+  /** Jam kerja hari ini menurut jadwal bandara (mingguan/khusus); null di hari non-kerja. */
+  schedule: { start: string; end: string } | null;
+  status: string | null;
   clock_in_at: string | null;
   clock_out_at: string | null;
   late_minutes: number | null;
-  daily_report_sent: boolean;
+  /** Jam pulang acuan clock out (salinan jadwal di baris presensi bila sudah clock in). */
+  clock_out_from: string | null;
+  /** Server hanya mengizinkan clock out setelah jam pulang lewat. */
+  can_clock_out: boolean;
+  /** Logbook hari ini; selama ada isian, clock out diperbolehkan server. */
+  logbook: { status: string; work: string; notes: string | null } | null;
   holiday_name: string | null;
   leave_type: "sick" | "urgent" | null;
   has_active_office: boolean;
-  work_hours: { start: string; end: string } | null;
 }
 
 export interface InternDashboard {
   date: string;
   today: TodayStatus;
-  daily_report_reminder: boolean;
+  /** Clock in hari ini tetapi logbook belum diisi. */
+  logbook_reminder: boolean;
 }
 
 export interface OfficeInfo {
@@ -173,13 +188,30 @@ export interface OfficeInfo {
   clock_out_radius_meters: number;
 }
 
-export interface DailyReportData {
-  id: number;
+export type ApiLogbookStatus = "draft" | "pending_review" | "revision" | "approved";
+
+/** Logbook satu hari (`InternLogbooks::day`). */
+export interface InternLogbookDay {
   date: string;
-  work: string;
-  notes: string | null;
-  sent_at: string;
-  editable: boolean;
+  attendance: {
+    status: string;
+    clock_in_at: string | null;
+    clock_out_at: string | null;
+    missed_clock_out: boolean;
+    is_corrected: boolean;
+  } | null;
+  logbook: {
+    id: number;
+    work: string;
+    notes: string | null;
+    status: ApiLogbookStatus;
+    updated_at: string | null;
+    submitted_at: string | null;
+    approved_at: string | null;
+    approved_by: string | null;
+  } | null;
+  /** Aksi yang tersedia: save (draft hari ini), resubmit (revisi), submit (hari hasil koreksi), null = terkunci. */
+  action: "save" | "submit" | "resubmit" | null;
 }
 
 export interface AttendanceRecord {
@@ -222,30 +254,41 @@ export const attendanceApi = {
     });
   },
 
+  /**
+   * Clock out. `work` dikirim inline hanya untuk Lupa Clock In (tanpa baris presensi server
+   * menolak logbook terpisah); pada hari normal logbook sudah dikirim lewat `saveLogbook`.
+   */
   clockOut(
     token: string,
     position: GeoPosition,
+    input?: { work?: string; notes?: string | null },
   ): Promise<{ message: string; data: AttendanceRecord }> {
     return request("/api/intern/attendance/clock-out", {
       method: "POST",
-      body: { latitude: position.lat, longitude: position.lng },
+      body: {
+        latitude: position.lat,
+        longitude: position.lng,
+        ...(input?.work === undefined ? {} : { work: input.work }),
+        ...(input?.notes === undefined ? {} : { notes: input.notes }),
+      },
       token,
     });
   },
 
-  /** `data` null jika Daily Report hari ini belum dikirim. */
-  dailyReport(token: string): Promise<DailyReportData | null> {
-    return request<{ data?: DailyReportData | null } | DailyReportData | null>(
-      "/api/intern/attendance/daily-report",
-      { token },
-    ).then(unwrap<DailyReportData | null>);
+  /** Logbook satu tanggal; `logbook` null sebelum diisi. */
+  logbook(token: string, date: string): Promise<InternLogbookDay> {
+    return request<{ data?: InternLogbookDay } | InternLogbookDay>(`/api/intern/logbooks/${date}`, {
+      token,
+    }).then(unwrap<InternLogbookDay>);
   },
 
-  saveDailyReport(
+  /** Simpan isian logbook (draft hari ini, atau kirim ulang setelah revisi mentor). */
+  saveLogbook(
     token: string,
+    date: string,
     input: { work: string; notes: string | null },
-  ): Promise<{ message: string; data: DailyReportData }> {
-    return request("/api/intern/attendance/daily-report", {
+  ): Promise<{ message: string; data: InternLogbookDay }> {
+    return request(`/api/intern/logbooks/${date}`, {
       method: "PUT",
       body: input,
       token,
@@ -533,6 +576,89 @@ export const officeApi = {
       method: "POST",
       token,
     }).then(unwrap<AdminOffice>);
+  },
+};
+
+// ---- Jam kerja & kalender libur admin (WorkSchedules + AdminHolidays) ----
+
+/** Satu hari pada jadwal mingguan bandara (1 = Senin ... 7 = Minggu). */
+export interface WeeklyDay {
+  day_of_week: number;
+  is_workday: boolean;
+  start_time: string | null;
+  end_time: string | null;
+}
+
+/** Satu set jadwal mingguan yang berlaku sejak `effective_from`. */
+export interface WeeklySet {
+  effective_from: string;
+  days: WeeklyDay[];
+  summary: string;
+}
+
+export interface AdminHoliday {
+  id: number;
+  date: string;
+  name: string;
+  /** Tanggal lampau: menyimpannya butuh konfirmasi (presensi dihitung ulang). */
+  is_past: boolean;
+}
+
+export interface HolidayInput {
+  date: string;
+  name: string;
+  /** true saat mengirim ulang setelah server minta konfirmasi tanggal lampau. */
+  confirm?: boolean;
+}
+
+export const scheduleApi = {
+  /** Riwayat jadwal mingguan bandara, yang berlaku sekarang di urutan teratas. */
+  weekly(token: string, airport: number): Promise<WeeklySet[]> {
+    return request<{ data?: WeeklySet[] } | WeeklySet[]>(
+      `/api/admin/airports/${airport}/weekly-schedules`,
+      {
+        token,
+      },
+    ).then(unwrap<WeeklySet[]>);
+  },
+
+  /** Hari yang tidak dikirim otomatis disalin dari jadwal sebelumnya; frontend selalu mengirim 7 hari. */
+  saveWeekly(
+    token: string,
+    airport: number,
+    input: { effective_from: string; days: WeeklyDay[] },
+  ): Promise<WeeklySet> {
+    return request<{ data?: WeeklySet } | WeeklySet>(
+      `/api/admin/airports/${airport}/weekly-schedule`,
+      {
+        method: "PUT",
+        body: input,
+        token,
+      },
+    ).then(unwrap<WeeklySet>);
+  },
+
+  holidays(token: string): Promise<AdminHoliday[]> {
+    return request<{ data?: AdminHoliday[] } | AdminHoliday[]>("/api/admin/holidays", {
+      token,
+    }).then(unwrap<AdminHoliday[]>);
+  },
+
+  /** Tanggal lampau tanpa `confirm` ditolak server dengan reason `confirm_recalculate`. */
+  saveHoliday(
+    token: string,
+    input: HolidayInput,
+    id?: number,
+  ): Promise<{ message: string; data: AdminHoliday }> {
+    return request(id === undefined ? "/api/admin/holidays" : `/api/admin/holidays/${id}`, {
+      method: id === undefined ? "POST" : "PUT",
+      body: input,
+      token,
+    });
+  },
+
+  deleteHoliday(token: string, id: number): Promise<{ message: string }> {
+    return request(`/api/admin/holidays/${id}`, { method: "DELETE", token });
   },
 };
 

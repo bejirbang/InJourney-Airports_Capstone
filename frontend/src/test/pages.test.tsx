@@ -96,14 +96,17 @@ const admin = {
 // Halaman absensi intern kini memakai API, jadi alur Hari Ini ditopang fetch dan GPS palsu.
 type TodayMock = {
   state: string;
+  schedule: { start: string; end: string } | null;
+  status: string | null;
   clock_in_at: string | null;
   clock_out_at: string | null;
   late_minutes: number | null;
-  daily_report_sent: boolean;
+  clock_out_from: string | null;
+  can_clock_out: boolean;
+  logbook: { status: string; work: string; notes: string | null } | null;
   holiday_name: string | null;
   leave_type: string | null;
   has_active_office: boolean;
-  work_hours: { start: string; end: string } | null;
 };
 type OfficeMock = {
   id: number;
@@ -113,14 +116,69 @@ type OfficeMock = {
   clock_in_radius_meters: number;
   clock_out_radius_meters: number;
 };
+/** Logbook satu hari (`InternLogbooks::day`). `action` null = terkunci (menunggu review/disetujui). */
 type ReportMock = {
   id: number;
-  date: string;
   work: string;
   notes: string | null;
-  sent_at: string;
-  editable: boolean;
+  status: "draft" | "pending_review" | "revision" | "approved";
+  updated_at: string;
 };
+type LogbookDayMock = {
+  date: string;
+  attendance: null | {
+    status: string;
+    clock_in_at: string | null;
+    clock_out_at: string | null;
+    missed_clock_out: boolean;
+    is_corrected: boolean;
+  };
+  logbook: ReportMock | null;
+  action: "save" | "submit" | "resubmit" | null;
+};
+/** Bentuk respon `GET /api/intern/logbooks/{date}` menurut state stub. */
+const logbookDay = (): LogbookDayMock => ({
+  date: "2026-10-12",
+  attendance:
+    apiState.today.state === "not_clocked_in" || apiState.today.state === "holiday"
+      ? null
+      : {
+          status:
+            apiState.today.state === "clocked_out"
+              ? "hadir"
+              : apiState.today.state === "missed_clock_in"
+                ? "lupa_clock_in"
+                : "belum_clock_in",
+          clock_in_at: apiState.today.clock_in_at,
+          clock_out_at: apiState.today.clock_out_at,
+          missed_clock_out: false,
+          is_corrected: false,
+        },
+  logbook: apiState.report ? { ...apiState.report } : null,
+  // Draft hari ini masih bisa disimpan lagi; setelah clock out terkunci di mentor.
+  action:
+    apiState.report === null
+      ? apiState.today.state === "not_clocked_in"
+        ? null
+        : "save"
+      : apiState.report.status === "draft" || apiState.report.status === "revision"
+        ? apiState.report.status === "draft"
+          ? "save"
+          : "resubmit"
+        : null,
+});
+/** Jadwal mingguan & libur admin (stub untuk halaman Pengaturan). */
+type WeeklySetMock = {
+  effective_from: string;
+  days: {
+    day_of_week: number;
+    is_workday: boolean;
+    start_time: string | null;
+    end_time: string | null;
+  }[];
+  summary: string;
+};
+type HolidayMock = { id: number; date: string; name: string; is_past: boolean };
 
 const KANTOR_T3: OfficeMock = {
   id: 1,
@@ -412,19 +470,25 @@ const apiState = {
   leaveListError: false,
   adminOffices: [] as AdminOfficeMock[],
   adminAirports: [] as AirportMock[],
+  weeklySets: [] as WeeklySetMock[],
+  holidays: [] as HolidayMock[],
+  holidaySeq: 1,
 };
 
 const resetApi = () => {
   apiState.today = {
     state: "not_clocked_in",
+    schedule: { start: "08:00", end: "17:00" },
+    status: null,
     clock_in_at: null,
     clock_out_at: null,
     late_minutes: null,
-    daily_report_sent: false,
+    clock_out_from: "17:00",
+    can_clock_out: false,
+    logbook: null,
     holiday_name: null,
     leave_type: null,
     has_active_office: true,
-    work_hours: { start: "08:00", end: "17:00" },
   };
   apiState.offices = [KANTOR_T3];
   apiState.report = null;
@@ -445,6 +509,23 @@ const resetApi = () => {
   apiState.leaveListError = false;
   apiState.adminOffices = [ADMIN_KANTOR_T3, ADMIN_KANTOR_T1].map(clone);
   apiState.adminAirports = [BANDARA_CGK].map(clone);
+  // Bandara sudah punya jadwal mingguan berlaku (contoh: Sabtu-Minggu libur).
+  apiState.weeklySets = [
+    {
+      effective_from: "2026-10-01",
+      days: [1, 2, 3, 4, 5, 6, 7].map((dow) => ({
+        day_of_week: dow,
+        is_workday: dow <= 5,
+        start_time: dow <= 5 ? "08:00" : null,
+        end_time: dow <= 5 ? "17:00" : null,
+      })),
+      summary: "Sen-Jum 08:00-17:00",
+    },
+  ].map(clone);
+  apiState.holidays = [{ id: 1, date: "2026-12-25", name: "Libur Natal", is_past: false }].map(
+    clone,
+  );
+  apiState.holidaySeq = 2;
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -476,26 +557,30 @@ const installFetch = () => {
           data: {
             date: "2026-10-12",
             today: apiState.today,
-            daily_report_reminder:
-              apiState.today.state === "clocked_in" && !apiState.today.daily_report_sent,
+            logbook_reminder:
+              apiState.today.state === "clocked_in" && apiState.today.logbook === null,
           },
         });
       if (url.endsWith("/api/intern/offices")) return jsonResponse({ data: apiState.offices });
-      if (url.endsWith("/api/intern/attendance/daily-report")) {
+      if (url.includes("/api/intern/logbooks/")) {
         if (method === "PUT") {
           const body = JSON.parse(String(init?.body)) as { work: string; notes: string | null };
           apiState.report = {
             id: 9,
-            date: "2026-10-12",
             work: body.work,
             notes: body.notes,
-            sent_at: "2026-10-12T10:00:00+07:00",
-            editable: true,
+            status: "draft",
+            updated_at: "2026-10-12T10:00:00+07:00",
           };
-          apiState.today.daily_report_sent = true;
-          return jsonResponse({ message: "Daily Report terkirim.", data: apiState.report }, 201);
+          // Server mengizinkan clock out setelah logbook ada (dan jam pulang lewat; disimulasikan).
+          apiState.today = {
+            ...apiState.today,
+            logbook: { status: "draft", work: body.work, notes: body.notes },
+            can_clock_out: true,
+          };
+          return jsonResponse({ message: "Logbook tersimpan.", data: logbookDay() });
         }
-        return jsonResponse({ data: apiState.report ? { ...apiState.report } : null });
+        return jsonResponse({ data: logbookDay() });
       }
       if (url.endsWith("/api/intern/attendance/clock-in")) {
         if (apiState.clockInResult)
@@ -503,7 +588,12 @@ const installFetch = () => {
         if (apiState.clockInPending)
           // Request ditahan: tombol harus tetap nonaktif sampai ada jawaban server.
           return new Promise<Response>(() => {});
-        apiState.today = { ...apiState.today, state: "clocked_in", clock_in_at: "15:00" };
+        apiState.today = {
+          ...apiState.today,
+          state: "clocked_in",
+          clock_in_at: "15:00",
+          can_clock_out: false,
+        };
         return jsonResponse(
           {
             message: "Clock in berhasil pukul 15:00.",
@@ -522,8 +612,17 @@ const installFetch = () => {
       if (url.endsWith("/api/intern/attendance/clock-out")) {
         if (apiState.clockOutResult)
           return jsonResponse(apiState.clockOutResult.body, apiState.clockOutResult.status);
-        apiState.today = { ...apiState.today, state: "clocked_out", clock_out_at: "17:00" };
-        if (apiState.report) apiState.report = { ...apiState.report, editable: false };
+        apiState.today = {
+          ...apiState.today,
+          state: "clocked_out",
+          clock_out_at: "17:00",
+          can_clock_out: false,
+          logbook: apiState.today.logbook
+            ? { ...apiState.today.logbook, status: "pending_review" }
+            : null,
+        };
+        // Setelah clock out logbook terkunci di mentor (action null).
+        if (apiState.report) apiState.report = { ...apiState.report, status: "pending_review" };
         return jsonResponse({
           message: "Clock out berhasil pukul 17:00. Terima kasih.",
           data: {
@@ -813,6 +912,92 @@ const installFetch = () => {
         });
       }
 
+      // ---- Jam kerja & libur admin (API Pengaturan) ----
+      const weekly = /\/api\/admin\/airports\/(\d+)\/weekly-schedules?$/.exec(path);
+      if (weekly) {
+        if (method === "PUT") {
+          const body = JSON.parse(String(init?.body)) as {
+            effective_from: string;
+            days: WeeklySetMock["days"];
+          };
+          if (body.effective_from < "2026-10-27")
+            return jsonResponse({ message: "Tanggal berlaku tidak boleh sebelum hari ini." }, 422);
+          if (body.days.length !== 7)
+            return jsonResponse({ message: "Jadwal mingguan harus berisi 7 hari." }, 422);
+          const workdays = body.days.filter((d) => d.is_workday);
+          if (workdays.some((d) => !d.start_time || !d.end_time))
+            return jsonResponse(
+              { fields: { days: ["Lengkapi jam masuk dan jam pulang hari kerja."] } },
+              422,
+            );
+          const start = workdays[0]?.start_time ?? "-";
+          const end = workdays[0]?.end_time ?? "-";
+          const set: WeeklySetMock = {
+            effective_from: body.effective_from,
+            days: body.days.map((d) => ({ ...d })),
+            summary:
+              workdays.length === 5 && start === "08:00" && end === "17:00"
+                ? "Sen-Jum 08:00-17:00"
+                : `${workdays.length} hari kerja ${start}-${end}`,
+          };
+          // Satu set per tanggal berlaku (set lama dengan tanggal sama diganti).
+          apiState.weeklySets = [
+            ...apiState.weeklySets.filter((s) => s.effective_from !== set.effective_from),
+            set,
+          ].sort((a, b) => b.effective_from.localeCompare(a.effective_from));
+          return jsonResponse({ message: "Jam kerja tersimpan.", data: clone(set) });
+        }
+        return jsonResponse({ data: apiState.weeklySets.map(clone) });
+      }
+      if (path.endsWith("/api/admin/holidays")) {
+        if (method === "POST" || method === "PUT") {
+          const body = JSON.parse(String(init?.body)) as {
+            date: string;
+            name: string;
+            confirm?: boolean;
+          };
+          if (!body.date || !body.name.trim())
+            return jsonResponse({ message: "Tanggal dan nama libur wajib diisi." }, 422);
+          const id =
+            method === "PUT" ? Number(/\/api\/admin\/holidays\/(\d+)$/.exec(path)?.[1]) : null;
+          const taken = apiState.holidays.find((h) => h.date === body.date && h.id !== id);
+          if (taken) return jsonResponse({ message: "Tanggal ini sudah menjadi hari libur." }, 422);
+          // Tanggal lampau butuh konfirmasi (server: reason confirm_recalculate).
+          if (body.date < "2026-10-27" && !body.confirm)
+            return jsonResponse(
+              { message: "Tanggal ini sudah lewat.", reason: "confirm_recalculate" },
+              422,
+            );
+          if (method === "PUT") {
+            const holiday = apiState.holidays.find((h) => h.id === id);
+            if (!holiday) return jsonResponse({ message: "Libur tidak ditemukan." }, 404);
+            holiday.date = body.date;
+            holiday.name = body.name.trim();
+            holiday.is_past = body.date < "2026-10-27";
+            return jsonResponse({ message: "Perubahan tersimpan.", data: clone(holiday) });
+          }
+          const created: HolidayMock = {
+            id: apiState.holidaySeq++,
+            date: body.date,
+            name: body.name.trim(),
+            is_past: body.date < "2026-10-27",
+          };
+          apiState.holidays = [...apiState.holidays, created].sort((a, b) =>
+            a.date.localeCompare(b.date),
+          );
+          return jsonResponse({ message: "Perubahan tersimpan.", data: clone(created) }, 201);
+        }
+        return jsonResponse({ data: apiState.holidays.map(clone) });
+      }
+      const holidayDetail = /\/api\/admin\/holidays\/(\d+)$/.exec(path);
+      if (holidayDetail && method === "DELETE") {
+        const id = Number(holidayDetail[1]);
+        const holiday = apiState.holidays.find((h) => h.id === id);
+        if (!holiday) return jsonResponse({ message: "Libur tidak ditemukan." }, 404);
+        apiState.holidays = apiState.holidays.filter((h) => h.id !== id);
+        return jsonResponse({ message: "Perubahan tersimpan." });
+      }
+
       return jsonResponse({ message: `Belum ditangani: ${url}` }, 404);
     }),
   );
@@ -1018,7 +1203,7 @@ describe("Alur utama", () => {
     fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
     await waitFor(() => expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument());
 
-    // Setelah terkirim, Clock Out aktif kembali (daily_report_sent = true).
+    // Setelah logbook tersimpan, Clock Out aktif (server mengirim can_clock_out = true).
     await waitFor(() => expect(screen.getByRole("button", { name: /Clock Out/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
@@ -1477,18 +1662,19 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
     expect(clockInCalls).toHaveLength(1);
   });
 
-  it("Clock Out ditolak server karena Daily Report belum dikirim dan membuka dialog laporan", async () => {
+  it("Clock Out ditolak server karena logbook belum diisi dan membuka dialog laporan", async () => {
     apiState.today = {
       ...apiState.today,
       state: "clocked_in",
       clock_in_at: "08:00",
-      daily_report_sent: true,
+      can_clock_out: true,
+      logbook: { status: "draft", work: "Revisi halaman flight info", notes: null },
     };
     apiState.clockOutResult = {
       status: 422,
       body: {
-        message: "Daily Report belum dikirim. Isi dulu sebelum clock out.",
-        reason: "daily_report_missing",
+        message: "Isi logbook dulu sebelum clock out.",
+        reason: "logbook_missing",
       },
     };
     show("Intern", <AttendancePage />, "/absensi");

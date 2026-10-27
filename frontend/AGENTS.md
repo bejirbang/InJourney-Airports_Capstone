@@ -9,8 +9,31 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 
-- Keep this delivery a client-side interactive prototype with session-only sample data; do not add real authentication or persistence without an explicit request.
-- Place shared role and mock workflow state in a provider around the root Outlet so navigation preserves prototype actions.
-- Use one shared workspace with leaf routes for distinct sections; keep each leaf's page-specific metadata in its route definition.
-- Render account prototype routes outside Workspace but inside MockProvider; these forms simulate navigation only and never validate credentials or persist passwords.
-- Centralize prototype PRD permission and workflow predicates in a browser-safe rules module and test them independently.
+## Status proyek
+
+Aplikasi ini sedang diintegrasikan dari prototipe (data contoh) ke API Laravel di `backend/`. Panduan kerja per fitur ada di `progress.md` (folder ini). Ikuti urutan fasenya.
+
+## Batasan wajib
+
+1. **Sumber kebenaran**, urut dari yang paling kuat:
+   1. Kode backend: `backend/routes/api.php`, `backend/app/Http/Requests/`, `backend/app/Http/Resources/`, `backend/app/Services/`.
+   2. `backend/progress.md` bagian "Catatan integrasi frontend setelah rombak" dan "Catatan integrasi frontend (26 Okt 2026)".
+   3. `docs/design-intern.md`, `docs/design-mentor.md`, `docs/design-admin.md` (tampilan dan teks UI).
+   4. `progress.md` (urutan kerja dan pembagian file frontend).
+   5. Kode prototipe yang sudah ada. **Bukan acuan aturan.**
+2. **Jangan mengubah folder `backend/`.** Kebutuhan perubahan backend dicatat di `progress.md` bagian 13.
+3. **Aturan bisnis ada di server.** Jangan menghitung ulang status presensi, nilai akhir, predikat, kuota izin, atau hak akses di frontend. Tampilkan nilai dari respons API.
+4. **Tombol mengikuti flag dari server** (`can_*`, `action`, `state`). Jangan menulis aturan sendiri untuk menyalakan atau mematikan tombol.
+5. **Pesan `message` dari server ditampilkan apa adanya.**
+6. **Fitur yang sudah dihapus dan tidak boleh dibuat lagi:** Task/Kanban, Daily Report, upload file (bukti, foto profil), pengaturan jam kerja global, hapus bandara/titik presensi/unit.
+7. **Jangan menambah fitur baru di atas data contoh** (`MockProvider`, `mock-rules.ts`). Data contoh dihapus bertahap sesuai `progress.md` Fase 6.
+8. **Jangan polling API** di latar belakang. Pembaruan real-time lewat WebSocket (Laravel Reverb).
+9. **Jangan mengarang nama endpoint atau field.** Jika tidak ada di `progress.md` atau kode backend, cek respons nyata atau tanyakan.
+10. **Jangan menyimpan token atau password sementara** selain token sesi di `localStorage` lewat `src/lib/api.ts`. Password sementara dari admin hanya ditampilkan sekali.
+
+## Pola kode
+
+- Klien HTTP inti di `src/lib/api.ts`. Fungsi endpoint per role di `src/lib/endpoints/`.
+- Pengambilan data memakai React Query, satu file hook `*-data.ts` per fitur di folder role (contoh: `src/components/internspace/intern/leaves-data.ts`).
+- Satu route per halaman di `src/routes/`. Route yang dipakai beberapa role memilih komponennya di `src/components/internspace/shared/role-pages.tsx`.
+- Setiap halaman wajib punya kondisi memuat, kosong, dan gagal.

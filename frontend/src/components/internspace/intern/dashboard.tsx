@@ -12,7 +12,7 @@ export function InternDashboard() {
   const m = useMock();
   const navigate = useNavigate();
   const todayQuery = useTodayStatus();
-  const reminder = todayQuery.data?.daily_report_reminder === true;
+  const reminder = todayQuery.data?.logbook_reminder === true;
   const month = TODAY.slice(0, 7);
   const r = recap(m.rowsFor(ME.Intern, `${month}-01`, `${month}-31`));
   const tasks = m.tasks.filter((t) => t.intern === ME.Intern);
