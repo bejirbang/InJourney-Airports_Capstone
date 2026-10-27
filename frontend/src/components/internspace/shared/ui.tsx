@@ -114,6 +114,9 @@ const tone: Record<string, string> = {
   Baik: "teal",
   Cukup: "yellow",
   Kurang: "red",
+  "Siap Dinilai": "green",
+  "Belum Bisa Dinilai": "orange",
+  "Sudah Disubmit": "green",
 };
 export function Status({ status, label }: { status: string; label?: string }) {
   return <span className={`status st-${tone[status] ?? "gray"}`}>{label ?? status}</span>;

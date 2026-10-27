@@ -1,8 +1,33 @@
 import { forwardRef, type ReactNode } from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/lib/mock-rules";
+import type {
+  MentorAssessmentDetail,
+  MentorAssessmentRow,
+  MentorAttendanceMonth,
+  MentorCorrection,
+  MentorCorrectionList,
+  MentorDashboard,
+  MentorInternDetail,
+  MentorInternLeave,
+  MentorInternList,
+  MentorInternLogbooks,
+  MentorLeaveCalendar,
+  MentorLogbookDetail,
+  MentorLogbookList,
+  MentorLogbookRow,
+  MentorPerformance,
+  MentorPerson,
+  ReviewerLeave,
+  ReviewerLeaveList,
+} from "@/lib/endpoints/mentor";
+import type { ApiAttendanceDayDetail } from "@/lib/endpoints/intern";
+
+// Suite ini menjalankan 150+ render penuh; beri waktu tunggu DOM lebih longgar
+// agar pengujian tidak gagal karena beban paralel Vitest, bukan karena UI.
+configure({ asyncUtilTimeout: 3000 });
 
 // Router tiruan: halaman cukup butuh Link, useSearch, useNavigate, dan useLocation.
 // `navigations` merekam tujuan navigate() untuk menguji alur setelah login.
@@ -428,6 +453,461 @@ const countWorkingDays = (start: string, end: string) => {
   return n;
 };
 
+// ---- Data mentor (Fase 3) ----
+const MENTOR_PERSON: MentorPerson = {
+  id: 21,
+  name: "Rizky Pratama",
+  short_name: "Rizky",
+};
+
+const MENTOR_LEAVE: ReviewerLeave = {
+  id: 701,
+  intern: MENTOR_PERSON,
+  type: "sick",
+  start_date: "2026-10-13",
+  end_date: "2026-10-14",
+  working_days: 2,
+  evidence_url: "https://drive.google.com/file/d/surat-dokter/view",
+  status: "pending",
+  submitted_at: "2026-10-12T09:12:00+07:00",
+  submitted_late: false,
+  pending_hours: 30,
+  is_overdue: true,
+  decided_by: null,
+  decided_at: null,
+  can_decide: true,
+  reason: "Demam sejak semalam, istirahat di rumah.",
+  decision_note: null,
+  quota: { used: 1, limit: 3, remaining: 2, exhausted: false },
+};
+
+type MentorMockState = {
+  dashboard: MentorDashboard;
+  interns: MentorInternList;
+  internDetail: MentorInternDetail;
+  attendance: MentorAttendanceMonth;
+  attendanceDay: ApiAttendanceDayDetail;
+  internLogbooks: MentorInternLogbooks;
+  internLeaves: MentorInternLeave[];
+  internCorrections: MentorCorrection[];
+  internWarnings: WarningMock[];
+  logbookList: MentorLogbookList;
+  logbookDetail: MentorLogbookDetail;
+  corrections: MentorCorrectionList;
+  reviewerLeaves: ReviewerLeaveList;
+  adminLeaves: ReviewerLeaveList;
+  calendar: MentorLeaveCalendar;
+  performance: MentorPerformance;
+  assessments: MentorAssessmentRow[];
+  assessmentDetail: MentorAssessmentDetail;
+  lastLogbookBody: { comment?: string | null; ids?: number[] } | null;
+  lastCorrectionBody: { note?: string } | null;
+  lastLeaveBody: { note?: string; evidence_checked?: boolean } | null;
+  lastAssessmentBody: {
+    scores: { indicator_id: number; score: number | null }[];
+    notes: string | null;
+  } | null;
+};
+
+const mentorDefault = (): MentorMockState => {
+  const internRow = {
+    id: MENTOR_PERSON.id,
+    name: MENTOR_PERSON.name,
+    unit: "Divisi IT",
+    airport: "Bandara Soekarno-Hatta",
+    institution_type: "universitas" as const,
+    university: "Telkom University",
+    major: "Sistem Informasi",
+    student_number: "1301210001",
+    start_date: "2026-10-01",
+    end_date: "2026-12-31",
+    is_active: true,
+    relation: "current" as const,
+    ends_in_days: 80,
+    today_state: "present",
+  };
+  const detail: MentorInternDetail = {
+    ...internRow,
+    email: "rizky@injourney.test",
+    phone: "081234567890",
+    current_mentor: { id: 2, name: "Sari Wulandari" },
+    leave_quota: { used: 1, limit: 3, remaining: 2, exhausted: false },
+    selectable_months: { first: "2026-10", last: "2026-10" },
+  };
+  const logbookRow: MentorLogbookRow = {
+    id: 501,
+    intern: MENTOR_PERSON,
+    date: "2026-10-09",
+    work: "Rekap data penerbangan",
+    status: "pending_review",
+    submitted_at: "2026-10-09T17:00:00+07:00",
+    is_corrected: false,
+    revision_count: 0,
+  };
+  const correction: MentorCorrection = {
+    id: 601,
+    intern: MENTOR_PERSON,
+    date: "2026-10-08",
+    recorded_status: "late",
+    recorded_missed_clock_out: false,
+    reason: "Jam masuk tercatat terlambat karena macet.",
+    status: "pending_mentor",
+    submitted_at: "2026-10-09T08:00:00+07:00",
+    mentor: null,
+    mentor_note: null,
+    mentor_decided_at: null,
+    admin: null,
+    admin_note: null,
+    admin_decided_at: null,
+    can_cancel: false,
+    can_decide: true,
+    recorded: { clock_in_at: "08:20", clock_out_at: "17:00" },
+  };
+  const assessment: MentorAssessmentDetail = {
+    intern: MENTOR_PERSON,
+    end_date: "2026-12-31",
+    presentation_status: "approved",
+    unapproved_logbooks: 0,
+    status: "ready",
+    blockers: [],
+    can_assess: true,
+    final_score: null,
+    submitted_at: null,
+    assessed_by: null,
+    start_date: "2026-10-01",
+    presentation: {
+      id: 1,
+      status: "approved",
+      evidence_url: "https://drive.google.com/file/d/presentasi/view",
+      submitted_at: "2026-10-10T10:00:00+07:00",
+      decision_note: "Presentasi disetujui.",
+      decided_by: "Admin Sinta",
+      decided_at: "2026-10-11T10:00:00+07:00",
+    },
+    unapproved_logbook_days: [],
+    indicators: [
+      {
+        id: 1,
+        category: "Motivasi",
+        name: "Disiplin Kerja",
+        description: "Kehadiran dan ketepatan waktu.",
+        weight: 1,
+        score: null,
+      },
+      {
+        id: 2,
+        category: "Kemampuan Kerja",
+        name: "Kualitas Pekerjaan",
+        description: null,
+        weight: 1,
+        score: null,
+      },
+    ],
+    predicate: null,
+    notes: null,
+    can_edit: true,
+  };
+  const adminLeave: ReviewerLeave = {
+    id: 6,
+    intern: MENTOR_PERSON,
+    type: "urgent",
+    start_date: "2026-09-29",
+    end_date: "2026-09-30",
+    working_days: 2,
+    evidence_url: null,
+    status: "pending",
+    submitted_at: "2026-09-28T09:12:00+07:00",
+    submitted_late: false,
+    pending_hours: 30,
+    is_overdue: true,
+    decided_by: null,
+    decided_at: null,
+    can_decide: true,
+    can_approve: false,
+    mentor: { id: 2, name: "Sari Wulandari" },
+    reason: "Keperluan keluarga mendesak.",
+    decision_note: null,
+    quota: { used: 1, limit: 3, remaining: 2, exhausted: false },
+  };
+  const leaves: ReviewerLeave[] = [clone(MENTOR_LEAVE)];
+
+  return {
+    dashboard: {
+      date: "2026-10-12",
+      interns_total: 1,
+      holiday: null,
+      today: {
+        interns: 1,
+        clocked_in: 1,
+        late: 0,
+        on_leave: 0,
+        not_clocked_in: 0,
+        rows: [
+          {
+            intern: MENTOR_PERSON,
+            status: "present",
+            clock_in_at: "08:05",
+            late_minutes: 0,
+            missed_clock_out: false,
+            leave_type: null,
+          },
+        ],
+      },
+      pending_logbooks: { total: 1, items: [clone(logbookRow)] },
+      pending_corrections: {
+        total: 1,
+        items: [
+          {
+            id: correction.id,
+            intern: MENTOR_PERSON,
+            date: correction.date,
+            recorded_status: correction.recorded_status,
+            recorded_missed_clock_out: correction.recorded_missed_clock_out,
+            reason: correction.reason,
+          },
+        ],
+      },
+      pending_leaves: {
+        total: 1,
+        items: [
+          {
+            id: MENTOR_LEAVE.id,
+            intern: MENTOR_PERSON,
+            type: MENTOR_LEAVE.type,
+            start_date: MENTOR_LEAVE.start_date,
+            end_date: MENTOR_LEAVE.end_date,
+            created_at: MENTOR_LEAVE.submitted_at,
+            pending_hours: MENTOR_LEAVE.pending_hours,
+            is_overdue: MENTOR_LEAVE.is_overdue,
+          },
+        ],
+      },
+      ready_to_assess: {
+        total: 1,
+        items: [{ intern: MENTOR_PERSON, end_date: "2026-12-31", status: "ready" }],
+      },
+      announcements: [],
+    },
+    interns: {
+      interns: [internRow],
+      current_total: 1,
+      former_total: 0,
+    },
+    internDetail: detail,
+    attendance: {
+      month: "2026-10",
+      selectable_months: { first: "2026-10", last: "2026-10" },
+      recap: {
+        month: "2026-10",
+        present: 1,
+        late: 0,
+        missed_clock_in: 0,
+        leave: 0,
+        absent: 0,
+        missed_clock_out: 0,
+        corrected: 0,
+        working_days: 1,
+      },
+      days: [
+        {
+          date: "2026-10-09",
+          status: "present",
+          clock_in_at: "08:05",
+          clock_out_at: "17:00",
+          late_minutes: 0,
+          missed_clock_out: false,
+          is_corrected: false,
+          logbook_state: "pending_review",
+          holiday_name: null,
+          leave_type: null,
+        },
+      ],
+    },
+    attendanceDay: {
+      date: "2026-10-09",
+      status: "present",
+      clock_in_at: "08:05",
+      clock_out_at: "17:00",
+      late_minutes: 0,
+      missed_clock_out: false,
+      is_corrected: false,
+      logbook_state: "pending_review",
+      holiday_name: null,
+      leave_type: null,
+      scheduled: { start: "08:00", end: "17:00" },
+      clock_in_office: { id: 1, name: "Kantor Pusat Terminal 3" },
+      clock_out_office: { id: 1, name: "Kantor Pusat Terminal 3" },
+      logbook: {
+        work: "Rekap data penerbangan",
+        notes: null,
+        status: "pending_review",
+        submitted_at: "2026-10-09T17:00:00+07:00",
+      },
+    },
+    internLogbooks: {
+      month: "2026-10",
+      selectable_months: { first: "2026-10", last: "2026-10" },
+      days: [
+        {
+          date: "2026-10-09",
+          status: "present",
+          leave_type: null,
+          logbook_state: "pending_review",
+          logbook: {
+            work: "Rekap data penerbangan",
+            notes: null,
+            status: "pending_review",
+            submitted_at: "2026-10-09T17:00:00+07:00",
+          },
+        },
+      ],
+    },
+    internLeaves: [
+      {
+        id: MENTOR_LEAVE.id,
+        type: "sick",
+        start_date: MENTOR_LEAVE.start_date,
+        end_date: MENTOR_LEAVE.end_date,
+        working_days: 2,
+        status: "pending",
+        evidence_url: MENTOR_LEAVE.evidence_url,
+        submitted_at: MENTOR_LEAVE.submitted_at,
+        decided_by: null,
+        can_open: true,
+      },
+    ],
+    internCorrections: [clone(correction)],
+    internWarnings: [
+      {
+        id: 1,
+        body: "Terlambat tiga kali dalam sebulan.",
+        author: "Admin Sinta",
+        created_at: "2026-10-10T09:00:00+07:00",
+        updated_at: "2026-10-10T09:00:00+07:00",
+      },
+    ],
+    logbookList: {
+      logbooks: [clone(logbookRow)],
+      counts: { pending_review: 1, revision: 0 },
+    },
+    logbookDetail: {
+      ...clone(logbookRow),
+      notes: null,
+      approved_at: null,
+      attendance: {
+        status: "present",
+        clock_in_at: "08:05",
+        clock_out_at: "17:00",
+      },
+      reviews: [],
+      intern_inactive: false,
+      warning: null,
+      can_approve: true,
+      can_request_revision: true,
+      previous_id: null,
+      next_id: null,
+    },
+    corrections: {
+      corrections: [clone(correction)],
+      pendingCount: 1,
+    },
+    reviewerLeaves: { leaves, pendingCount: 1, interns: [MENTOR_PERSON] },
+    adminLeaves: { leaves: [clone(adminLeave)], pendingCount: 1, interns: [MENTOR_PERSON] },
+    calendar: {
+      month: "2026-10",
+      days: [
+        {
+          date: "2026-10-12",
+          weekday: 1,
+          is_today: true,
+          is_off: false,
+          holiday_name: null,
+          entries: [
+            {
+              leave_id: MENTOR_LEAVE.id,
+              intern_id: MENTOR_PERSON.id,
+              short_name: MENTOR_PERSON.short_name,
+              type: "sick",
+              status: "pending",
+            },
+          ],
+        },
+      ],
+      leaves: [
+        {
+          id: MENTOR_LEAVE.id,
+          intern: MENTOR_PERSON,
+          type: "sick",
+          start_date: MENTOR_LEAVE.start_date,
+          end_date: MENTOR_LEAVE.end_date,
+          status: "pending",
+        },
+      ],
+    },
+    performance: {
+      month: "2026-10",
+      selectable_months: { first: "2026-08", last: "2026-10" },
+      interns_total: 1,
+      summary: {
+        attendance_rate: 1,
+        on_time_rate: 1,
+        logbook_approved_rate: 0.8,
+      },
+      interns: [
+        {
+          intern: MENTOR_PERSON,
+          is_active: true,
+          recap: {
+            present: 1,
+            late: 0,
+            missed_clock_in: 0,
+            missed_clock_out: 0,
+            leave: 1,
+            absent: 0,
+            working_days: 2,
+          },
+          kpi: {
+            enough_data: true,
+            attendance_rate: 1,
+            on_time_rate: 1,
+            logbook_approved_rate: 0.8,
+            logbook_revisions: 1,
+          },
+          dates: {
+            present: ["2026-10-09"],
+            late: [],
+            missed_clock_in: [],
+            missed_clock_out: [],
+            leave: ["2026-10-13"],
+            absent: [],
+            logbook_not_approved: ["2026-10-09"],
+            logbook_revisions: ["2026-10-08"],
+          },
+        },
+      ],
+    },
+    assessments: [
+      {
+        intern: MENTOR_PERSON,
+        end_date: "2026-12-31",
+        presentation_status: "approved",
+        unapproved_logbooks: 0,
+        status: "ready",
+        blockers: [],
+        can_assess: true,
+        final_score: null,
+        submitted_at: null,
+        assessed_by: null,
+      },
+    ],
+    assessmentDetail: clone(assessment),
+    lastLogbookBody: null,
+    lastCorrectionBody: null,
+    lastLeaveBody: null,
+    lastAssessmentBody: null,
+  };
+};
+
 const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
@@ -507,6 +987,8 @@ const apiState = {
   profileBody: null as Record<string, unknown> | null,
   /** Menu contoh yang menggantikan GET /api/{role}/menu (uji sumber menu sidebar). */
   menuOverride: null as { key: string; path: string; badge: number | null }[] | null,
+  /** Data mentor Fase 3; setiap tes mengubah salinan baru lewat resetApi(). */
+  mentor: mentorDefault(),
 };
 
 const resetApi = () => {
@@ -603,10 +1085,14 @@ const resetApi = () => {
   apiState.holidaySeq = 2;
   apiState.profileBody = null;
   apiState.menuOverride = null;
+  apiState.mentor = mentorDefault();
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+
+/** Path tanpa query, untuk mencocokkan endpoint di stub fetch. */
+const path0 = (url: string) => url.split("?")[0] ?? url;
 
 /** Role akun untuk stub `/api/auth/me`; disetel `show()` agar selari dengan MockProvider. */
 let authRole: Role = "Intern";
@@ -721,6 +1207,378 @@ const installFetch = () => {
       if (menuMatch) {
         const items = apiState.menuOverride ?? MENU_MOCK[menuMatch[1] ?? ""] ?? [];
         return jsonResponse({ data: items.map(clone) });
+      }
+
+      // ---- Data mentor (Fase 3) ----
+      const mentor = apiState.mentor;
+      if (method === "GET" && url.endsWith("/api/mentor/dashboard"))
+        return jsonResponse({ data: clone(mentor.dashboard) });
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/interns")) {
+        const params = new URL(url).searchParams;
+        const status = params.get("status") ?? "active";
+        const q = (params.get("q") ?? "").toLowerCase();
+        const rows = mentor.interns.interns.filter((row) => {
+          const statusOk =
+            status === "all" ||
+            (status === "former"
+              ? row.relation === "former"
+              : status === "active"
+                ? row.is_active
+                : !row.is_active);
+          return statusOk && row.name.toLowerCase().includes(q);
+        });
+        return jsonResponse({
+          data: clone(rows),
+          meta: {
+            current_total: mentor.interns.current_total,
+            former_total: mentor.interns.former_total,
+          },
+        });
+      }
+
+      const mentorInternDay =
+        /\/api\/mentor\/interns\/(\d+)\/attendance\/days\/(\d{4}-\d{2}-\d{2})$/.exec(path0(url));
+      if (method === "GET" && mentorInternDay) {
+        if (mentorInternDay[2] !== mentor.attendanceDay.date)
+          return jsonResponse({ message: "Presensi tidak ditemukan." }, 404);
+        return jsonResponse({ data: clone(mentor.attendanceDay) });
+      }
+
+      const mentorInternTab =
+        /\/api\/mentor\/interns\/(\d+)\/(attendance|logbooks|leaves|corrections|warnings)$/.exec(
+          path0(url),
+        );
+      if (method === "GET" && mentorInternTab) {
+        const tab = mentorInternTab[2];
+        if (tab === "attendance") return jsonResponse({ data: clone(mentor.attendance) });
+        if (tab === "logbooks") return jsonResponse({ data: clone(mentor.internLogbooks) });
+        if (tab === "leaves") return jsonResponse({ data: clone(mentor.internLeaves) });
+        if (tab === "corrections") return jsonResponse({ data: clone(mentor.internCorrections) });
+        return jsonResponse({ data: clone(mentor.internWarnings) });
+      }
+
+      const mentorInternDetail = /\/api\/mentor\/interns\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && mentorInternDetail)
+        return jsonResponse({ data: clone(mentor.internDetail) });
+
+      if (method === "POST" && path0(url).endsWith("/api/mentor/logbooks/approve")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { ids?: number[] };
+        mentor.lastLogbookBody = body;
+        const ids = body.ids ?? [];
+        const approved = mentor.logbookList.logbooks
+          .filter((row) => ids.includes(row.id) && row.status === "pending_review")
+          .map((row) => row.id);
+        mentor.logbookList.logbooks = mentor.logbookList.logbooks.filter(
+          (row) => !approved.includes(row.id),
+        );
+        mentor.logbookList.counts.pending_review = Math.max(
+          0,
+          mentor.logbookList.counts.pending_review - approved.length,
+        );
+        mentor.dashboard.pending_logbooks.total = mentor.logbookList.counts.pending_review;
+        mentor.dashboard.pending_logbooks.items = mentor.dashboard.pending_logbooks.items.filter(
+          (row) => !approved.includes(row.id),
+        );
+        return jsonResponse({
+          message: `${approved.length} logbook disetujui.`,
+          data: { approved, skipped: [] },
+        });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/logbooks")) {
+        const params = new URL(url).searchParams;
+        const tab = params.get("tab") ?? "pending_review";
+        const internId = params.get("intern_id");
+        const rows = mentor.logbookList.logbooks.filter(
+          (row) =>
+            (tab === "all" || row.status === tab) &&
+            (!internId || row.intern.id === Number(internId)),
+        );
+        return jsonResponse({
+          data: clone(rows),
+          meta: clone(mentor.logbookList.counts),
+        });
+      }
+
+      const mentorLogbookAction = /\/api\/mentor\/logbooks\/(\d+)\/(approve|revise)$/.exec(
+        path0(url),
+      );
+      if (method === "POST" && mentorLogbookAction) {
+        const id = Number(mentorLogbookAction[1]);
+        const action = mentorLogbookAction[2];
+        const body = JSON.parse(String(init?.body ?? "{}")) as { comment?: string | null };
+        mentor.lastLogbookBody = body;
+        if (id !== mentor.logbookDetail.id)
+          return jsonResponse({ message: "Logbook tidak ditemukan." }, 404);
+        if (mentor.logbookDetail.status !== "pending_review")
+          return jsonResponse({ message: "Logbook ini sudah diproses." }, 422);
+        if (action === "revise" && !String(body.comment ?? "").trim())
+          return jsonResponse({ message: "Tulis komentar revisi." }, 422);
+        mentor.logbookDetail.status = action === "approve" ? "approved" : "revision";
+        mentor.logbookDetail.can_approve = false;
+        mentor.logbookDetail.can_request_revision = false;
+        mentor.logbookDetail.approved_at =
+          action === "approve" ? "2026-10-12T10:00:00+07:00" : null;
+        mentor.logbookList.logbooks = mentor.logbookList.logbooks.filter((row) => row.id !== id);
+        mentor.logbookList.counts.pending_review = 0;
+        if (action === "revise") mentor.logbookList.counts.revision = 1;
+        mentor.dashboard.pending_logbooks.total = 0;
+        mentor.dashboard.pending_logbooks.items = [];
+        return jsonResponse({
+          message: action === "approve" ? "Logbook disetujui." : "Revisi diminta.",
+          data: clone(mentor.logbookDetail),
+        });
+      }
+
+      const mentorLogbookDetail = /\/api\/mentor\/logbooks\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && mentorLogbookDetail) {
+        if (Number(mentorLogbookDetail[1]) !== mentor.logbookDetail.id)
+          return jsonResponse({ message: "Logbook tidak ditemukan." }, 404);
+        return jsonResponse({ data: clone(mentor.logbookDetail) });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/corrections")) {
+        const params = new URL(url).searchParams;
+        const tab = params.get("tab") ?? "waiting";
+        const internId = params.get("intern_id");
+        const rows = mentor.corrections.corrections.filter(
+          (row) =>
+            (tab === "all" || row.status === "pending_mentor") &&
+            (!internId || row.intern.id === Number(internId)),
+        );
+        return jsonResponse({
+          data: clone(rows),
+          meta: { pending_count: mentor.corrections.pendingCount },
+        });
+      }
+
+      const mentorCorrectionAction = /\/api\/mentor\/corrections\/(\d+)\/(approve|reject)$/.exec(
+        path0(url),
+      );
+      if (method === "POST" && mentorCorrectionAction) {
+        const id = Number(mentorCorrectionAction[1]);
+        const action = mentorCorrectionAction[2];
+        const body = JSON.parse(String(init?.body ?? "{}")) as { note?: string };
+        mentor.lastCorrectionBody = body;
+        const found = mentor.corrections.corrections.find((row) => row.id === id);
+        if (!found) return jsonResponse({ message: "Koreksi tidak ditemukan." }, 404);
+        if (action === "reject" && !String(body.note ?? "").trim())
+          return jsonResponse({ message: "Catatan wajib diisi." }, 422);
+        found.status = action === "approve" ? "pending_admin" : "rejected_by_mentor";
+        found.mentor_note = body.note ?? null;
+        found.mentor_decided_at = "2026-10-12T10:00:00+07:00";
+        found.mentor = { id: 2, name: "Sari Wulandari" };
+        found.can_decide = false;
+        mentor.corrections.pendingCount = Math.max(0, mentor.corrections.pendingCount - 1);
+        mentor.dashboard.pending_corrections.total = mentor.corrections.pendingCount;
+        mentor.dashboard.pending_corrections.items =
+          mentor.dashboard.pending_corrections.items.filter((row) => row.id !== id);
+        return jsonResponse({
+          message: action === "approve" ? "Koreksi diteruskan ke admin." : "Koreksi ditolak.",
+          data: clone(found),
+        });
+      }
+
+      const mentorCorrectionDetail = /\/api\/mentor\/corrections\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && mentorCorrectionDetail) {
+        const found = mentor.corrections.corrections.find(
+          (row) => row.id === Number(mentorCorrectionDetail[1]),
+        );
+        if (!found) return jsonResponse({ message: "Koreksi tidak ditemukan." }, 404);
+        return jsonResponse({
+          data: clone({ ...found, recorded: { clock_in_at: "08:20", clock_out_at: "17:00" } }),
+        });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/leaves")) {
+        const params = new URL(url).searchParams;
+        const tab = params.get("tab") ?? "pending";
+        const type = params.get("type");
+        const internId = params.get("intern_id");
+        const rows = mentor.reviewerLeaves.leaves.filter(
+          (row) =>
+            (tab === "all" || row.status === "pending") &&
+            (!type || row.type === type) &&
+            (!internId || row.intern.id === Number(internId)),
+        );
+        return jsonResponse({
+          data: clone(rows),
+          meta: {
+            pending_count: mentor.reviewerLeaves.pendingCount,
+            interns: clone(mentor.reviewerLeaves.interns),
+          },
+        });
+      }
+
+      const mentorLeaveAction = /\/api\/mentor\/leaves\/(\d+)\/(approve|reject)$/.exec(path0(url));
+      if (method === "POST" && mentorLeaveAction) {
+        const id = Number(mentorLeaveAction[1]);
+        const action = mentorLeaveAction[2];
+        const body = JSON.parse(String(init?.body ?? "{}")) as { note?: string };
+        mentor.lastLeaveBody = body;
+        const found = mentor.reviewerLeaves.leaves.find((row) => row.id === id);
+        if (!found) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
+        if (!String(body.note ?? "").trim())
+          return jsonResponse({ message: "Catatan wajib diisi." }, 422);
+        found.status = action === "approve" ? "approved" : "rejected";
+        found.decision_note = body.note ?? null;
+        found.decided_by = { name: "Sari Wulandari", role: "mentor" };
+        found.decided_at = "2026-10-12T10:00:00+07:00";
+        found.can_decide = false;
+        mentor.reviewerLeaves.pendingCount = Math.max(0, mentor.reviewerLeaves.pendingCount - 1);
+        mentor.dashboard.pending_leaves.total = mentor.reviewerLeaves.pendingCount;
+        mentor.dashboard.pending_leaves.items = mentor.dashboard.pending_leaves.items.filter(
+          (row) => row.id !== id,
+        );
+        return jsonResponse({
+          message: action === "approve" ? "Izin disetujui." : "Izin ditolak.",
+          data: clone(found),
+        });
+      }
+
+      const mentorLeaveDetail = /\/api\/mentor\/leaves\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && mentorLeaveDetail) {
+        const found = mentor.reviewerLeaves.leaves.find(
+          (row) => row.id === Number(mentorLeaveDetail[1]),
+        );
+        if (!found) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
+        return jsonResponse({ data: clone(found) });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/leave-calendar"))
+        return jsonResponse({ data: clone(mentor.calendar) });
+      if (method === "GET" && path0(url).endsWith("/api/mentor/performance"))
+        return jsonResponse({ data: clone(mentor.performance) });
+
+      if (method === "GET" && path0(url).endsWith("/api/mentor/assessments"))
+        return jsonResponse({ data: clone(mentor.assessments) });
+
+      const mentorSubmitAssessment = /\/api\/mentor\/assessments\/(\d+)\/submit$/.exec(path0(url));
+      if (method === "POST" && mentorSubmitAssessment) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          scores?: { indicator_id: number; score: number | null }[];
+          notes?: string | null;
+        };
+        mentor.lastAssessmentBody = {
+          scores: body.scores ?? [],
+          notes: body.notes ?? null,
+        };
+        const scores = body.scores ?? [];
+        if (scores.some((row) => row.score === null))
+          return jsonResponse({ message: "Isi semua nilai sebelum submit." }, 422);
+        if (
+          scores.some(
+            (row) =>
+              row.score !== null &&
+              (!Number.isInteger(row.score) || row.score < 0 || row.score > 100),
+          )
+        )
+          return jsonResponse({ message: "Nilai harus antara 0 dan 100." }, 422);
+        for (const indicator of mentor.assessmentDetail.indicators) {
+          const found = scores.find((row) => row.indicator_id === indicator.id);
+          indicator.score = found?.score ?? null;
+        }
+        const average =
+          scores.reduce((total, row) => total + (row.score ?? 0), 0) / Math.max(1, scores.length);
+        mentor.assessmentDetail.status = "submitted";
+        mentor.assessmentDetail.can_edit = false;
+        mentor.assessmentDetail.can_assess = false;
+        mentor.assessmentDetail.final_score = Math.round(average * 100) / 100;
+        mentor.assessmentDetail.predicate = average >= 86 ? "Baik Sekali" : "Baik";
+        mentor.assessmentDetail.notes = body.notes ?? null;
+        mentor.assessmentDetail.submitted_at = "2026-10-12T10:00:00+07:00";
+        mentor.assessmentDetail.assessed_by = "Sari Wulandari";
+        mentor.assessments = mentor.assessments.map((row) =>
+          row.intern.id === mentor.assessmentDetail.intern.id
+            ? {
+                ...row,
+                status: "submitted",
+                can_assess: false,
+                final_score: mentor.assessmentDetail.final_score,
+                submitted_at: mentor.assessmentDetail.submitted_at,
+                assessed_by: mentor.assessmentDetail.assessed_by,
+              }
+            : row,
+        );
+        return jsonResponse({
+          message: "Penilaian disubmit.",
+          data: clone(mentor.assessmentDetail),
+        });
+      }
+
+      const mentorAssessment = /\/api\/mentor\/assessments\/(\d+)$/.exec(path0(url));
+      if (mentorAssessment) {
+        if (method === "PUT") {
+          const body = JSON.parse(String(init?.body ?? "{}")) as {
+            scores?: { indicator_id: number; score: number | null }[];
+            notes?: string | null;
+          };
+          mentor.lastAssessmentBody = {
+            scores: body.scores ?? [],
+            notes: body.notes ?? null,
+          };
+          for (const indicator of mentor.assessmentDetail.indicators) {
+            const found = (body.scores ?? []).find((row) => row.indicator_id === indicator.id);
+            indicator.score = found?.score ?? null;
+          }
+          mentor.assessmentDetail.notes = body.notes ?? null;
+          mentor.assessmentDetail.status = "draft";
+          return jsonResponse({
+            message: "Draf penilaian tersimpan.",
+            data: clone(mentor.assessmentDetail),
+          });
+        }
+        if (method === "GET") return jsonResponse({ data: clone(mentor.assessmentDetail) });
+      }
+
+      // ---- Izin admin (dipakai halaman bersama; data rinci menyusul Fase 4) ----
+      if (method === "GET" && path0(url).endsWith("/api/admin/leaves")) {
+        return jsonResponse({
+          data: clone(apiState.mentor.adminLeaves.leaves),
+          meta: {
+            pending_count: apiState.mentor.adminLeaves.pendingCount,
+            interns: clone(apiState.mentor.adminLeaves.interns),
+          },
+        });
+      }
+
+      const adminLeaveAction = /\/api\/admin\/leaves\/(\d+)\/(approve|reject)$/.exec(path0(url));
+      if (method === "POST" && adminLeaveAction) {
+        const id = Number(adminLeaveAction[1]);
+        const action = adminLeaveAction[2];
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          note?: string;
+          evidence_checked?: boolean;
+        };
+        apiState.mentor.lastLeaveBody = body;
+        const found = apiState.mentor.adminLeaves.leaves.find((row) => row.id === id);
+        if (!found) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
+        if (!String(body.note ?? "").trim())
+          return jsonResponse({ message: "Catatan wajib diisi." }, 422);
+        if (action === "approve" && body.evidence_checked !== true)
+          return jsonResponse({ message: "Konfirmasi pemeriksaan bukti wajib dicentang." }, 422);
+        if (action === "approve" && !found.evidence_url)
+          return jsonResponse({ message: "Tidak ada surat resmi atau bukti." }, 422);
+        found.status = action === "approve" ? "approved" : "rejected";
+        found.decision_note = body.note ?? null;
+        found.decided_by = { name: "Admin Sinta", role: "admin" };
+        found.decided_at = "2026-10-12T10:00:00+07:00";
+        found.can_decide = false;
+        found.can_approve = false;
+        return jsonResponse({
+          message: action === "approve" ? "Izin disetujui admin." : "Izin ditolak admin.",
+          data: clone(found),
+        });
+      }
+
+      const adminLeaveDetail = /\/api\/admin\/leaves\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && adminLeaveDetail) {
+        const found = apiState.mentor.adminLeaves.leaves.find(
+          (row) => row.id === Number(adminLeaveDetail[1]),
+        );
+        if (!found) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
+        return jsonResponse({ data: clone(found) });
       }
 
       if (url.endsWith("/api/intern/dashboard"))
@@ -1429,29 +2287,14 @@ describe("Setiap halaman dapat dirender", () => {
     ["Intern", "/catatan", <NotesPage key="nt" />, "Catatan dari Admin"],
     ["Intern", "/chat", <ChatPage key="c" />, "Budi Santoso"],
     ["Intern", "/profil", <ProfilePage key="p" />, "Data akun"],
-    ["Mentor", "/", <Dashboard key="d" />, /Izin pending/],
+    ["Mentor", "/", <Dashboard key="d" />, /Izin menunggu/],
     ["Mentor", "/intern-saya", <MyInternsPage key="i" />, "Rizky Pratama"],
-    [
-      "Mentor",
-      "/logbook",
-      <LogbookPage key="lbm" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
-    [
-      "Mentor",
-      "/koreksi",
-      <CorrectionsPage key="km" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
+    ["Mentor", "/logbook", <LogbookPage key="lbm" />, "Daftar logbook"],
+    ["Mentor", "/koreksi", <CorrectionsPage key="km" />, "Daftar koreksi"],
     ["Mentor", "/izin", <LeavePage key="l" />, "Menunggu keputusan"],
     ["Mentor", "/kalender-izin", <LeaveCalendarPage key="k" />, "Izin Disetujui"],
     ["Mentor", "/performa", <PerformancePage key="p" />, "KPI per intern"],
-    [
-      "Mentor",
-      "/penilaian",
-      <AssessmentPage key="pm" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
+    ["Mentor", "/penilaian", <AssessmentPage key="pm" />, "Daftar intern"],
     ["Admin", "/", <Dashboard key="d" />, /Magang berakhir dalam 7 hari/],
     ["Admin", "/absensi", <AttendancePage key="a" />, "Rekap Bulanan"],
     ["Admin", "/users", <admin.UsersPage key="u" />, "Daftar pengguna"],
@@ -1498,6 +2341,141 @@ describe("Setiap halaman dapat dirender", () => {
       </AuthProvider>,
     );
     expect(screen.getByText("Simpan Password")).toBeInTheDocument();
+  });
+});
+
+describe("Fase 3 mentor (API)", () => {
+  it("Dashboard menampilkan antrean tindakan dan kartu angka memfilter daftar", async () => {
+    show("Mentor", <Dashboard />, "/");
+    expect(await screen.findByText(/Logbook menunggu/)).toBeInTheDocument();
+    expect(screen.getByText(/Koreksi menunggu/)).toBeInTheDocument();
+    expect(screen.getByText(/Izin menunggu/)).toBeInTheDocument();
+    expect(screen.getByText(/Siap dinilai/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Sudah Presensi/ }));
+    expect(screen.getByRole("button", { name: "Tampilkan semua" })).toBeInTheDocument();
+    expect(screen.getAllByText("Rizky").length).toBeGreaterThan(0);
+  });
+
+  it("Detail intern menampilkan tab dari API, termasuk catatan dan status akhir", async () => {
+    router.search = { open: "21" };
+    show("Mentor", <MyInternsPage />, "/intern-saya");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Rizky Pratama" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Sisa kuota izin: 2 dari 3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Catatan" }));
+    expect(await screen.findByText("Terlambat tiga kali dalam sebulan.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Akhir Magang" }));
+    expect(await screen.findByText("Siap Dinilai")).toBeInTheDocument();
+    expect(screen.getByText("Disiplin Kerja")).toBeInTheDocument();
+  });
+
+  it("Logbook: minta revisi wajib catatan, setujui massal mengirim id terpilih", async () => {
+    show("Mentor", <LogbookPage />, "/logbook");
+    expect(await screen.findByText("Rekap data penerbangan")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Buka" }));
+    expect(await screen.findByText(/Logbook · Rizky Pratama · .*9 Okt 2026/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+    expect(await screen.findByText("Tulis komentar revisi.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Komentar revisi"), {
+      target: { value: "Lengkapi kendala harian." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Minta Revisi" }));
+    await waitFor(() =>
+      expect(apiState.mentor.lastLogbookBody).toEqual({
+        comment: "Lengkapi kendala harian.",
+      }),
+    );
+  });
+
+  it("Logbook: setujui massal mengirim semua id yang dicentang", async () => {
+    show("Mentor", <LogbookPage />, "/logbook");
+    await screen.findByText("Rekap data penerbangan");
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Pilih logbook Rizky Pratama 2026-10-09",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Setujui yang dipilih (1)" }));
+    await waitFor(() => expect(apiState.mentor.lastLogbookBody).toEqual({ ids: [501] }));
+  });
+
+  it("Koreksi: Tolak wajib catatan, ACC boleh tanpa catatan", async () => {
+    show("Mentor", <CorrectionsPage />, "/koreksi");
+    expect(
+      await screen.findByText("Jam masuk tercatat terlambat karena macet."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Buka" }));
+    expect(await screen.findByText("Jam tercatat")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tolak" }));
+    expect(await screen.findByText("Catatan wajib diisi.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ACC" }));
+    await waitFor(() => expect(apiState.mentor.lastCorrectionBody).toEqual({}));
+  });
+
+  it("Izin mentor: detail memuat bukti dan Setujui mengirim catatan", async () => {
+    show("Mentor", <LeavePage />, "/izin");
+    expect((await screen.findAllByText("Rizky Pratama")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Buka" }));
+    expect(await screen.findByText("Buka bukti")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Catatan *"), {
+      target: { value: "Sesuai surat dokter." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Setujui" }));
+    await waitFor(() =>
+      expect(apiState.mentor.lastLeaveBody).toEqual({ note: "Sesuai surat dokter." }),
+    );
+  });
+
+  it("Kalender izin memakai entri server dan menautkan ke izin", async () => {
+    show("Mentor", <LeaveCalendarPage />, "/kalender-izin");
+    fireEvent.click(await screen.findByRole("button", { name: "Rizky (S)" }));
+    expect(await screen.findByText(/13-14 Okt/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buka izin" })).toHaveAttribute("href", "/izin");
+  });
+
+  it("Performa menampilkan KPI dan tanggal dari server saat angka diklik", async () => {
+    show("Mentor", <PerformancePage />, "/performa");
+    expect(await screen.findByText("KPI per intern")).toBeInTheDocument();
+    const percentages = screen.getAllByRole("button", { name: "80%" });
+    fireEvent.click(percentages[percentages.length - 1]!);
+    expect(await screen.findByText("Logbook belum disetujui · Rizky Pratama")).toBeInTheDocument();
+    expect(screen.getByText(/9 Okt 2026/)).toBeInTheDocument();
+  });
+
+  it("Penilaian: submit butuh semua nilai lalu mengunci form", async () => {
+    show("Mentor", <AssessmentPage />, "/penilaian");
+    expect(await screen.findByText("Siap Dinilai")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nilai" }));
+    expect(await screen.findByText("Formulir penilaian")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(await screen.findByText("Isi semua nilai sebelum submit.")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Nilai Disiplin Kerja"), {
+      target: { value: "90" },
+    });
+    fireEvent.change(screen.getByLabelText("Nilai Kualitas Pekerjaan"), {
+      target: { value: "80" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(
+      await screen.findByText("Penilaian yang sudah disubmit tidak bisa diubah lagi."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Penilaian" }));
+    await waitFor(() =>
+      expect(apiState.mentor.lastAssessmentBody?.scores).toEqual([
+        { indicator_id: 1, score: 90 },
+        { indicator_id: 2, score: 80 },
+      ]),
+    );
+    expect(await screen.findByText("Sudah Disubmit")).toBeInTheDocument();
   });
 });
 
@@ -1613,7 +2591,7 @@ describe("Izin intern (API)", () => {
   it("Riwayat menampilkan status, detail memuat alasan penolakan dan lampiran", async () => {
     show("Intern", <LeavePage />, "/izin");
     // Tanpa filter, tanpa query: server yang mengurutkan tanggal izin terbaru lebih dulu.
-    expect(await screen.findByText("13-14 Okt")).toBeInTheDocument();
+    expect(await screen.findByText(/13-14 Okt/)).toBeInTheDocument();
     expect(apiState.leaveParams).toEqual({});
 
     const rows = screen.getAllByRole("row");

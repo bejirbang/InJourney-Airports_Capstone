@@ -8,7 +8,10 @@ import { InternLeave } from "@/components/internspace/intern/leave";
 import { InternLogbook } from "@/components/internspace/intern/logbook";
 import { InternNotes } from "@/components/internspace/intern/notes";
 import { InternPresentation } from "@/components/internspace/intern/presentation";
+import { MentorAssessments } from "@/components/internspace/mentor/assessments";
+import { MentorCorrections } from "@/components/internspace/mentor/corrections";
 import { MentorDashboard } from "@/components/internspace/mentor/dashboard";
+import { MentorLogbookReview } from "@/components/internspace/mentor/logbook-review";
 import { ReviewerLeave } from "@/components/internspace/shared/leave-review";
 import { useMock } from "@/components/internspace/shared/model";
 import { PageHeading, Panel } from "@/components/internspace/shared/ui";
@@ -70,7 +73,13 @@ function PendingPage({ title }: { title: string }) {
 /** Fase 2 (intern) dan Fase 3 (mentor) mengisi halaman ini. */
 export function LogbookPage() {
   const m = useMock();
-  return m.role === "Intern" ? <InternLogbook /> : <PendingPage title="Logbook" />;
+  return m.role === "Intern" ? (
+    <InternLogbook />
+  ) : m.role === "Mentor" ? (
+    <MentorLogbookReview />
+  ) : (
+    <PendingPage title="Logbook" />
+  );
 }
 
 /** Fase 2 (intern) dan Fase 4 (admin) mengisi halaman ini. */
@@ -88,11 +97,21 @@ export function NotesPage() {
 /** Fase 3 (mentor, "Input Nilai") dan Fase 4 (admin, "Penilaian"). */
 export function AssessmentPage() {
   const m = useMock();
-  return <PendingPage title={m.role === "Mentor" ? "Input Nilai" : "Penilaian"} />;
+  return m.role === "Mentor" ? (
+    <MentorAssessments />
+  ) : (
+    <PendingPage title={m.role === "Intern" ? "Input Nilai" : "Penilaian"} />
+  );
 }
 
-/** Admin memakai admin/corrections; mentor menyusul di Fase 3. */
+/** Admin memakai admin/corrections; mentor memakai mentor/corrections. */
 export function CorrectionsPage() {
   const m = useMock();
-  return m.role === "Admin" ? <AdminCorrections /> : <PendingPage title="Koreksi Presensi" />;
+  return m.role === "Admin" ? (
+    <AdminCorrections />
+  ) : m.role === "Mentor" ? (
+    <MentorCorrections />
+  ) : (
+    <PendingPage title="Koreksi Presensi" />
+  );
 }

@@ -1374,14 +1374,14 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 2 | Izin intern | 6.6 | | [x] 2026-10-27 |
 | 2 | Presentasi intern | 6.7 | | [x] 2026-10-27 |
 | 2 | Catatan dan nilai intern | 6.8 | | [x] 2026-10-27 |
-| 3 | Dashboard mentor | 7.1 | | [ ] |
-| 3 | Intern Saya | 7.2 | | [ ] |
-| 3 | Review logbook | 7.3 | | [ ] |
-| 3 | Koreksi mentor | 7.4 | | [ ] |
-| 3 | Izin mentor dan admin | 7.5 | | [ ] |
-| 3 | Kalender izin | 7.6 | | [ ] |
-| 3 | Performa | 7.7 | | [ ] |
-| 3 | Input Nilai | 7.8 | | [ ] |
+| 3 | Dashboard mentor | 7.1 | | [x] 2026-10-27 |
+| 3 | Intern Saya | 7.2 | | [x] 2026-10-27 |
+| 3 | Review logbook | 7.3 | | [x] 2026-10-27 |
+| 3 | Koreksi mentor | 7.4 | | [x] 2026-10-27 |
+| 3 | Izin mentor dan admin | 7.5 | | [x] 2026-10-27 |
+| 3 | Kalender izin | 7.6 | | [x] 2026-10-27 |
+| 3 | Performa | 7.7 | | [x] 2026-10-27 |
+| 3 | Input Nilai | 7.8 | | [x] 2026-10-27 |
 | 4 | Filter bandara | 8.0 | | [ ] |
 | 4 | Dashboard admin | 8.1 | | [ ] |
 | 4 | Pengguna | 8.2 | | [ ] |
@@ -1401,3 +1401,5 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 6 | Bersih-bersih | 10 | | [ ] |
 
 Catatan Fase 2 (2026-10-27): `npx tsc --noEmit`, `npm run test` (141 tes), `npm run build`, serta ESLint + Prettier untuk file yang berubah lolos. Smoke test ke API langsung belum dijalankan ulang karena PostgreSQL lokal (port 5432) tidak aktif; kontrak field mengikuti kode backend dan diuji lewat stub. Tidak ada kebutuhan perubahan backend baru.
+
+Catatan Fase 3 (2026-10-27): dashboard, Intern Saya (6 tab), review logbook, koreksi, izin mentor/admin, kalender, performa, dan Input Nilai memakai API. Tidak ada lagi pemanggilan `useMock()` di folder `mentor/`; `task-form.tsx` dan `task-review.tsx` sudah tidak ada. Mutasi menginvalidasi `["mentor"]`, tombol mengikuti `can_*`/`action`/`state`, dan pesan server ditampilkan apa adanya. Verifikasi: `npx tsc --noEmit`, `npm run test` (150 tes), `npm run build`, serta ESLint + Prettier untuk 21 file yang berubah lolos. Smoke test langsung tetap tertunda karena PostgreSQL lokal tidak aktif; alur diuji lewat stub endpoint. Tidak ada kebutuhan perubahan backend baru.
