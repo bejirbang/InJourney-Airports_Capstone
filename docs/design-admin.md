@@ -614,16 +614,18 @@ Baris judul berisi periode dan filter yang dipakai. Kolom angka sudah berformat 
 
 Setiap export tercatat di Log Aktivitas.
 
-### 15.3 Dokumen PDF (26 Okt 2026)
+### 15.3 Dokumen PDF (26 Okt 2026, tampilan disamakan dengan formulir mitra 27 Okt 2026)
 
 Selain Excel, admin bisa menarik dua dokumen PDF per intern untuk ditandatangani basah. **[Keputusan]**
 
 | Dokumen | Pilihan | Isi |
 |---|---|---|
-| PDF Daftar Kehadiran | Intern, bulan | Kop (InJourney Airports, nama kantor regional dari pengaturan), identitas (Nama, Asal Universitas/Sekolah, Jurusan, Unit Penempatan, Periode Magang, Bulan/Tahun). Satu baris per hari kerja: Tanggal, Jam Masuk, Jam Keluar, Kegiatan (logbook), Keterangan (status presensi). Izin tetap tampil dengan Keterangan "Izin"; akhir pekan dan libur tidak tampil. Penutup: "[kota], [tanggal]", kolom tanda tangan Pembimbing dan Peserta Magang |
-| PDF Penilaian | Intern | Hanya jika penilaian sudah disubmit. Identitas termasuk NIM/NIS, 9 indikator per kategori, nilai rata-rata, predikat, catatan mentor. Penutup: "[kota], [tanggal submit]", tanda tangan Pembimbing |
+| PDF Daftar Kehadiran | Intern, bulan | Logo InJourney Airports di kiri atas. Judul tiga baris di tengah: "DAFTAR KEHADIRAN" / "PESERTA MAGANG/PKL PT ANGKASA PURA INDONESIA" / nama kantor regional dari pengaturan (kapital), lalu "BULAN/TAHUN : [bulan]". Identitas: Nama, Asal Universitas/Sekolah, Jurusan, Unit Penempatan, Periode Magang. Satu baris per hari kerja, header dua tingkat: Tanggal, Jam (Masuk, Keluar), Kegiatan (logbook), Keterangan (status presensi); tanpa kolom No. Izin tetap tampil dengan Keterangan "Izin"; akhir pekan dan libur tidak tampil. Penutup kiri: "[kota], [tanggal]", "Menyetujui,", "Pembimbing" (mentor saat ini di profil intern); kanan: "Peserta Magang" |
+| PDF Penilaian | Intern | Hanya jika penilaian sudah disubmit. Judul dua baris: "PENILAIAN PESERTA MAGANG / PKL" / "PT ANGKASA PURA INDONESIA" (tanpa kantor regional). Identitas: Nama, Asal Universitas/Sekolah, Jurusan, NIM/NIS, Unit Penempatan, Periode Magang. Tabel No, KOMPONEN, DAFTAR NILAI (Angka): kategori bernomor dan kapital (1 MOTIVASI, 2 KEMAMPUAN KERJA, 3 KEPRIBADIAN), indikator bernomor 1-3 di tiap kategori, baris akhir "NILAI RATA-RATA". Di bawah tabel daftar keterangan (86-100 : Baik Sekali, 71-85 : Baik, 60-70 : Cukup, <60 : Kurang) dan "CATATAN: [catatan mentor]" (titik-titik jika kosong). Predikat tidak dicetak sebagai baris, tetapi tetap tampil di aplikasi. Penutup kanan: "[kota], [tanggal submit]", "Pembimbing" (mentor penilai) |
 
-Kota diambil dari kota bandara (diisi di Lokasi & Jadwal). Logbook yang masih draft tidak dicetak.
+Kota diambil dari kota bandara (wajib diisi saat tambah bandara di Lokasi & Jadwal). Logbook yang masih draft tidak dicetak.
+
+Export Excel dan PDF dibatasi 10 kali per menit per admin (dihitung bersama). Melebihi batas: "Terlalu banyak permintaan, coba lagi sebentar." (respons 429). File export tidak disimpan cache browser/proxy.
 
 | Kondisi | Pesan |
 |---|---|

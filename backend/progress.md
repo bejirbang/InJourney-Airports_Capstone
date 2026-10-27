@@ -1151,6 +1151,25 @@ Sumber: `backend/update26okt.md`. Keputusan lama "mentor tidak punya fitur penil
 - Kop PDF: "INJOURNEY AIRPORTS" dan `report_region_name`. Template kertas asli (`Daftar Kehadiran Magang.pdf`, `Penilaian Magang.pdf`) tidak ada di repo, jadi tata letak disusun dari poin-poin dokumen perubahan; sesuaikan bila templatenya tersedia.
 - Pengecualian `CLAUDE.md`: folder `resources/views/pdf` ditambahkan hanya untuk template PDF (bukan halaman web).
 
+### Penyesuaian tampilan PDF dan keamanan export (27 Okt 2026)
+
+Sumber: `backend/update27okt.md` dan formulir mitra `Daftar Kehadiran Magang.pdf`, `Penilaian Magang.pdf` (dibandingkan secara visual, tidak masuk repo). Tanpa migration baru.
+
+- [x] **Layout PDF**: `layout.blade.php` hanya kerangka + gaya dasar; tiap dokumen mengisi `@section('style')` (margin halaman) dan `@section('header')` (judul). Kop lama "INJOURNEY AIRPORTS" dihapus.
+- [x] **Daftar Kehadiran**: logo InJourney Airports kiri atas (tanda dari `frontend/src/assets/icon.png` diperkecil ke `resources/pdf/injourney-mark.png`, disisipkan sebagai data URI, bukan URL luar), judul tiga baris + region kapital, "BULAN/TAHUN : [BULAN TAHUN]" bergaris bawah, identitas tanpa Bulan/Tahun, kolom No dihapus, header Jam dua tingkat, penutup "Menyetujui, / Pembimbing" dan "Peserta Magang".
+- [x] **Penilaian**: judul dua baris tanpa region, urutan identitas Nama, Asal, Jurusan, NIM/NIS, Unit, Periode; header No / KOMPONEN / DAFTAR NILAI (Angka); baris Predikat dihapus, diganti daftar keterangan rentang; "CATATAN: ..." (titik-titik jika kosong). Muat satu halaman A4.
+- [x] **`AdminPdfReports::assessmentData()`**: `groups` kini list `[{number, name (kapital), indicators: [{number, name, score}]}]`; nomor indikator mulai 1 di tiap kategori; indikator tanpa kategori masuk `LAINNYA` paling akhir. `predicate` tetap dikirim untuk aplikasi.
+- [x] **Keamanan**: `Cache-Control: no-store, private` + `Pragma: no-cache` pada export Excel dan kedua PDF (`ReportController::NO_STORE`). `config/dompdf.php` dipublish: `enable_remote`, `enable_php`, `enable_javascript` = false, `chroot` = folder backend, protokol hanya `data://` dan `file://`. `throttle:10,1,reports` pada `reports.export`, `reports.attendance-pdf`, `reports.assessment-pdf` (prefix `reports` agar tidak berbagi hitungan dengan `throttle:60,1` chat). `InternProfile::mentor()` memakai `withTrashed()`. `city` wajib saat tambah bandara ("Kota wajib diisi."); edit tetap opsional.
+- [x] **Seeder**: `AssessmentIndicatorSeeder` (sumber tunggal 9 indikator, `updateOrCreate` berdasarkan nama) dipanggil `DatabaseSeeder` dan `ProductionSeeder`. Production tanpa reset: `php artisan db:seed --class=AssessmentIndicatorSeeder --force`.
+- [x] Test: judul kedua PDF, penomoran per kategori, catatan kosong, mentor terhapus, header anti-cache (PDF dan Excel), rate limit 429, seeder production dua kali, kota wajib. 815 test, Pint, PHPStan lulus.
+
+Keputusan kecil:
+
+- Penutup Daftar Kehadiran mengikuti formulir mitra: "[kota], [tanggal]" di **kiri** di atas "Menyetujui, / Pembimbing" (dokumen perubahan menulis tetap di kanan).
+- Logo ditampilkan karena ada di formulir mitra; kata "injourney"/"AIRPORTS" ditulis dengan font Helvetica bawaan dompdf, hanya tanda lingkarannya berupa gambar.
+- Nama mentor/intern dicetak di atas garis tanda tangan.
+- Daftar Kehadiran tidak menambah baris kosong; bulan dengan banyak hari kerja dan kegiatan panjang wajar berlanjut ke halaman 2 (header tabel diulang).
+
 ### Catatan integrasi frontend (26 Okt 2026)
 
 | Layar | Endpoint | Perubahan |
@@ -1159,7 +1178,8 @@ Sumber: `backend/update26okt.md`. Keputusan lama "mentor tidak punya fitur penil
 | Mentor Input Nilai (menu `assessments`, label "Input Nilai") | `GET/PUT /api/mentor/assessments/{intern}`, `POST /{intern}/submit` | Kirim `notes`; nilai harus integer; indikator punya `category` untuk pengelompokan; tampilkan `final_score` dan `predicate` dari server |
 | Admin Penilaian, Intern Catatan | `GET /api/admin/assessments/{user}`, `GET /api/intern/assessment` | Tambah `predicate`, `notes`, `indicators[].category` |
 | Admin Laporan | `POST /api/admin/reports/attendance-pdf`, `POST /api/admin/reports/assessment-pdf` | Unduh sebagai blob (`responseType: 'blob'`), nama file dari `Content-Disposition`. Error 422 berupa JSON (`reason`: `outside_internship`, `no_data`, `not_submitted`, atau `errors`) |
-| Admin Lokasi & Jadwal | `POST/PUT /api/admin/airports` | Field opsional `city` |
+| Admin Lokasi & Jadwal | `POST/PUT /api/admin/airports` | Field `city`: **wajib saat tambah** sejak 27 Okt 2026 ("Kota wajib diisi."), opsional saat ubah |
+| Admin Laporan (27 Okt 2026) | `POST /api/admin/reports/{export,attendance-pdf,assessment-pdf}` | Batas 10 export per menit per admin. Tangani `429`: "Terlalu banyak permintaan, coba lagi sebentar." |
 | Admin Log Aktivitas | `GET /api/admin/audit-logs/options` | Kategori baru "Penilaian" (pelakunya mentor) |
 
 ## Berikutnya
