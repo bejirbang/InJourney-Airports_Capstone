@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { ApiError, UNAUTHORIZED_EVENT, clearToken, getToken, type ApiUser } from "@/lib/api";
-import { authApi } from "@/lib/endpoints/auth";
+import { ApiError, UNAUTHORIZED_EVENT, clearToken, getToken } from "@/lib/api";
+import { authApi, type ApiUser } from "@/lib/endpoints/auth";
 
 // Status sesi autentikasi terhadap backend Laravel.
 export type AuthStatus = "loading" | "guest" | "authed";
@@ -14,8 +14,8 @@ interface AuthValue {
   logout: () => Promise<void>;
   /** Ganti password sementara, mengembalikan user terbaru. */
   changePassword: (password: string, password_confirmation: string) => Promise<ApiUser>;
-  /** Simpan nama dan telepon, mengembalikan user terbaru. */
-  updateProfile: (input: { name: string; phone: string }) => Promise<ApiUser>;
+  /** Simpan nomor telepon (satu-satunya bagian profil yang bisa diubah), mengembalikan pesan server dan user terbaru. */
+  updateProfile: (phone: string | null) => Promise<{ message: string; user: ApiUser }>;
   /** Muat ulang data user dari server. */
   refresh: () => Promise<void>;
 }
@@ -83,12 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
-  const updateProfile = useCallback(async (input: { name: string; phone: string }) => {
+  const updateProfile = useCallback(async (phone: string | null) => {
     const token = getToken();
     if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
-    const updated = await authApi.updateProfile(token, input);
-    setUser(updated);
-    return updated;
+    const result = await authApi.updateProfile(token, phone);
+    setUser(result.user);
+    return result;
   }, []);
 
   return (

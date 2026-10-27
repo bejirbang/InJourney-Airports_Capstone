@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/lib/mock-rules";
 
 // Router tiruan: halaman cukup butuh Link, useSearch, useNavigate, dan useLocation.
-const router = vi.hoisted(() => ({ search: {} as Record<string, string>, pathname: "/" }));
+// `navigations` merekam tujuan navigate() untuk menguji alur setelah login.
+const router = vi.hoisted(() => ({
+  search: {} as Record<string, string>,
+  pathname: "/",
+  navigations: [] as { to: string }[],
+}));
 vi.mock("@tanstack/react-router", () => ({
   Link: forwardRef<
     HTMLAnchorElement,
@@ -18,7 +23,10 @@ vi.mock("@tanstack/react-router", () => ({
     );
   }),
   useSearch: () => router.search,
-  useNavigate: () => () => Promise.resolve(),
+  useNavigate: () => (opts: { to: string }) => {
+    router.navigations.push(opts);
+    return Promise.resolve();
+  },
   useLocation: () => ({ pathname: router.pathname }),
 }));
 
@@ -73,8 +81,16 @@ vi.mock("leaflet", () => {
 const { MockProvider } = await import("@/components/internspace/shared/model");
 const { AuthProvider } = await import("@/lib/auth");
 const { Workspace } = await import("@/components/internspace/shared/shell");
-const { Dashboard, AttendancePage, LeavePage } =
-  await import("@/components/internspace/shared/role-pages");
+const {
+  Dashboard,
+  AttendancePage,
+  LeavePage,
+  LogbookPage,
+  PresentationPage,
+  NotesPage,
+  AssessmentPage,
+  CorrectionsPage,
+} = await import("@/components/internspace/shared/role-pages");
 const { ChatPage } = await import("@/components/internspace/shared/chat");
 const { ProfilePage } = await import("@/components/internspace/shared/profile");
 const { LoginPage, ChangePasswordPage } = await import("@/components/internspace/shared/account");
@@ -328,6 +344,10 @@ const apiState = {
   weeklySets: [] as WeeklySetMock[],
   holidays: [] as HolidayMock[],
   holidaySeq: 1,
+  /** Body terakhir PUT /api/auth/profile, untuk membuktikan hanya `phone` yang dikirim. */
+  profileBody: null as Record<string, unknown> | null,
+  /** Menu contoh yang menggantikan GET /api/{role}/menu (uji sumber menu sidebar). */
+  menuOverride: null as { key: string; path: string; badge: number | null }[] | null,
 };
 
 const resetApi = () => {
@@ -375,10 +395,78 @@ const resetApi = () => {
     clone,
   );
   apiState.holidaySeq = 2;
+  apiState.profileBody = null;
+  apiState.menuOverride = null;
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
   ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+
+/** Role akun untuk stub `/api/auth/me`; disetel `show()` agar selari dengan MockProvider. */
+let authRole: Role = "Intern";
+
+/** Data intern contoh (bentuk `intern_profile` pada UserResource). */
+const INTERN_PROFILE_MOCK = {
+  mentor: { id: 2, name: "Sari Wulandari" },
+  airport: { id: 1, name: "Kantor Pusat Terminal 3" },
+  institution_type: "universitas",
+  university: "Telkom University",
+  major: "Sistem Informasi",
+  student_number: "1301210001",
+  start_date: "2026-10-01",
+  end_date: "2027-01-31",
+};
+
+/** Bentuk `GET /api/auth/me` (UserResource) sesuai role yang sedang masuk. */
+const apiUser = (role: Role, options: { mustChange?: boolean; phone?: string | null } = {}) => ({
+  id: 1,
+  name: "Budi Santoso",
+  email: `${role.toLowerCase()}@injourney.test`,
+  role: role.toLowerCase(),
+  unit: { id: 1, name: "Divisi IT" },
+  phone: options.phone ?? null,
+  is_active: true,
+  must_change_password: options.mustChange ?? false,
+  home_path: "/",
+  ...(role === "Intern" ? { intern_profile: clone(INTERN_PROFILE_MOCK) } : {}),
+});
+
+/** Menu contoh per role — key dan urut seperti `MenuController` backend. */
+const MENU_MOCK: Record<string, { key: string; path: string; badge: number | null }[]> = {
+  intern: [
+    { key: "dashboard", path: "/intern/dashboard", badge: null },
+    { key: "attendance", path: "/intern/attendance", badge: null },
+    { key: "logbooks", path: "/intern/logbooks", badge: 2 },
+    { key: "leaves", path: "/intern/leaves", badge: 1 },
+    { key: "presentation", path: "/intern/presentation", badge: null },
+    { key: "notes", path: "/intern/notes", badge: null },
+  ],
+  mentor: [
+    { key: "dashboard", path: "/mentor/dashboard", badge: null },
+    { key: "interns", path: "/mentor/interns", badge: null },
+    { key: "logbooks", path: "/mentor/logbooks", badge: 3 },
+    { key: "corrections", path: "/mentor/corrections", badge: 4 },
+    { key: "leaves", path: "/mentor/leaves", badge: 1 },
+    { key: "leave_calendar", path: "/mentor/leave-calendar", badge: null },
+    { key: "performance", path: "/mentor/performance", badge: null },
+    { key: "assessments", path: "/mentor/assessments", badge: null },
+  ],
+  admin: [
+    { key: "dashboard", path: "/admin/dashboard", badge: null },
+    { key: "users", path: "/admin/users", badge: null },
+    { key: "attendance", path: "/admin/attendance", badge: null },
+    { key: "corrections", path: "/admin/corrections", badge: 5 },
+    { key: "leaves", path: "/admin/leaves", badge: 2 },
+    { key: "presentations", path: "/admin/presentations", badge: null },
+    { key: "assessments", path: "/admin/assessments", badge: null },
+    { key: "warnings", path: "/admin/warnings", badge: 1 },
+    { key: "announcements", path: "/admin/announcements", badge: null },
+    { key: "reports", path: "/admin/reports", badge: null },
+    { key: "settings", path: "/admin/settings", badge: null },
+    { key: "offices", path: "/admin/offices", badge: null },
+    { key: "audit_log", path: "/admin/audit-log", badge: null },
+  ],
+};
 
 const installFetch = () => {
   vi.stubGlobal(
@@ -386,21 +474,49 @@ const installFetch = () => {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = (init?.method ?? "GET").toUpperCase();
-      if (url.endsWith("/api/auth/me"))
+      if (url.endsWith("/api/auth/me")) return jsonResponse({ data: apiUser(authRole) });
+
+      // ---- Autentikasi (Fase 1): login dan simpan profil ----
+      if (method === "POST" && url.endsWith("/api/auth/login")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          email?: string;
+          password?: string;
+        };
+        const email = String(body.email ?? "");
+        if (!email || body.password !== "password")
+          return jsonResponse({ message: "Email atau password salah." }, 422);
+        const loginRole: Role = email.startsWith("admin")
+          ? "Admin"
+          : email.startsWith("mentor")
+            ? "Mentor"
+            : "Intern";
         return jsonResponse({
-          data: {
-            id: 1,
-            name: "Budi Santoso",
-            email: "intern@injourney.test",
-            role: "intern",
-            title: null,
-            phone: null,
-            photo_url: null,
-            is_active: true,
-            must_change_password: false,
-            intern_profile: { mentor_id: 2, start_date: "2026-10-01", end_date: "2027-01-31" },
-          },
+          token: "token-uji",
+          user: apiUser(loginRole, { mustChange: email.startsWith("intern.baru") }),
         });
+      }
+      if (method === "PUT" && url.endsWith("/api/auth/profile")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        apiState.profileBody = body;
+        if (!("phone" in body))
+          return jsonResponse({ message: "Nomor telepon wajib dikirim." }, 422);
+        const raw = body["phone"];
+        const phone = raw === null || raw === undefined || raw === "" ? null : String(raw);
+        if (phone !== null && !/^\+?\d[\d\s-]{6,}$/.test(phone))
+          return jsonResponse({ message: "Format nomor telepon tidak valid." }, 422);
+        return jsonResponse({
+          message: "Perubahan tersimpan.",
+          data: apiUser(authRole, { phone }),
+        });
+      }
+
+      // ---- Menu sidebar (Fase 1): key + badge dari GET /api/{role}/menu ----
+      const menuMatch = /\/api\/(intern|mentor|admin)\/menu$/.exec(url);
+      if (menuMatch) {
+        const items = apiState.menuOverride ?? MENU_MOCK[menuMatch[1] ?? ""] ?? [];
+        return jsonResponse({ data: items.map(clone) });
+      }
+
       if (url.endsWith("/api/intern/dashboard"))
         return jsonResponse({
           data: {
@@ -785,6 +901,7 @@ const installGeolocation = () => {
 };
 
 const show = (role: Role, page: ReactNode, path = "/") => {
+  authRole = role;
   router.pathname = path;
   return render(
     <QueryClientProvider
@@ -805,6 +922,8 @@ const show = (role: Role, page: ReactNode, path = "/") => {
 
 beforeEach(() => {
   resetApi();
+  authRole = "Intern";
+  router.navigations = [];
   geoBehavior = "ok";
   geoPosition = { lat: KANTOR_T3.latitude, lng: KANTOR_T3.longitude };
   localStorage.setItem("internspace_token", "token-uji");
@@ -825,50 +944,82 @@ afterEach(() => {
 });
 
 describe("Menu per role", () => {
-  it("Intern hanya melihat Dashboard, Presensi, dan Izin", () => {
-    show("Intern", <Dashboard />);
-    const nav = within(screen.getByRole("navigation", { name: "Menu utama" }));
-    expect(nav.getAllByRole("link").map((a) => a.textContent)).toEqual([
-      "Dashboard",
-      "Presensi",
-      "Izin",
-    ]);
-  });
-  it("Mentor punya Intern Saya, Kalender Izin, dan Performa Intern", () => {
-    show("Mentor", <Dashboard />);
-    const labels = within(screen.getByRole("navigation", { name: "Menu utama" }))
+  const mainNav = () => within(screen.getByRole("navigation", { name: "Menu utama" }));
+  const labels = () =>
+    mainNav()
       .getAllByRole("link")
       .map((a) => a.textContent?.replace(/\d+$/, ""));
-    expect(labels).toEqual([
+
+  it("Intern melihat menu sesuai tabel 4.3 dengan badge dari API", async () => {
+    show("Intern", <Dashboard />);
+    await waitFor(() => expect(mainNav().getAllByRole("link")).toHaveLength(6));
+    expect(labels()).toEqual([
+      "Dashboard",
+      "Presensi",
+      "Logbook",
+      "Izin",
+      "Presentasi Akhir",
+      "Catatan",
+    ]);
+    // Badge datang dari GET /api/intern/menu (stub: logbooks 2, leaves 1).
+    await waitFor(() => expect(mainNav().getByLabelText("2 menunggu")).toBeInTheDocument());
+    expect(mainNav().getByLabelText("1 menunggu")).toBeInTheDocument();
+  });
+
+  it("Mentor punya Intern Saya, Koreksi Presensi, dan Input Nilai", async () => {
+    show("Mentor", <Dashboard />);
+    await waitFor(() => expect(mainNav().getAllByRole("link")).toHaveLength(8));
+    expect(labels()).toEqual([
       "Dashboard",
       "Intern Saya",
+      "Logbook",
+      "Koreksi Presensi",
       "Izin",
       "Kalender Izin",
       "Performa Intern",
+      "Input Nilai",
     ]);
+    await waitFor(() => expect(mainNav().getByLabelText("4 menunggu")).toBeInTheDocument());
   });
-  it("Admin punya menu administrasi lengkap", () => {
+
+  it("Admin punya menu administrasi lengkap", async () => {
     show("Admin", <Dashboard />);
-    const labels = within(screen.getByRole("navigation", { name: "Menu utama" }))
-      .getAllByRole("link")
-      .map((a) => a.textContent?.replace(/\d+$/, ""));
-    expect(labels).toEqual([
+    await waitFor(() => expect(mainNav().getAllByRole("link")).toHaveLength(13));
+    expect(labels()).toEqual([
       "Dashboard",
       "Pengguna",
       "Presensi",
       "Koreksi",
       "Izin",
+      "Presentasi Akhir",
+      "Penilaian",
       "Warning",
       "Pengumuman",
       "Laporan",
       "Pengaturan",
-      "Lokasi Kantor",
+      "Lokasi & Jadwal",
       "Log Aktivitas",
     ]);
+    await waitFor(() => expect(mainNav().getByLabelText("5 menunggu")).toBeInTheDocument());
   });
-  it("menolak halaman di luar hak role", () => {
+
+  it("menu sidebar mengikuti data server, bukan daftar statis", async () => {
+    apiState.menuOverride = [
+      { key: "dashboard", path: "/intern/dashboard", badge: null },
+      { key: "logbooks", path: "/intern/logbooks", badge: 7 },
+    ];
+    show("Intern", <Dashboard />);
+    await waitFor(() => expect(mainNav().getAllByRole("link")).toHaveLength(2));
+    expect(labels()).toEqual(["Dashboard", "Logbook"]);
+    expect(mainNav().getByLabelText("7 menunggu")).toBeInTheDocument();
+    expect(mainNav().queryByText("Presensi")).toBeNull();
+  });
+
+  it("menolak halaman di luar hak role", async () => {
     show("Intern", <admin.UsersPage />, "/users");
-    expect(screen.getByText("Anda tidak memiliki akses ke halaman ini.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Anda tidak memiliki akses ke halaman ini."),
+    ).toBeInTheDocument();
   });
 });
 
@@ -876,19 +1027,67 @@ describe("Setiap halaman dapat dirender", () => {
   const pages: [Role, string, ReactNode, string | RegExp][] = [
     ["Intern", "/", <Dashboard key="d" />, "Rekap bulan ini (Oktober 2026)"],
     ["Intern", "/absensi", <AttendancePage key="a" />, "Daily Report - Sen, 12 Okt 2026"],
+    [
+      "Intern",
+      "/logbook",
+      <LogbookPage key="lb" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
     ["Intern", "/izin", <LeavePage key="l" />, "Riwayat izin"],
+    [
+      "Intern",
+      "/presentasi",
+      <PresentationPage key="pr" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
+    [
+      "Intern",
+      "/catatan",
+      <NotesPage key="nt" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
     ["Intern", "/chat", <ChatPage key="c" />, "Budi Santoso"],
     ["Intern", "/profil", <ProfilePage key="p" />, "Data akun"],
     ["Mentor", "/", <Dashboard key="d" />, /Izin pending/],
     ["Mentor", "/intern-saya", <MyInternsPage key="i" />, "Rizky Pratama"],
+    [
+      "Mentor",
+      "/logbook",
+      <LogbookPage key="lbm" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
+    [
+      "Mentor",
+      "/koreksi",
+      <CorrectionsPage key="km" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
     ["Mentor", "/izin", <LeavePage key="l" />, "Menunggu keputusan"],
     ["Mentor", "/kalender-izin", <LeaveCalendarPage key="k" />, "Izin Disetujui"],
     ["Mentor", "/performa", <PerformancePage key="p" />, "KPI per intern"],
+    [
+      "Mentor",
+      "/penilaian",
+      <AssessmentPage key="pm" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
     ["Admin", "/", <Dashboard key="d" />, /Magang berakhir dalam 7 hari/],
     ["Admin", "/absensi", <AttendancePage key="a" />, "Rekap Bulanan"],
     ["Admin", "/users", <admin.UsersPage key="u" />, "Daftar pengguna"],
     ["Admin", "/koreksi", <admin.CorrectionsPage key="k" />, "Permintaan koreksi"],
     ["Admin", "/izin", <LeavePage key="l" />, "Menunggu keputusan"],
+    [
+      "Admin",
+      "/presentasi",
+      <PresentationPage key="pr2" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
+    [
+      "Admin",
+      "/penilaian",
+      <AssessmentPage key="pa" />,
+      "Bagian ini sedang disiapkan pada fase berikutnya.",
+    ],
     ["Admin", "/warning", <admin.WarningsPage key="w" />, "Hanya terlihat oleh admin"],
     ["Admin", "/pengumuman", <admin.AnnouncementsPage key="p" />, "Daftar pengumuman"],
     ["Admin", "/laporan", <admin.ReportsPage key="r" />, "Buat laporan"],
@@ -918,6 +1117,70 @@ describe("Setiap halaman dapat dirender", () => {
       </AuthProvider>,
     );
     expect(screen.getByText("Simpan Password")).toBeInTheDocument();
+  });
+});
+
+describe("Login dan profil (Fase 1)", () => {
+  const fillLogin = (email: string) => {
+    fireEvent.change(screen.getByPlaceholderText("nama@example.com"), {
+      target: { value: email },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Masukkan password"), {
+      target: { value: "password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Masuk" }));
+  };
+
+  it.each(["intern@injourney.test", "mentor@injourney.test", "admin@injourney.test"])(
+    "login %s masuk ke /",
+    async (email) => {
+      render(
+        <AuthProvider>
+          <MockProvider initialRole="Intern">
+            <LoginPage />
+          </MockProvider>
+        </AuthProvider>,
+      );
+      fillLogin(email);
+      await waitFor(() => expect(router.navigations.at(-1)?.to).toBe("/"));
+    },
+  );
+
+  it("intern.baru@injourney.test diarahkan ke Ganti Password lebih dulu", async () => {
+    render(
+      <AuthProvider>
+        <MockProvider initialRole="Intern">
+          <LoginPage />
+        </MockProvider>
+      </AuthProvider>,
+    );
+    fillLogin("intern.baru@injourney.test");
+    await waitFor(() => expect(router.navigations.at(-1)?.to).toBe("/ganti-password"));
+  });
+
+  it("Profil hanya bisa mengubah nomor telepon", async () => {
+    show("Intern", <ProfilePage />, "/profil");
+    const nameInput = await screen.findByDisplayValue("Budi Santoso");
+    expect(nameInput).toHaveAttribute("readonly");
+    const phoneInput = screen.getByPlaceholderText("08xx-xxxx-xxxx");
+    fireEvent.change(phoneInput, { target: { value: "0812-3456-7890" } });
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(apiState.profileBody).toEqual({ phone: "0812-3456-7890" }));
+  });
+
+  it("Mengosongkan telepon mengirim null agar lolos validasi server", async () => {
+    show("Intern", <ProfilePage />, "/profil");
+    const phoneInput = await screen.findByPlaceholderText("08xx-xxxx-xxxx");
+    fireEvent.change(phoneInput, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    await waitFor(() => expect(apiState.profileBody).toEqual({ phone: null }));
+  });
+
+  it("Judul halaman penilaian mengikuti role", async () => {
+    show("Mentor", <AssessmentPage />, "/penilaian");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Input Nilai" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -958,11 +1221,13 @@ describe("Alur utama", () => {
     );
   });
 
-  it("Admin: tidak bisa menyetujui izin pending tanpa bukti", () => {
+  it("Admin: tidak bisa menyetujui izin pending tanpa bukti", async () => {
     router.search = { open: "6" };
     show("Admin", <LeavePage />, "/izin");
-    expect(screen.getByText(/Admin hanya dapat menolak atau menunggu mentor/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Setujui" })).toBeDisabled();
+    expect(
+      await screen.findByText(/Admin hanya dapat menolak atau menunggu mentor/),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Setujui" })).toBeDisabled();
   });
 });
 

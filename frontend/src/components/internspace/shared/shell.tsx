@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   Bell,
+  BookOpen,
   CalendarCheck,
   CalendarDays,
   ChartNoAxesCombined,
@@ -17,9 +18,12 @@ import {
   MapPin,
   Menu,
   MessageSquare,
+  NotebookText,
   Plane,
+  Presentation,
   Settings,
   ShieldAlert,
+  Star,
   UserRound,
   Users,
   UsersRound,
@@ -38,14 +42,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  TODAY,
-  formatPeriod,
-  formatShortTime,
-  isOverduePending,
-  type Role,
-} from "@/lib/mock-rules";
+import { TODAY, formatPeriod, formatShortTime, type Role } from "@/lib/mock-rules";
+import { toMockRole, type ApiRole } from "@/lib/api";
+import { menuLabel, menuRoute } from "@/lib/navigation";
 import type { AppPath } from "@/lib/search";
+import { useMenu } from "@/components/internspace/shared/menu-data";
 import {
   LOCATION_LABELS,
   initials,
@@ -63,9 +64,13 @@ type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
   "/absensi": "Presensi",
+  "/logbook": "Logbook",
   "/izin": "Izin",
+  "/presentasi": "Presentasi Akhir",
+  "/catatan": "Catatan",
   "/chat": "Chat",
   "/koreksi": "Koreksi",
+  "/penilaian": "Penilaian",
   "/intern-saya": "Intern Saya",
   "/kalender-izin": "Kalender Izin",
   "/performa": "Performa Intern",
@@ -74,20 +79,33 @@ const pageLabels: Record<string, string> = {
   "/pengumuman": "Pengumuman",
   "/laporan": "Laporan",
   "/pengaturan": "Pengaturan",
-  "/lokasi-kantor": "Lokasi Kantor",
+  "/lokasi-kantor": "Lokasi & Jadwal",
   "/log": "Log Aktivitas",
   "/profil": "Profil",
 };
-// Halaman yang boleh dibuka tiap role (design-*.md bagian 2.2). Chat dan profil untuk semua.
+// Halaman yang boleh dibuka tiap role (progress.md 4.3; design-*.md bagian 2.2). Chat dan profil untuk semua.
 const allowed: Record<Role, AppPath[]> = {
-  Intern: ["/", "/absensi", "/izin", "/chat", "/profil"],
-  Mentor: ["/", "/intern-saya", "/izin", "/kalender-izin", "/performa", "/chat", "/profil"],
+  Intern: ["/", "/absensi", "/logbook", "/izin", "/presentasi", "/catatan", "/chat", "/profil"],
+  Mentor: [
+    "/",
+    "/intern-saya",
+    "/logbook",
+    "/koreksi",
+    "/izin",
+    "/kalender-izin",
+    "/performa",
+    "/penilaian",
+    "/chat",
+    "/profil",
+  ],
   Admin: [
     "/",
     "/users",
     "/absensi",
     "/koreksi",
     "/izin",
+    "/presentasi",
+    "/penilaian",
     "/warning",
     "/pengumuman",
     "/laporan",
@@ -97,6 +115,60 @@ const allowed: Record<Role, AppPath[]> = {
     "/chat",
     "/profil",
   ],
+};
+
+// Cadangan tampilan sidebar bila menu belum dimuat atau gagal: key sesuai
+// GET /api/{role}/menu (MenuController backend), tanpa badge.
+const fallbackMenuKeys: Record<Role, string[]> = {
+  Intern: ["dashboard", "attendance", "logbooks", "leaves", "presentation", "notes"],
+  Mentor: [
+    "dashboard",
+    "interns",
+    "logbooks",
+    "corrections",
+    "leaves",
+    "leave_calendar",
+    "performance",
+    "assessments",
+  ],
+  Admin: [
+    "dashboard",
+    "users",
+    "attendance",
+    "corrections",
+    "leaves",
+    "presentations",
+    "assessments",
+    "warnings",
+    "announcements",
+    "reports",
+    "settings",
+    "offices",
+    "audit_log",
+  ],
+};
+
+/** Ikon per key menu (label di navigation.ts `MENU_LABELS`). */
+const menuIcons: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard,
+  attendance: Clock3,
+  logbooks: BookOpen,
+  leaves: CalendarCheck,
+  presentation: Presentation,
+  notes: NotebookText,
+  interns: UsersRound,
+  corrections: FileClock,
+  leave_calendar: CalendarDays,
+  performance: ChartNoAxesCombined,
+  assessments: Star,
+  users: Users,
+  presentations: Presentation,
+  warnings: ShieldAlert,
+  announcements: Megaphone,
+  reports: FileDown,
+  settings: Settings,
+  offices: MapPin,
+  audit_log: History,
 };
 
 export function Workspace({ children }: { children: ReactNode }) {
@@ -113,64 +185,46 @@ export function Workspace({ children }: { children: ReactNode }) {
     if (needPasswordChange) void navigate({ to: "/ganti-password" });
   }, [needPasswordChange, navigate]);
 
-  const myInterns = m.internsOf(m.me.name).map((p) => p.name);
-  const nav: NavItem[] =
-    m.role === "Intern"
-      ? [
-          { to: "/", label: "Dashboard", icon: LayoutDashboard },
-          { to: "/absensi", label: "Presensi", icon: Clock3 },
-          { to: "/izin", label: "Izin", icon: CalendarCheck },
-        ]
-      : m.role === "Mentor"
-        ? [
-            { to: "/", label: "Dashboard", icon: LayoutDashboard },
-            { to: "/intern-saya", label: "Intern Saya", icon: UsersRound },
-            {
-              to: "/izin",
-              label: "Izin",
-              icon: CalendarCheck,
-              count: m.leaves.filter((l) => l.status === "Pending" && myInterns.includes(l.intern))
-                .length,
-            },
-            { to: "/kalender-izin", label: "Kalender Izin", icon: CalendarDays },
-            { to: "/performa", label: "Performa Intern", icon: ChartNoAxesCombined },
-          ]
-        : [
-            { to: "/", label: "Dashboard", icon: LayoutDashboard },
-            { to: "/users", label: "Pengguna", icon: Users },
-            { to: "/absensi", label: "Presensi", icon: Clock3 },
-            {
-              to: "/koreksi",
-              label: "Koreksi",
-              icon: FileClock,
-              count: m.corrections.filter((c) => c.status === "Pending").length,
-            },
-            {
-              to: "/izin",
-              label: "Izin",
-              icon: CalendarCheck,
-              count: m.leaves.filter((l) => isOverduePending(l.status, l.submitted)).length,
-            },
-            { to: "/warning", label: "Warning", icon: ShieldAlert },
-            { to: "/pengumuman", label: "Pengumuman", icon: Megaphone },
-            { to: "/laporan", label: "Laporan", icon: FileDown },
-            { to: "/pengaturan", label: "Pengaturan", icon: Settings },
-            { to: "/lokasi-kantor", label: "Lokasi Kantor", icon: MapPin },
-            { to: "/log", label: "Log Aktivitas", icon: History },
-          ];
-  const canOpen = allowed[m.role].includes(path as AppPath);
+  // Role tampilan dari sesi API, bukan dari simulasi prototipe (progress.md 5.2).
+  const apiRole: ApiRole | null = auth.user?.role ?? null;
+  const role: Role | null = apiRole ? toMockRole[apiRole] : null;
+
+  // Sidebar dari server (key + badge); label Indonesia dan ikon dari frontend.
+  // Selama memuat atau bila gagal, tampilkan daftar statis tanpa badge agar navigasi tetap jalan.
+  const menu = useMenu(apiRole);
+  const nav: NavItem[] = (() => {
+    const badges = new Map((menu.data ?? []).map((item) => [item.key, item.badge]));
+    const keys = menu.data ? menu.data.map((item) => item.key) : role ? fallbackMenuKeys[role] : [];
+    return keys.flatMap<NavItem>((key) => {
+      const to = menuRoute(key);
+      const label = apiRole ? menuLabel(apiRole, key) : null;
+      const icon = menuIcons[key];
+      if (!to || !label || !icon) return [];
+      const badge = badges.get(key);
+      // Badge 0 disembunyikan, sama dengan `!!item.count` saat render.
+      return [{ to, label, icon, ...(badge ? { count: badge } : {}) }];
+    });
+  })();
+
+  const canOpen = role !== null && allowed[role].includes(path as AppPath);
   const chatUnread = unreadChats(m.chats, m.me.name, m.chatRead);
+
+  // Periode magang di sidebar memakai data API bila ada, cadangan data prototipe.
+  const internProfile = auth.user?.intern_profile;
+  const programStart = internProfile?.start_date ?? m.me.start;
+  const programEnd = internProfile?.end_date ?? m.me.end;
+  const programMentor = internProfile?.mentor.name ?? m.me.mentor;
   const progress = (() => {
-    if (!m.me.start) return 0;
-    const total = Date.parse(m.me.end) - Date.parse(m.me.start);
+    if (!programStart || !programEnd) return 0;
+    const total = Date.parse(programEnd) - Date.parse(programStart);
     return Math.min(
       100,
-      Math.max(0, Math.round(((Date.parse(TODAY) - Date.parse(m.me.start)) / total) * 100)),
+      Math.max(0, Math.round(((Date.parse(TODAY) - Date.parse(programStart)) / total) * 100)),
     );
   })();
 
   return (
-    <div className={`workspace role-${m.role.toLowerCase()}`}>
+    <div className={`workspace role-${(role ?? "guest").toLowerCase()}`}>
       <aside className={`sidebar ${mobile ? "open" : ""}`}>
         <div className="brand">
           <img className="brand-mark" src={icon} alt="Logo InJourney Airports" />
@@ -208,17 +262,17 @@ export function Workspace({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          {m.role === "Intern" && m.me.start && (
+          {role === "Intern" && programStart && (
             <div className="program-card">
               <div className="flex items-center gap-2 font-semibold text-xs">
                 <Plane size={15} className="text-primary" /> Periode magang
               </div>
-              <p>{formatPeriod(m.me.start, m.me.end)}</p>
+              <p>{formatPeriod(programStart, programEnd)}</p>
               <div className="progress-track">
                 <span style={{ width: `${progress}%` }} />
               </div>
               <div className="flex justify-between text-[9px] text-muted-foreground">
-                <span>Mentor: {m.me.mentor}</span>
+                <span>Mentor: {programMentor}</span>
                 <span className="text-primary font-semibold">{progress}%</span>
               </div>
             </div>
@@ -238,9 +292,11 @@ export function Workspace({ children }: { children: ReactNode }) {
               <Menu />
             </Button>
             <div className="breadcrumb">
-              <span>{m.role}</span>
+              <span>{role ?? "Memuat"}</span>
               <ChevronRight size={12} />
-              <strong>{pageLabels[path] ?? "Dashboard"}</strong>
+              <strong>
+                {nav.find((item) => item.to === path)?.label ?? pageLabels[path] ?? "Dashboard"}
+              </strong>
             </div>
           </div>
           <div className="topbar-right">
@@ -256,17 +312,13 @@ export function Workspace({ children }: { children: ReactNode }) {
                 {chatUnread > 0 && <span className="icon-count">{chatUnread}</span>}
               </Link>
             </Button>
-            <NotificationBell />
+            <NotificationBell role={role} />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
-                {auth.user?.photo_url ? (
-                  <img className="avatar" src={auth.user.photo_url} alt="" />
-                ) : (
-                  <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
-                )}
+                <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
                 <span className="profile-name">
                   <strong className="text-[11px]">{auth.user?.name ?? m.me.name}</strong>
-                  <small>{m.role}</small>
+                  <small>{role ?? ""}</small>
                 </span>
                 <ChevronDown size={12} />
               </DropdownMenuTrigger>
@@ -301,7 +353,9 @@ export function Workspace({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="content">
-          {!canOpen ? (
+          {!role ? (
+            <LoadingState />
+          ) : !canOpen ? (
             <NoAccess />
           ) : dataState === "memuat" ? (
             <LoadingState />
@@ -316,7 +370,7 @@ export function Workspace({ children }: { children: ReactNode }) {
           </footer>
         </main>
       </div>
-      {m.role === "Intern" && (
+      {role === "Intern" && (
         <nav className="bottom-nav" aria-label="Menu bawah">
           {nav.map((item) => (
             <Link key={item.to} to={item.to} className={path === item.to ? "active" : ""}>
@@ -331,12 +385,13 @@ export function Workspace({ children }: { children: ReactNode }) {
   );
 }
 
-function NotificationBell() {
+function NotificationBell({ role }: { role: Role | null }) {
   const m = useMock();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const mine = m.notices.filter((n) => n.role === m.role).sort((a, b) => b.at.localeCompare(a.at));
-  const unread = mine.filter((n) => !n.read).length;
+  const mine = role ? m.notices.filter((n) => n.role === role) : [];
+  const sorted = [...mine].sort((a, b) => b.at.localeCompare(a.at));
+  const unread = sorted.filter((n) => !n.read).length;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -353,20 +408,20 @@ function NotificationBell() {
       <PopoverContent align="end" className="notification-popup">
         <h3>
           Notifikasi
-          {unread > 0 && (
+          {unread > 0 && role && (
             <Button
               variant="link"
               size="sm"
               className="h-auto p-0"
-              onClick={() => m.markAllRead(m.role)}
+              onClick={() => m.markAllRead(role)}
             >
               Tandai semua dibaca
             </Button>
           )}
         </h3>
         <div className="max-h-[360px] overflow-y-auto">
-          {mine.length === 0 && <p className="empty">Belum ada notifikasi.</p>}
-          {mine.map((n) => (
+          {sorted.length === 0 && <p className="empty">Belum ada notifikasi.</p>}
+          {sorted.map((n) => (
             <button
               key={n.id}
               type="button"

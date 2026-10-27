@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AbsensiRouteImport } from './routes/absensi'
+import { Route as CatatanRouteImport } from './routes/catatan'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as GantiPasswordRouteImport } from './routes/ganti-password'
 import { Route as InternSayaRouteImport } from './routes/intern-saya'
@@ -19,11 +20,14 @@ import { Route as KalenderIzinRouteImport } from './routes/kalender-izin'
 import { Route as KoreksiRouteImport } from './routes/koreksi'
 import { Route as LaporanRouteImport } from './routes/laporan'
 import { Route as LogRouteImport } from './routes/log'
+import { Route as LogbookRouteImport } from './routes/logbook'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LokasiKantorRouteImport } from './routes/lokasi-kantor'
 import { Route as PengaturanRouteImport } from './routes/pengaturan'
 import { Route as PengumumanRouteImport } from './routes/pengumuman'
+import { Route as PenilaianRouteImport } from './routes/penilaian'
 import { Route as PerformaRouteImport } from './routes/performa'
+import { Route as PresentasiRouteImport } from './routes/presentasi'
 import { Route as ProfilRouteImport } from './routes/profil'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as WarningRouteImport } from './routes/warning'
@@ -36,6 +40,11 @@ const IndexRoute = IndexRouteImport.update({
 const AbsensiRoute = AbsensiRouteImport.update({
   id: '/absensi',
   path: '/absensi',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatatanRoute = CatatanRouteImport.update({
+  id: '/catatan',
+  path: '/catatan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoute = ChatRouteImport.update({
@@ -78,6 +87,11 @@ const LogRoute = LogRouteImport.update({
   path: '/log',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LogbookRoute = LogbookRouteImport.update({
+  id: '/logbook',
+  path: '/logbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -98,9 +112,19 @@ const PengumumanRoute = PengumumanRouteImport.update({
   path: '/pengumuman',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PenilaianRoute = PenilaianRouteImport.update({
+  id: '/penilaian',
+  path: '/penilaian',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PerformaRoute = PerformaRouteImport.update({
   id: '/performa',
   path: '/performa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PresentasiRoute = PresentasiRouteImport.update({
+  id: '/presentasi',
+  path: '/presentasi',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfilRoute = ProfilRouteImport.update({
@@ -122,6 +146,7 @@ const WarningRoute = WarningRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
+  '/catatan': typeof CatatanRoute
   '/chat': typeof ChatRoute
   '/ganti-password': typeof GantiPasswordRoute
   '/intern-saya': typeof InternSayaRoute
@@ -130,11 +155,14 @@ export interface FileRoutesByFullPath {
   '/koreksi': typeof KoreksiRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/logbook': typeof LogbookRoute
   '/login': typeof LoginRoute
   '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
+  '/penilaian': typeof PenilaianRoute
   '/performa': typeof PerformaRoute
+  '/presentasi': typeof PresentasiRoute
   '/profil': typeof ProfilRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -142,6 +170,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
+  '/catatan': typeof CatatanRoute
   '/chat': typeof ChatRoute
   '/ganti-password': typeof GantiPasswordRoute
   '/intern-saya': typeof InternSayaRoute
@@ -150,11 +179,14 @@ export interface FileRoutesByTo {
   '/koreksi': typeof KoreksiRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/logbook': typeof LogbookRoute
   '/login': typeof LoginRoute
   '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
+  '/penilaian': typeof PenilaianRoute
   '/performa': typeof PerformaRoute
+  '/presentasi': typeof PresentasiRoute
   '/profil': typeof ProfilRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -163,6 +195,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/absensi': typeof AbsensiRoute
+  '/catatan': typeof CatatanRoute
   '/chat': typeof ChatRoute
   '/ganti-password': typeof GantiPasswordRoute
   '/intern-saya': typeof InternSayaRoute
@@ -171,11 +204,14 @@ export interface FileRoutesById {
   '/koreksi': typeof KoreksiRoute
   '/laporan': typeof LaporanRoute
   '/log': typeof LogRoute
+  '/logbook': typeof LogbookRoute
   '/login': typeof LoginRoute
   '/lokasi-kantor': typeof LokasiKantorRoute
   '/pengaturan': typeof PengaturanRoute
   '/pengumuman': typeof PengumumanRoute
+  '/penilaian': typeof PenilaianRoute
   '/performa': typeof PerformaRoute
+  '/presentasi': typeof PresentasiRoute
   '/profil': typeof ProfilRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
@@ -185,6 +221,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/absensi'
+    | '/catatan'
     | '/chat'
     | '/ganti-password'
     | '/intern-saya'
@@ -193,11 +230,14 @@ export interface FileRouteTypes {
     | '/koreksi'
     | '/laporan'
     | '/log'
+    | '/logbook'
     | '/login'
     | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
+    | '/penilaian'
     | '/performa'
+    | '/presentasi'
     | '/profil'
     | '/users'
     | '/warning'
@@ -205,6 +245,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/absensi'
+    | '/catatan'
     | '/chat'
     | '/ganti-password'
     | '/intern-saya'
@@ -213,11 +254,14 @@ export interface FileRouteTypes {
     | '/koreksi'
     | '/laporan'
     | '/log'
+    | '/logbook'
     | '/login'
     | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
+    | '/penilaian'
     | '/performa'
+    | '/presentasi'
     | '/profil'
     | '/users'
     | '/warning'
@@ -225,6 +269,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/absensi'
+    | '/catatan'
     | '/chat'
     | '/ganti-password'
     | '/intern-saya'
@@ -233,11 +278,14 @@ export interface FileRouteTypes {
     | '/koreksi'
     | '/laporan'
     | '/log'
+    | '/logbook'
     | '/login'
     | '/lokasi-kantor'
     | '/pengaturan'
     | '/pengumuman'
+    | '/penilaian'
     | '/performa'
+    | '/presentasi'
     | '/profil'
     | '/users'
     | '/warning'
@@ -246,6 +294,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AbsensiRoute: typeof AbsensiRoute
+  CatatanRoute: typeof CatatanRoute
   ChatRoute: typeof ChatRoute
   GantiPasswordRoute: typeof GantiPasswordRoute
   InternSayaRoute: typeof InternSayaRoute
@@ -254,11 +303,14 @@ export interface RootRouteChildren {
   KoreksiRoute: typeof KoreksiRoute
   LaporanRoute: typeof LaporanRoute
   LogRoute: typeof LogRoute
+  LogbookRoute: typeof LogbookRoute
   LoginRoute: typeof LoginRoute
   LokasiKantorRoute: typeof LokasiKantorRoute
   PengaturanRoute: typeof PengaturanRoute
   PengumumanRoute: typeof PengumumanRoute
+  PenilaianRoute: typeof PenilaianRoute
   PerformaRoute: typeof PerformaRoute
+  PresentasiRoute: typeof PresentasiRoute
   ProfilRoute: typeof ProfilRoute
   UsersRoute: typeof UsersRoute
   WarningRoute: typeof WarningRoute
@@ -278,6 +330,13 @@ declare module '@tanstack/react-router' {
       path: '/absensi'
       fullPath: '/absensi'
       preLoaderRoute: typeof AbsensiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/catatan': {
+      id: '/catatan'
+      path: '/catatan'
+      fullPath: '/catatan'
+      preLoaderRoute: typeof CatatanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chat': {
@@ -336,6 +395,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LogRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/logbook': {
+      id: '/logbook'
+      path: '/logbook'
+      fullPath: '/logbook'
+      preLoaderRoute: typeof LogbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -364,11 +430,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PengumumanRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/penilaian': {
+      id: '/penilaian'
+      path: '/penilaian'
+      fullPath: '/penilaian'
+      preLoaderRoute: typeof PenilaianRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/performa': {
       id: '/performa'
       path: '/performa'
       fullPath: '/performa'
       preLoaderRoute: typeof PerformaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/presentasi': {
+      id: '/presentasi'
+      path: '/presentasi'
+      fullPath: '/presentasi'
+      preLoaderRoute: typeof PresentasiRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profil': {
@@ -398,6 +478,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AbsensiRoute: AbsensiRoute,
+  CatatanRoute: CatatanRoute,
   ChatRoute: ChatRoute,
   GantiPasswordRoute: GantiPasswordRoute,
   InternSayaRoute: InternSayaRoute,
@@ -406,11 +487,14 @@ const rootRouteChildren: RootRouteChildren = {
   KoreksiRoute: KoreksiRoute,
   LaporanRoute: LaporanRoute,
   LogRoute: LogRoute,
+  LogbookRoute: LogbookRoute,
   LoginRoute: LoginRoute,
   LokasiKantorRoute: LokasiKantorRoute,
   PengaturanRoute: PengaturanRoute,
   PengumumanRoute: PengumumanRoute,
+  PenilaianRoute: PenilaianRoute,
   PerformaRoute: PerformaRoute,
+  PresentasiRoute: PresentasiRoute,
   ProfilRoute: ProfilRoute,
   UsersRoute: UsersRoute,
   WarningRoute: WarningRoute,

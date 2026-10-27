@@ -1363,9 +1363,9 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 0 | `downloadFile()` | 4.4 | | [x] 2026-10-27 |
 | 0 | `navigation.ts`, `search.ts` | 4.3, 4.5 | | [x] 2026-10-27 |
 | 0 | `labels.ts` | 4.6 | | [x] 2026-10-27 |
-| 1 | Login, ganti password, tipe user | 5.1 | | [ ] |
-| 1 | Shell, menu, badge | 5.2 | | [ ] |
-| 1 | Profil | 5.3 | | [ ] |
+| 1 | Login, ganti password, tipe user | 5.1 | | [x] 2026-10-27 |
+| 1 | Shell, menu, badge | 5.2 | | [x] 2026-10-27 |
+| 1 | Profil | 5.3 | | [x] 2026-10-27 |
 | 2 | Dashboard intern | 6.1 | | [ ] |
 | 2 | Clock in/out + logbook di clock out | 6.2 | | [ ] |
 | 2 | Logbook intern | 6.3 | | [ ] |

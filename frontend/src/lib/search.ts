@@ -14,9 +14,13 @@ export const pageSearch = (search: Record<string, unknown>): PageSearch => {
 export type AppPath =
   | "/"
   | "/absensi"
+  | "/logbook"
   | "/izin"
+  | "/presentasi"
+  | "/catatan"
   | "/chat"
   | "/koreksi"
+  | "/penilaian"
   | "/intern-saya"
   | "/kalender-izin"
   | "/performa"

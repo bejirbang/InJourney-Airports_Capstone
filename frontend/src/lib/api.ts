@@ -6,22 +6,7 @@ import type { Role } from "@/lib/mock-rules";
 
 export type ApiRole = "intern" | "mentor" | "admin";
 
-export interface ApiUser {
-  id: number;
-  name: string;
-  email: string;
-  role: ApiRole;
-  title: string | null;
-  phone: string | null;
-  photo_url: string | null;
-  is_active: boolean;
-  must_change_password: boolean;
-  intern_profile?: {
-    mentor_id: number | null;
-    start_date: string;
-    end_date: string;
-  } | null;
-}
+// Tipe `ApiUser` ada di src/lib/endpoints/auth.ts (progress.md 5.1).
 
 /** Role API (huruf kecil) ke Role tampilan (huruf kapital). */
 export const toMockRole: Record<ApiRole, Role> = {

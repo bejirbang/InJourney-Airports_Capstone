@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CorrectionsPage } from "@/components/internspace/admin/corrections";
+import { CorrectionsPage } from "@/components/internspace/shared/role-pages";
 import { pageSearch } from "@/lib/search";
 
 export const Route = createFileRoute("/koreksi")({

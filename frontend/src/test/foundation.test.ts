@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, downloadFile, setToken } from "@/lib/api";
+import { ApiError, downloadFile, request, setToken, UNAUTHORIZED_EVENT } from "@/lib/api";
 import {
   ATTENDANCE_STATUS_LABEL,
   CORRECTION_STATUS_LABEL,
@@ -151,5 +151,36 @@ describe("downloadFile", () => {
     expect((error as ApiError).message).toBe("Bulan tidak valid.");
     expect((error as ApiError).status).toBe(422);
     expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("sesi berakhir (401)", () => {
+  const jsonResponse = (body: unknown, status = 200) =>
+    ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;
+  let handler: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.setItem("internspace_token", "token-tes");
+    handler = vi.fn();
+    window.addEventListener(UNAUTHORIZED_EVENT, handler as unknown as EventListener);
+  });
+
+  afterEach(() => {
+    window.removeEventListener(UNAUTHORIZED_EVENT, handler as unknown as EventListener);
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  // AuthGate (routes/__root.tsx) menangani event ini dengan pindah ke /login.
+  it("menghapus token dan memberi tahu AuthGate untuk kembali ke /login", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ message: "Sesi berakhir." }, 401)),
+    );
+
+    await expect(request("/api/auth/me", { token: "token-tes" })).rejects.toThrow("Sesi berakhir.");
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("internspace_token")).toBeNull();
   });
 });
