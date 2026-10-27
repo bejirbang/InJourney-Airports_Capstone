@@ -1,5 +1,4 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "@tanstack/react-router";
 import { LogIn, LogOut, MapPin, Pencil, RotateCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -11,32 +10,46 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ApiError } from "@/lib/api";
+import {
+  ATTENDANCE_STATUS_LABEL,
+  LEAVE_TYPE_LABEL,
+  LOGBOOK_STATUS_LABEL,
+  labelOf,
+} from "@/lib/labels";
 import {
   TODAY,
   distanceMeters,
   formatDate,
   formatDateLong,
-  formatShortTime,
   locationMessage,
-  validateReport,
 } from "@/lib/mock-rules";
-import { ApiError, getToken } from "@/lib/api";
-import {
-  attendanceApi,
-  type ApiTodayState,
-  type GeoPosition,
-  type InternLogbookDay,
-  type OfficeInfo,
+import type {
+  ApiAttendanceDay,
+  ApiAttendanceFilter,
+  ApiTodayState,
+  GeoPosition,
+  OfficeInfo,
 } from "@/lib/endpoints/intern";
 import { type PageSearch } from "@/lib/search";
 import { CorrectionTab } from "@/components/internspace/intern/correction";
 import { AttendanceMap } from "@/components/internspace/intern/attendance-map";
-import { DayDetail, RecapStrip } from "@/components/internspace/shared/attendance-parts";
-import { ME, type Row, recap, useMock } from "@/components/internspace/shared/model";
+import {
+  useAttendanceDay,
+  useAttendanceHistory,
+  useClockIn,
+  useClockOut,
+  useOffices,
+  useTodayStatus,
+} from "@/components/internspace/intern/attendance-data";
+import { useSaveLogbook } from "@/components/internspace/intern/logbook-data";
+import { ApiDayDetail, ApiRecapStrip } from "@/components/internspace/shared/attendance-parts";
 import {
   DetailList,
   Empty,
+  ErrorState,
   FormError,
+  LoadingState,
   MonthNav,
   PageHeading,
   Panel,
@@ -45,22 +58,28 @@ import {
   Tag,
 } from "@/components/internspace/shared/ui";
 
-// ---------- Intern ----------
+// ---------- Intern (design-intern.md Alur 3-6) ----------
 type InternTab = "hari-ini" | "riwayat" | "koreksi";
 
 export function InternAttendance() {
   const search = useSearch({ strict: false }) as PageSearch;
   const [tab, setTab] = useState<InternTab>("hari-ini");
-  const [correctionDate, setCorrectionDate] = useState<string | null>(null);
+  const [correctionDate, setCorrectionDate] = useState<string | null>(
+    search.tab === "koreksi" ? (search.date ?? null) : null,
+  );
   useEffect(() => {
     if (search.tab === "riwayat" || search.tab === "koreksi" || search.tab === "hari-ini")
       setTab(search.tab);
   }, [search.tab]);
+  // Tautan dari halaman Logbook membawa ?tab=koreksi&date=YYYY-MM-DD untuk mengisi tanggal.
+  useEffect(() => {
+    if (search.tab === "koreksi" && search.date) setCorrectionDate(search.date);
+  }, [search.tab, search.date]);
   return (
     <>
       <PageHeading
         title="Presensi"
-        subtitle="Clock in, Daily Report, clock out, riwayat, dan koreksi presensi."
+        subtitle="Clock in, logbook, clock out, riwayat, dan koreksi presensi."
       />
       <Tabs
         label="Bagian presensi"
@@ -75,7 +94,6 @@ export function InternAttendance() {
       {tab === "hari-ini" && (
         <div className="grid gap-5 max-w-3xl">
           <TodayCard large />
-          <DailyReportCard focus={search.open === "report"} />
         </div>
       )}
       {tab === "riwayat" && (
@@ -107,46 +125,7 @@ function useLiveClock() {
     .join(":");
 }
 
-const internToken = (): string => {
-  const token = getToken();
-  if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
-  return token;
-};
-
 const EMPTY_OFFICES: OfficeInfo[] = [];
-
-/** Status hari ini dari API: dipakai kartu Hari Ini, Daily Report, dan banner dashboard intern. */
-export function useTodayStatus() {
-  return useQuery({
-    queryKey: ["intern", "today"],
-    queryFn: () => attendanceApi.dashboard(internToken()),
-    retry: false,
-    staleTime: 15_000,
-    refetchOnWindowFocus: false,
-  });
-}
-
-function useOffices() {
-  return useQuery({
-    queryKey: ["intern", "offices"],
-    queryFn: () => attendanceApi.offices(internToken()),
-    retry: false,
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-  });
-}
-
-/** Logbook hari ini dari `GET /api/intern/logbooks/{date}`; tanggal ikut query dashboard. */
-function useLogbook() {
-  const todayQuery = useTodayStatus();
-  const date = todayQuery.data?.date ?? TODAY;
-  return useQuery({
-    queryKey: ["intern", "logbook", date],
-    queryFn: () => attendanceApi.logbook(internToken(), date),
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-}
 
 const STATE_LABEL: Record<ApiTodayState, string> = {
   not_clocked_in: "Belum Clock In",
@@ -159,6 +138,9 @@ const STATE_LABEL: Record<ApiTodayState, string> = {
 };
 
 type GeoState = "idle" | "membaca" | "siap" | "ditolak" | "gagal";
+
+const errorText = (err: unknown, fallback: string) =>
+  err instanceof ApiError ? err.message : fallback;
 
 const nearestOffice = (list: OfficeInfo[], p: GeoPosition): OfficeInfo =>
   [...list].sort(
@@ -270,22 +252,27 @@ function GeoBox({
 
 /** Kartu Hari Ini (dipakai di Dashboard dan tab Hari Ini). Tabel kondisi: design-intern.md 4.3. */
 export function TodayCard({ large = false }: { large?: boolean }) {
-  const navigate = useNavigate();
   const clockText = useLiveClock();
-  const queryClient = useQueryClient();
   const todayQuery = useTodayStatus();
   const officesQuery = useOffices();
+  const clockIn = useClockIn();
+  const clockOut = useClockOut();
+  const saveLogbook = useSaveLogbook();
   const today = todayQuery.data?.today;
   const date = todayQuery.data?.date ?? TODAY;
   const offices = officesQuery.data ?? EMPTY_OFFICES;
-  const [busy, setBusy] = useState<"in" | "out" | null>(null);
   const [geo, setGeo] = useState<GeoState>("idle");
   const [position, setPosition] = useState<GeoPosition | null>(null);
   const [locError, setLocError] = useState<{ kind: "in" | "out"; text: string } | null>(null);
-  const [needReport, setNeedReport] = useState(false);
   const [officeId, setOfficeId] = useState<number | null>(null);
-  // Lupa Clock In: logbook belum punya baris presensi, jadi diisi inline saat clock out.
-  const [missedWork, setMissedWork] = useState("");
+  const [work, setWork] = useState("");
+  const [notes, setNotes] = useState("");
+  const [editingLogbook, setEditingLogbook] = useState(false);
+  const [logbookError, setLogbookError] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogWork, setDialogWork] = useState("");
+  const [dialogNotes, setDialogNotes] = useState("");
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const locatingRef = useRef(false);
 
   const kind: "in" | "out" =
@@ -295,30 +282,39 @@ export function TodayCard({ large = false }: { large?: boolean }) {
     today?.state === "clocked_in" ||
     today?.state === "missed_clock_in";
 
-  /** Baca GPS browser. `after` dipanggil dengan posisi bila berhasil. */
-  const readLocation = useCallback((after?: (p: GeoPosition) => void) => {
-    if (locatingRef.current) return;
-    if (!("geolocation" in navigator)) {
-      setGeo("gagal");
-      return;
-    }
-    locatingRef.current = true;
-    setGeo("membaca");
-    navigator.geolocation.getCurrentPosition(
-      (p) => {
-        locatingRef.current = false;
-        const next = { lat: p.coords.latitude, lng: p.coords.longitude };
-        setPosition(next);
-        setGeo("siap");
-        after?.(next);
-      },
-      (err) => {
-        locatingRef.current = false;
-        setGeo(err.code === err.PERMISSION_DENIED ? "ditolak" : "gagal");
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
-    );
-  }, []);
+  /**
+   * Baca GPS browser. `after` dipanggil dengan posisi bila berhasil; `onFail` menerima
+   * keadaan gagal agar dialog logbook bisa menampilkan pesannya sendiri.
+   */
+  const readLocation = useCallback(
+    (after?: (p: GeoPosition) => void, onFail?: (state: "ditolak" | "gagal") => void) => {
+      if (locatingRef.current) return;
+      if (!("geolocation" in navigator)) {
+        setGeo("gagal");
+        onFail?.("gagal");
+        return;
+      }
+      locatingRef.current = true;
+      setGeo("membaca");
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          locatingRef.current = false;
+          const next = { lat: p.coords.latitude, lng: p.coords.longitude };
+          setPosition(next);
+          setGeo("siap");
+          after?.(next);
+        },
+        (err) => {
+          locatingRef.current = false;
+          const state = err.code === err.PERMISSION_DENIED ? "ditolak" : "gagal";
+          setGeo(state);
+          onFail?.(state);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 },
+      );
+    },
+    [],
+  );
 
   // Minta izin lokasi begitu kartu aksi tampil, supaya peta langsung menunjukkan posisi Anda.
   useEffect(() => {
@@ -336,61 +332,115 @@ export function TodayCard({ large = false }: { large?: boolean }) {
     });
   }, [offices, position]);
 
-  const submit = (action: "in" | "out", p: GeoPosition) => {
-    if (busy) return;
+  // Isian mengikuti logbook terbaru dari server (draft hari ini).
+  useEffect(() => {
+    if (!today?.logbook) return;
+    setWork(today.logbook.work);
+    setNotes(today.logbook.notes ?? "");
+  }, [today?.logbook]);
+
+  const doClockIn = () => {
+    if (clockIn.isPending || locatingRef.current) return;
     setLocError(null);
-    // Lupa Clock In: server membuat baris presensi baru, jadi logbook wajib ikut dikirim.
-    const inlineWork = action === "out" && today?.state === "missed_clock_in";
-    if (inlineWork && !missedWork.trim()) {
-      setLocError({ kind: "out", text: "Isi apa yang Anda kerjakan hari ini." });
-      return;
-    }
-    setBusy(action);
-    // Token diambil di dalam rantai promise: kalau sesi sudah habis, error-nya
-    // masuk ke catch dan tombol tidak menggantung di keadaan "Memeriksa lokasi...".
-    void Promise.resolve()
-      .then(() =>
-        action === "in"
-          ? attendanceApi.clockIn(internToken(), p)
-          : attendanceApi.clockOut(
-              internToken(),
-              p,
-              inlineWork ? { work: missedWork.trim() } : undefined,
-            ),
-      )
-      .then(async (result) => {
-        await queryClient.invalidateQueries({ queryKey: ["intern"] });
-        if (action === "in") {
-          toast.success(result.message, { description: "Jangan lupa mengisi Daily Report." });
-        } else {
-          toast.success(result.message);
-        }
-      })
-      .catch((err: unknown) => {
-        if (err instanceof ApiError) {
-          if (err.reason === "logbook_missing") setNeedReport(true);
-          setLocError({ kind: action, text: err.message });
-        } else {
+    readLocation((p) => {
+      clockIn.mutate(p, {
+        onSuccess: (result) => toast.success(result.message),
+        onError: (err) =>
           setLocError({
-            kind: action,
-            text: "Tidak bisa menghubungi server. Periksa koneksi dan API.",
-          });
-        }
-      })
-      .finally(() => setBusy(null));
+            kind: "in",
+            text: errorText(err, "Clock in belum tercatat. Periksa koneksi lalu coba lagi."),
+          }),
+      });
+    });
   };
 
-  const doAction = (action: "in" | "out") => {
-    if (busy || locatingRef.current) return;
+  const clockOutNow = (p: GeoPosition, input?: { work?: string; notes?: string | null }) => {
+    const fromDialog = dialogOpen;
+    clockOut.mutate(
+      {
+        position: p,
+        ...(input?.work === undefined ? {} : { work: input.work }),
+        ...(input?.notes === undefined ? {} : { notes: input.notes }),
+      },
+      {
+        onSuccess: (result) => {
+          setLocError(null);
+          setDialogError(null);
+          setDialogOpen(false);
+          toast.success(result.message);
+        },
+        onError: (err) => {
+          const text = errorText(err, "Clock out belum tercatat. Periksa koneksi lalu coba lagi.");
+          // Server menolak karena logbook belum ada: buka dialog isian logbook.
+          const needsLogbook = err instanceof ApiError && err.reason === "logbook_missing";
+          if (fromDialog || needsLogbook) setDialogError(text);
+          else setLocError({ kind: "out", text });
+          if (needsLogbook) {
+            setDialogWork((current) => current || work);
+            setDialogNotes((current) => current || notes);
+            setDialogOpen(true);
+          }
+        },
+      },
+    );
+  };
+
+  const startClockOut = () => {
+    if (!today || clockOut.isPending || locatingRef.current) return;
     setLocError(null);
-    readLocation((p) => submit(action, p));
+    // Sudah ada isian logbook (draft) → server mengirimkannya otomatis saat clock out.
+    if (today.logbook !== null) {
+      readLocation((p) => clockOutNow(p));
+      return;
+    }
+    setDialogError(null);
+    setDialogWork(work);
+    setDialogNotes(notes);
+    setDialogOpen(true);
+  };
+
+  const submitDialog = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = dialogWork.trim();
+    if (!trimmed) {
+      setDialogError("Isi apa yang Anda kerjakan hari ini.");
+      return;
+    }
+    setDialogError(null);
+    readLocation(
+      (p) => clockOutNow(p, { work: trimmed, notes: dialogNotes.trim() || null }),
+      (state) => setDialogError(locationMessage(state, "out")),
+    );
+  };
+
+  const submitLogbook = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = work.trim();
+    if (!trimmed) {
+      setLogbookError("Isi apa yang Anda kerjakan hari ini.");
+      return;
+    }
+    setLogbookError(null);
+    saveLogbook.mutate(
+      { date, work: trimmed, notes: notes.trim() || null },
+      {
+        onSuccess: (result) => {
+          setEditingLogbook(false);
+          toast.success(result.message);
+        },
+        onError: (err) =>
+          setLogbookError(
+            errorText(err, "Logbook belum tersimpan. Isian Anda tidak hilang, coba lagi."),
+          ),
+      },
+    );
   };
 
   const errorBox = (action: "in" | "out") =>
     locError?.kind === action && (
       <div className="loc-error" role="alert">
         <span>{locError.text}</span>
-        <Button size="sm" variant="outline" onClick={() => doAction(action)}>
+        <Button size="sm" variant="outline" onClick={action === "in" ? doClockIn : startClockOut}>
           Coba lagi
         </Button>
       </div>
@@ -399,16 +449,35 @@ export function TodayCard({ large = false }: { large?: boolean }) {
   const statusLine = !today
     ? "Memuat status hari ini..."
     : today.state === "clocked_out"
-      ? `Hadir, clock out ${today.clock_out_at ?? ""}`
-      : today.state === "missed_clock_in"
-        ? "Lupa Clock In. Isi logbook lalu clock out."
-        : today.state === "holiday"
-          ? `Hari ini libur: ${today.holiday_name ?? "akhir pekan"}`
-          : today.state === "on_leave"
-            ? `Izin hari ini (${today.leave_type === "sick" ? "sakit" : "urgent"})`
-            : today.state === "outside_period"
-              ? "Di luar periode magang."
-              : STATE_LABEL[today.state];
+      ? today.status === "missed_clock_in"
+        ? `Selesai. Clock out ${today.clock_out_at ?? "-"} (Lupa Clock In).`
+        : `Selesai. Clock out ${today.clock_out_at ?? "-"}.${
+            today.logbook?.status === "pending_review" ? " Logbook menunggu review mentor." : ""
+          }`
+      : today.state === "clocked_in"
+        ? `Hadir sejak ${today.clock_in_at ?? "-"}.${
+            today.can_clock_out
+              ? " Silakan clock out."
+              : today.clock_out_from
+                ? ` Clock out mulai ${today.clock_out_from}.`
+                : ""
+          }`
+        : today.state === "missed_clock_in"
+          ? "Anda belum clock in hari ini. Hari ini akan tercatat Lupa Clock In."
+          : today.state === "holiday"
+            ? `Hari ini libur: ${today.holiday_name ?? "akhir pekan"}.`
+            : today.state === "on_leave"
+              ? `Izin hari ini (${labelOf(LEAVE_TYPE_LABEL, today.leave_type)}).`
+              : today.state === "outside_period"
+                ? "Di luar periode magang."
+                : STATE_LABEL[today.state];
+
+  const badge = today
+    ? today.status
+      ? labelOf(ATTENDANCE_STATUS_LABEL, today.status)
+      : STATE_LABEL[today.state]
+    : "";
+  const hasLogbook = today?.logbook !== null && today?.logbook !== undefined;
 
   return (
     <section className={`panel today-card ${large ? "large" : ""}`}>
@@ -443,10 +512,7 @@ export function TodayCard({ large = false }: { large?: boolean }) {
           <>
             <div className="attendance-state">
               <span>Status</span>
-              <Status
-                status={today.state === "clocked_out" ? "Hadir" : STATE_LABEL[today.state]}
-                label={statusLine}
-              />
+              <Status status={badge} label={statusLine} />
             </div>
             {(today.clock_in_at || today.clock_out_at) && (
               <div className="clock-times">
@@ -460,8 +526,13 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                 </div>
               </div>
             )}
+            {today.state === "clocked_in" && today.late_minutes !== null && (
+              <p className="attendance-note">Terlambat {today.late_minutes} menit.</p>
+            )}
             {officesQuery.isError &&
-              (today.state === "not_clocked_in" || today.state === "clocked_in") && (
+              (today.state === "not_clocked_in" ||
+                today.state === "clocked_in" ||
+                today.state === "missed_clock_in") && (
                 <div className="loc-error" role="alert">
                   <span>
                     {officesQuery.error instanceof ApiError
@@ -488,16 +559,16 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                 )}
                 <Button
                   className="clock-button"
-                  onClick={() => doAction("in")}
+                  onClick={doClockIn}
                   disabled={
-                    !!busy ||
+                    clockIn.isPending ||
                     geo === "membaca" ||
                     !today.has_active_office ||
                     officesQuery.isPending
                   }
                 >
                   <LogIn />
-                  {busy === "in"
+                  {clockIn.isPending
                     ? "Memeriksa lokasi..."
                     : geo === "membaca"
                       ? "Membaca lokasi..."
@@ -517,97 +588,123 @@ export function TodayCard({ large = false }: { large?: boolean }) {
                 )}
               </>
             )}
-            {(today.state === "clocked_in" || today.state === "missed_clock_in") && (
-              <>
-                {today.state === "clocked_in" && !today.logbook ? (
+            {today.state === "clocked_in" && (
+              <div className="grid gap-3">
+                {hasLogbook && !editingLogbook ? (
                   <>
-                    <Button className="clock-button" disabled>
-                      <LogOut />
-                      Clock Out
-                    </Button>
-                    <div className="banner warn">
-                      <span className="mr-auto">Isi Daily Report dulu sebelum clock out.</span>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          void navigate({
-                            to: "/absensi",
-                            search: { tab: "hari-ini", open: "report" },
-                          })
-                        }
-                      >
-                        Isi Daily Report
+                    <DetailList
+                      items={[
+                        ["Yang saya kerjakan", today.logbook?.work],
+                        ["Kendala atau catatan", today.logbook?.notes || "-"],
+                        [
+                          "Status",
+                          <Status
+                            key="logbook-status"
+                            status={labelOf(LOGBOOK_STATUS_LABEL, today.logbook?.status)}
+                          />,
+                        ],
+                      ]}
+                    />
+                    <div className="flex justify-end">
+                      <Button variant="outline" onClick={() => setEditingLogbook(true)}>
+                        <Pencil />
+                        Ubah Logbook
                       </Button>
                     </div>
                   </>
                 ) : (
-                  <>
-                    {today.state === "missed_clock_in" && (
-                      <label className="form-field text-[12px]">
-                        Yang saya kerjakan hari ini *
-                        <textarea
-                          className="!min-h-16"
-                          value={missedWork}
-                          onChange={(e) => setMissedWork(e.target.value)}
-                        />
-                      </label>
-                    )}
-                    {offices.length > 0 && (
-                      <GeoBox
-                        kind="out"
-                        offices={offices}
-                        officeId={officeId}
-                        onOfficeChange={setOfficeId}
-                        position={position}
-                        geo={geo}
-                        onRetry={() => readLocation()}
+                  <form className="form-grid" onSubmit={submitLogbook}>
+                    <label className="form-field">
+                      Yang saya kerjakan hari ini *
+                      <textarea value={work} onChange={(e) => setWork(e.target.value)} />
+                    </label>
+                    <label className="form-field">
+                      Kendala atau catatan (opsional)
+                      <textarea
+                        className="!min-h-16"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
                       />
-                    )}
-                    <Button
-                      className="clock-button"
-                      onClick={() => doAction("out")}
-                      disabled={
-                        !!busy ||
-                        geo === "membaca" ||
-                        !today.has_active_office ||
-                        !today.can_clock_out ||
-                        (today.state === "missed_clock_in" && !missedWork.trim()) ||
-                        officesQuery.isPending
-                      }
-                    >
-                      <LogOut />
-                      {busy === "out"
-                        ? "Memeriksa lokasi..."
-                        : geo === "membaca"
-                          ? "Membaca lokasi..."
-                          : "Clock Out"}
-                    </Button>
-                    {!today.has_active_office ? (
-                      <div className="loc-error" role="alert">
-                        <span>{locationMessage("tanpa-kantor", "out")}</span>
-                      </div>
-                    ) : !today.can_clock_out ? (
-                      // Server menolak clock out sebelum jam pulang; tunjukkan jam acuannya.
-                      <p className="attendance-note">
-                        <MapPin size={11} />
-                        Clock out bisa dilakukan mulai {today.clock_out_from ?? "jam pulang"}.
-                      </p>
-                    ) : (
-                      errorBox("out") ||
-                      (today.state === "missed_clock_in" && !missedWork.trim() ? (
-                        <p className="attendance-note">
-                          <MapPin size={11} />
-                          Isi pekerjaan Anda dulu; pada Lupa Clock In logbook dikirim bersama clock
-                          out.
-                        </p>
-                      ) : (
-                        <p className="attendance-note">
-                          <MapPin size={11} />
-                          Lokasi diperiksa lagi saat clock out (radius clock out).
-                        </p>
-                      ))
-                    )}
-                  </>
+                    </label>
+                    <FormError text={logbookError} />
+                    <div className="form-actions">
+                      <span className="text-[11px] text-muted-foreground mr-auto">
+                        Terkirim otomatis ke mentor saat clock out.
+                      </span>
+                      {editingLogbook && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingLogbook(false);
+                            setLogbookError(null);
+                          }}
+                        >
+                          Batal
+                        </Button>
+                      )}
+                      <Button type="submit" disabled={saveLogbook.isPending}>
+                        {saveLogbook.isPending ? "Menyimpan..." : "Simpan Logbook"}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+            {(today.state === "clocked_in" || today.state === "missed_clock_in") && (
+              <>
+                {today.state === "missed_clock_in" && (
+                  <div className="banner warn">
+                    Anda belum clock in hari ini. Hari ini akan tercatat Lupa Clock In. Ajukan
+                    koreksi presensi jika perlu.
+                  </div>
+                )}
+                {offices.length > 0 && (
+                  <GeoBox
+                    kind="out"
+                    offices={offices}
+                    officeId={officeId}
+                    onOfficeChange={setOfficeId}
+                    position={position}
+                    geo={geo}
+                    onRetry={() => readLocation()}
+                  />
+                )}
+                <Button
+                  className="clock-button"
+                  onClick={startClockOut}
+                  disabled={
+                    clockOut.isPending ||
+                    geo === "membaca" ||
+                    !today.has_active_office ||
+                    !today.can_clock_out ||
+                    officesQuery.isPending
+                  }
+                >
+                  <LogOut />
+                  {clockOut.isPending
+                    ? "Memproses..."
+                    : geo === "membaca"
+                      ? "Membaca lokasi..."
+                      : "Clock Out"}
+                </Button>
+                {!today.has_active_office ? (
+                  <div className="loc-error" role="alert">
+                    <span>{locationMessage("tanpa-kantor", "out")}</span>
+                  </div>
+                ) : !today.can_clock_out ? (
+                  // Server menolak clock out sebelum jam pulang; tunjukkan jam acuannya.
+                  <p className="attendance-note">
+                    <MapPin size={11} />
+                    Clock out bisa dilakukan mulai {today.clock_out_from ?? "jam pulang"}.
+                  </p>
+                ) : (
+                  errorBox("out") || (
+                    <p className="attendance-note">
+                      <MapPin size={11} />
+                      Lokasi diperiksa lagi saat clock out (radius clock out).
+                    </p>
+                  )
                 )}
               </>
             )}
@@ -617,252 +714,216 @@ export function TodayCard({ large = false }: { large?: boolean }) {
           </>
         )}
       </div>
-      <Dialog open={needReport} onOpenChange={setNeedReport}>
-        <DialogContent className="max-w-md">
-          <DialogTitle>Daily Report belum dikirim</DialogTitle>
-          <DialogDescription>Isi Daily Report dulu sebelum clock out.</DialogDescription>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNeedReport(false)}>
-              Nanti
-            </Button>
-            <Button
-              onClick={() => {
-                setNeedReport(false);
-                void navigate({ to: "/absensi", search: { tab: "hari-ini", open: "report" } });
-              }}
-            >
-              Isi Daily Report
-            </Button>
-          </DialogFooter>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          if (!o && !clockOut.isPending) setDialogOpen(false);
+        }}
+      >
+        <DialogContent>
+          <DialogTitle>Isi Logbook Sebelum Clock Out</DialogTitle>
+          <DialogDescription>
+            Logbook terkirim otomatis ke mentor saat clock out. Satu logbook per hari.
+          </DialogDescription>
+          <form className="form-grid" onSubmit={submitDialog}>
+            <label className="form-field">
+              Yang saya kerjakan hari ini *
+              <textarea
+                value={dialogWork}
+                onChange={(e) => setDialogWork(e.target.value)}
+                autoFocus
+              />
+            </label>
+            <label className="form-field">
+              Kendala atau catatan (opsional)
+              <textarea
+                className="!min-h-16"
+                value={dialogNotes}
+                onChange={(e) => setDialogNotes(e.target.value)}
+              />
+            </label>
+            {today?.state === "missed_clock_in" && (
+              <p className="banner warn">
+                Anda belum clock in hari ini. Hari ini akan tercatat Lupa Clock In.
+              </p>
+            )}
+            <FormError text={dialogError} />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDialogOpen(false)}
+                disabled={clockOut.isPending}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={clockOut.isPending}>
+                {clockOut.isPending ? "Mengirim..." : "Kirim & Clock Out"}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </section>
   );
 }
 
-function DailyReportCard({ focus }: { focus: boolean }) {
-  const queryClient = useQueryClient();
-  const todayQuery = useTodayStatus();
-  const reportQuery = useLogbook();
-  const today = todayQuery.data?.today;
-  const date = todayQuery.data?.date ?? TODAY;
-  // Logbook hari ini: null sebelum clock in/diisi; action menentukan masih bisa diedit atau tidak.
-  const day: InternLogbookDay | undefined = reportQuery.data;
-  const report = day?.logbook ?? null;
-  const action = day?.action ?? null;
-  const ref = useRef<HTMLElement>(null);
-  const [editing, setEditing] = useState(false);
-  const [work, setWork] = useState("");
-  const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+const FILTER_OPTIONS: { value: "Semua" | ApiAttendanceFilter; label: string }[] = [
+  { value: "Semua", label: "Semua" },
+  { value: "present", label: "Hadir" },
+  { value: "late", label: "Terlambat" },
+  { value: "missed_clock_in", label: "Lupa Clock In" },
+  { value: "leave", label: "Izin" },
+  { value: "absent", label: "Tidak Hadir" },
+  { value: "holiday", label: "Libur" },
+  { value: "missed_clock_out", label: "Lupa Clock Out" },
+];
 
-  useEffect(() => {
-    if (focus) ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [focus]);
-
-  // Form mengikuti logbook terbaru dari server (struktur identik dijaga react-query).
-  useEffect(() => {
-    if (report) {
-      setWork(report.work);
-      setNotes(report.notes ?? "");
-    }
-  }, [report]);
-
-  const state = today?.state;
-  const worked = state === "clocked_in" || state === "clocked_out" || state === "missed_clock_in";
-  const sent = report !== null;
-  // Terkunci bila server tidak menyediakan aksi (menunggu review mentor atau sudah disetujui).
-  const locked = report !== null && action === null;
-  const save = (e: FormEvent) => {
-    e.preventDefault();
-    const err = validateReport(work);
-    setError(err);
-    if (err) return;
-    setBusy(true);
-    attendanceApi
-      .saveLogbook(internToken(), date, { work: work.trim(), notes: notes.trim() })
-      .then(async (result) => {
-        await queryClient.invalidateQueries({ queryKey: ["intern"] });
-        setEditing(false);
-        toast.success(result.message);
-      })
-      .catch((saveErr: unknown) => {
-        setError(
-          saveErr instanceof ApiError
-            ? saveErr.message
-            : "Tidak bisa menghubungi server. Periksa koneksi dan API.",
-        );
-      })
-      .finally(() => setBusy(false));
-  };
-  return (
-    <section className="panel" ref={ref}>
-      <header className="panel-head">
-        <div>
-          <h2>Daily Report - {formatDate(date)}</h2>
-          <p>Laporan tentang apa yang Anda kerjakan hari ini. Berbeda dari Task.</p>
-        </div>
-        {worked && <Status status={sent ? "Terkirim" : "Belum dikirim"} />}
-      </header>
-      <div className="px-5 pb-5">
-        {todayQuery.isPending || reportQuery.isPending ? (
-          <p className="text-[11px] text-muted-foreground">Memuat laporan hari ini...</p>
-        ) : state === "not_clocked_in" ? (
-          <Empty>Clock in dulu untuk mengisi Daily Report.</Empty>
-        ) : state === "holiday" || state === "on_leave" || state === "outside_period" ? (
-          <Empty>Tidak ada Daily Report hari ini.</Empty>
-        ) : state === "missed_clock_in" && !sent ? (
-          // Belum ada baris presensi, jadi logbook dikirim bersama Clock Out di kartu Hari Ini.
-          <Empty>Lupa Clock In. Isi pekerjaan pada kartu Hari Ini, lalu Clock Out.</Empty>
-        ) : worked && sent && !editing ? (
-          <div className="grid gap-3">
-            <DetailList
-              items={[
-                ["Yang saya kerjakan", report?.work],
-                ["Kendala atau catatan", report?.notes || "-"],
-                ["Terakhir disimpan", formatShortTime(report?.updated_at ?? "")],
-              ]}
-            />
-            {locked ? (
-              <p className="text-[11px] text-muted-foreground">
-                Laporan terkunci setelah clock out.
-              </p>
-            ) : (
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil />
-                  Ubah
-                </Button>
-              </div>
-            )}
-          </div>
-        ) : worked && !reportQuery.isError ? (
-          <form className="form-grid" onSubmit={save}>
-            <label className="form-field">
-              Yang saya kerjakan hari ini *
-              <textarea value={work} onChange={(e) => setWork(e.target.value)} />
-            </label>
-            <label className="form-field">
-              Kendala atau catatan (opsional)
-              <textarea
-                className="!min-h-16"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </label>
-            <FormError text={error} />
-            <div className="form-actions">
-              <span className="text-[11px] text-muted-foreground mr-auto">
-                Dapat diubah sampai Anda clock out.
-              </span>
-              {editing && (
-                <Button type="button" variant="outline" onClick={() => setEditing(false)}>
-                  Batal
-                </Button>
-              )}
-              <Button type="submit" disabled={busy}>
-                {busy ? "Menyimpan..." : "Simpan Laporan"}
-              </Button>
-            </div>
-          </form>
-        ) : (
-          <p className="text-[11px] text-muted-foreground">
-            {reportQuery.error instanceof ApiError
-              ? reportQuery.error.message
-              : "Tidak bisa memuat Daily Report."}
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
+/** Kolom Catatan: tanda yang tidak masuk status utama (design-intern.md 8). */
+const dayNote = (day: ApiAttendanceDay) => {
+  const parts: string[] = [];
+  if (day.holiday_name) parts.push(day.holiday_name);
+  if (day.late_minutes) parts.push(`Terlambat ${day.late_minutes} menit`);
+  if (day.leave_type) parts.push(labelOf(LEAVE_TYPE_LABEL, day.leave_type));
+  if (day.missed_clock_out) parts.push("Lupa Clock Out");
+  return parts.length > 0 ? parts.join(" · ") : "-";
+};
 
 export function History({ onCorrect }: { onCorrect: (date: string) => void }) {
-  const m = useMock();
-  const start = m.me.start ?? TODAY;
-  const [month, setMonth] = useState(TODAY.slice(0, 7));
-  const [detail, setDetail] = useState<Row | null>(null);
-  const rows = m.rowsFor(ME.Intern, `${month}-01`, `${month}-31`);
-  const r = recap(rows);
+  const search = useSearch({ strict: false }) as PageSearch;
+  const todayQuery = useTodayStatus();
+  const [month, setMonth] = useState<string | null>(null);
+  const [status, setStatus] = useState<"Semua" | ApiAttendanceFilter>(
+    FILTER_OPTIONS.find((o) => o.value === search.status)?.value ?? "Semua",
+  );
+  const [detailDate, setDetailDate] = useState<string | null>(null);
+  const activeMonth = month ?? (todayQuery.data?.date ?? TODAY).slice(0, 7);
+  // Rekap di dashboard membuka halaman ini dengan `?status=`; ikuti bila nilainya berubah.
+  useEffect(() => {
+    const next = FILTER_OPTIONS.find((o) => o.value === search.status)?.value;
+    if (next) setStatus(next);
+  }, [search.status]);
+  const historyQuery = useAttendanceHistory({
+    month: activeMonth,
+    ...(status === "Semua" ? {} : { status }),
+  });
+  const detailQuery = useAttendanceDay(detailDate);
+  const data = historyQuery.data;
+  const bounds = data?.selectable_months ?? { first: activeMonth, last: activeMonth };
+
+  const detailError =
+    detailQuery.error instanceof ApiError
+      ? detailQuery.error.message
+      : detailQuery.isError
+        ? "Detail presensi gagal dimuat."
+        : null;
+
   return (
     <Panel
       title="Riwayat presensi"
       subtitle="Status ditetapkan otomatis setelah 23:59. Hari ini masih berjalan."
       action={
-        <MonthNav
-          value={month}
-          onChange={setMonth}
-          min={start.slice(0, 7)}
-          max={TODAY.slice(0, 7)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="role-select"
+            aria-label="Filter status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as "Semua" | ApiAttendanceFilter)}
+          >
+            {FILTER_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                Status: {option.label}
+              </option>
+            ))}
+          </select>
+          <MonthNav
+            value={activeMonth}
+            onChange={(ym) => setMonth(ym)}
+            min={bounds.first}
+            max={bounds.last}
+          />
+        </div>
       }
     >
-      <RecapStrip r={r} />
-      {rows.length === 0 ? (
-        <Empty>Belum ada data presensi pada bulan ini.</Empty>
+      {historyQuery.isPending ? (
+        <LoadingState />
+      ) : historyQuery.isError ? (
+        <ErrorState
+          message={historyQuery.error instanceof ApiError ? historyQuery.error.message : undefined}
+          onRetry={() => void historyQuery.refetch()}
+        />
       ) : (
-        <div className="table-wrap">
-          <table className="data-table clickable">
-            <thead>
-              <tr>
-                <th>Tanggal</th>
-                <th>Clock In</th>
-                <th>Clock Out</th>
-                <th>Status</th>
-                <th>Daily Report</th>
-                <th>Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) =>
-                row.status === "Libur" ? (
-                  <tr key={row.date} className="muted-row">
-                    <td>{formatDate(row.date)}</td>
-                    <td colSpan={5}>
-                      <Status status="Libur" />{" "}
-                      <span className="ml-2">{row.holiday ?? "Akhir pekan"}</span>
-                    </td>
+        <>
+          <ApiRecapStrip recap={data!.recap} />
+          {data!.days.length === 0 ? (
+            <Empty>Belum ada data presensi pada bulan ini.</Empty>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table clickable">
+                <thead>
+                  <tr>
+                    <th>Tanggal</th>
+                    <th>Masuk</th>
+                    <th>Pulang</th>
+                    <th>Status</th>
+                    <th>Catatan</th>
+                    <th>Aksi</th>
                   </tr>
-                ) : (
-                  <tr
-                    key={row.date}
-                    onClick={() => setDetail(row)}
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === "Enter" && setDetail(row)}
-                  >
-                    <td>{formatDate(row.date)}</td>
-                    <td>{row.clockIn || "-"}</td>
-                    <td>{row.clockOut || "-"}</td>
-                    <td>
-                      <div className="flex flex-col items-start gap-1">
-                        <Status status={row.status} />
-                        {row.corrected && <Tag>Dikoreksi admin</Tag>}
-                      </div>
-                    </td>
-                    <td>{row.report ? <Status status="Terkirim" /> : "-"}</td>
-                    <td>
-                      {row.date < TODAY && row.status !== "Izin" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onCorrect(row.date);
-                          }}
-                        >
-                          Koreksi
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {data!.days.map((day) => (
+                    <tr
+                      key={day.date}
+                      onClick={() => setDetailDate(day.date)}
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === "Enter" && setDetailDate(day.date)}
+                    >
+                      <td>{formatDate(day.date)}</td>
+                      <td>{day.clock_in_at ?? "-"}</td>
+                      <td>{day.clock_out_at ?? "-"}</td>
+                      <td>
+                        <div className="flex flex-col items-start gap-1">
+                          <Status status={labelOf(ATTENDANCE_STATUS_LABEL, day.status)} />
+                          {day.is_corrected && <Tag>Dikoreksi</Tag>}
+                        </div>
+                      </td>
+                      <td>{dayNote(day)}</td>
+                      <td>
+                        {day.can_request_correction ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onCorrect(day.date);
+                            }}
+                          >
+                            Koreksi
+                          </Button>
+                        ) : day.has_active_correction ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            Menunggu koreksi
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
-      <DayDetail row={detail} onClose={() => setDetail(null)} />
+      <ApiDayDetail
+        date={detailDate}
+        day={detailQuery.data ?? null}
+        loading={detailQuery.isPending}
+        error={detailError}
+        onRetry={() => void detailQuery.refetch()}
+        onClose={() => setDetailDate(null)}
+      />
     </Panel>
   );
 }

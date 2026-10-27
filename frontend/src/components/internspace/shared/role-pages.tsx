@@ -5,6 +5,9 @@ import { CorrectionsPage as AdminCorrections } from "@/components/internspace/ad
 import { InternAttendance } from "@/components/internspace/intern/attendance";
 import { InternDashboard } from "@/components/internspace/intern/dashboard";
 import { InternLeave } from "@/components/internspace/intern/leave";
+import { InternLogbook } from "@/components/internspace/intern/logbook";
+import { InternNotes } from "@/components/internspace/intern/notes";
+import { InternPresentation } from "@/components/internspace/intern/presentation";
 import { MentorDashboard } from "@/components/internspace/mentor/dashboard";
 import { ReviewerLeave } from "@/components/internspace/shared/leave-review";
 import { useMock } from "@/components/internspace/shared/model";
@@ -66,17 +69,20 @@ function PendingPage({ title }: { title: string }) {
 
 /** Fase 2 (intern) dan Fase 3 (mentor) mengisi halaman ini. */
 export function LogbookPage() {
-  return <PendingPage title="Logbook" />;
+  const m = useMock();
+  return m.role === "Intern" ? <InternLogbook /> : <PendingPage title="Logbook" />;
 }
 
 /** Fase 2 (intern) dan Fase 4 (admin) mengisi halaman ini. */
 export function PresentationPage() {
-  return <PendingPage title="Presentasi Akhir" />;
+  const m = useMock();
+  return m.role === "Intern" ? <InternPresentation /> : <PendingPage title="Presentasi Akhir" />;
 }
 
 /** Fase 2 (intern) mengisi halaman ini. */
 export function NotesPage() {
-  return <PendingPage title="Catatan" />;
+  const m = useMock();
+  return m.role === "Intern" ? <InternNotes /> : <PendingPage title="Catatan" />;
 }
 
 /** Fase 3 (mentor, "Input Nilai") dan Fase 4 (admin, "Penilaian"). */

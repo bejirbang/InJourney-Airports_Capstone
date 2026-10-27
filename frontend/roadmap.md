@@ -17,7 +17,7 @@ Panduan lengkap dan log progres per fitur ada di [`progress.md`](progress.md).
 
 - [x] Fase 0: Fondasi (aturan agent, klien API, peta route, label, unduhan file)
 - [x] Fase 1: Autentikasi, shell, profil
-- [ ] Fase 2: Intern (dashboard, presensi, logbook, koreksi, izin, presentasi, catatan)
+- [x] Fase 2: Intern (dashboard, presensi, logbook, koreksi, izin, presentasi, catatan)
 - [ ] Fase 3: Mentor (dashboard, intern saya, review logbook, koreksi, izin, kalender, performa, input nilai)
 - [ ] Fase 4: Admin (dashboard, pengguna, presensi, koreksi, izin, presentasi, penilaian, warning, pengumuman, laporan, pengaturan, lokasi & jadwal, log)
 - [ ] Fase 5: Lonceng, chat, real-time

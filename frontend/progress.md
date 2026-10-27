@@ -652,9 +652,9 @@ Navigasi bulan dibatasi `selectable_months`.
 Kelompokkan indikator per `category`. Nilai akhir dan predikat ditampilkan dari server, **jangan dihitung ulang**.
 
 **Selesai jika (Fase 2):**
-- [ ] Semua file `intern/` tidak lagi memanggil `useMock()`
-- [ ] Clock in, isi logbook lewat clock out, riwayat, koreksi, izin dengan link, presentasi, catatan berjalan dengan akun `intern@injourney.test`
-- [ ] Tidak ada lagi kata "Daily Report", "Task", atau input file di halaman intern
+- [x] Semua file `intern/` tidak lagi memanggil `useMock()`
+- [x] Clock in, isi logbook lewat clock out, riwayat, koreksi, izin dengan link, presentasi, catatan berjalan dengan akun `intern@injourney.test`
+- [x] Tidak ada lagi kata "Daily Report", "Task", atau input file di halaman intern
 
 ---
 
@@ -1366,14 +1366,14 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 1 | Login, ganti password, tipe user | 5.1 | | [x] 2026-10-27 |
 | 1 | Shell, menu, badge | 5.2 | | [x] 2026-10-27 |
 | 1 | Profil | 5.3 | | [x] 2026-10-27 |
-| 2 | Dashboard intern | 6.1 | | [ ] |
-| 2 | Clock in/out + logbook di clock out | 6.2 | | [ ] |
-| 2 | Logbook intern | 6.3 | | [ ] |
-| 2 | Riwayat presensi | 6.4 | | [ ] |
-| 2 | Koreksi intern | 6.5 | | [ ] |
-| 2 | Izin intern | 6.6 | | [ ] |
-| 2 | Presentasi intern | 6.7 | | [ ] |
-| 2 | Catatan dan nilai intern | 6.8 | | [ ] |
+| 2 | Dashboard intern | 6.1 | | [x] 2026-10-27 |
+| 2 | Clock in/out + logbook di clock out | 6.2 | | [x] 2026-10-27 |
+| 2 | Logbook intern | 6.3 | | [x] 2026-10-27 |
+| 2 | Riwayat presensi | 6.4 | | [x] 2026-10-27 |
+| 2 | Koreksi intern | 6.5 | | [x] 2026-10-27 |
+| 2 | Izin intern | 6.6 | | [x] 2026-10-27 |
+| 2 | Presentasi intern | 6.7 | | [x] 2026-10-27 |
+| 2 | Catatan dan nilai intern | 6.8 | | [x] 2026-10-27 |
 | 3 | Dashboard mentor | 7.1 | | [ ] |
 | 3 | Intern Saya | 7.2 | | [ ] |
 | 3 | Review logbook | 7.3 | | [ ] |
@@ -1399,3 +1399,5 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 5 | Lonceng | 9.2 | | [ ] |
 | 5 | Chat | 9.3 | | [ ] |
 | 6 | Bersih-bersih | 10 | | [ ] |
+
+Catatan Fase 2 (2026-10-27): `npx tsc --noEmit`, `npm run test` (141 tes), `npm run build`, serta ESLint + Prettier untuk file yang berubah lolos. Smoke test ke API langsung belum dijalankan ulang karena PostgreSQL lokal (port 5432) tidak aktif; kontrak field mengikuti kode backend dan diuji lewat stub. Tidak ada kebutuhan perubahan backend baru.

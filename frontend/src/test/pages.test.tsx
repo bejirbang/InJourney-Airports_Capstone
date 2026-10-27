@@ -139,6 +139,12 @@ type ReportMock = {
   status: "draft" | "pending_review" | "revision" | "approved";
   updated_at: string;
 };
+type LogbookReviewMock = {
+  action: "revision" | "approved";
+  comment: string | null;
+  mentor: string | null;
+  created_at: string | null;
+};
 type LogbookDayMock = {
   date: string;
   attendance: null | {
@@ -148,9 +154,104 @@ type LogbookDayMock = {
     missed_clock_out: boolean;
     is_corrected: boolean;
   };
+  logbook_state: string | null;
   logbook: ReportMock | null;
+  reviews: LogbookReviewMock[];
   action: "save" | "submit" | "resubmit" | null;
 };
+/** Baris daftar logbook (`InternLogbooks::month`). */
+type LogbookListDayMock = {
+  date: string;
+  attendance_status: string;
+  leave_type: "sick" | "urgent" | null;
+  logbook_state: string | null;
+  work: string | null;
+  action: "save" | "submit" | "resubmit" | null;
+};
+/** Rekap bulanan & kuota izin dari dashboard. */
+type RecapMock = {
+  month: string;
+  present: number;
+  late: number;
+  missed_clock_in: number;
+  leave: number;
+  absent: number;
+  missed_clock_out: number;
+  corrected: number;
+  working_days: number;
+};
+type QuotaMock = { used: number; limit: number; remaining: number; exhausted: boolean };
+/** Satu baris riwayat presensi (`AttendanceHistory`). */
+type AttendanceDayMock = {
+  date: string;
+  status: string;
+  clock_in_at: string | null;
+  clock_out_at: string | null;
+  late_minutes: number | null;
+  missed_clock_out: boolean;
+  is_corrected: boolean;
+  logbook_state: string | null;
+  holiday_name: string | null;
+  leave_type: "sick" | "urgent" | null;
+  has_active_correction: boolean;
+  can_request_correction: boolean;
+};
+/** Koreksi presensi (`AttendanceCorrectionResource`). */
+type CorrectionMock = {
+  id: number;
+  date: string;
+  recorded_status: string;
+  recorded_missed_clock_out: boolean;
+  reason: string;
+  status: string;
+  submitted_at: string | null;
+  mentor: { id: number; name: string } | null;
+  mentor_note: string | null;
+  mentor_decided_at: string | null;
+  admin: { id: number; name: string } | null;
+  admin_note: string | null;
+  admin_decided_at: string | null;
+  can_cancel: boolean;
+};
+/** Presentasi akhir (`FinalPresentations::forIntern`). */
+type PresentationMock = {
+  state: "not_open" | "not_submitted" | "pending" | "revision" | "approved";
+  end_date: string;
+  days_left: number;
+  opens_on: string;
+  message: string | null;
+  evidence_url: string | null;
+  submitted_at: string | null;
+  decision_note: string | null;
+  decided_at: string | null;
+  can_submit: boolean;
+};
+type WarningMock = {
+  id: number;
+  body: string;
+  author: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+type AssessmentMock =
+  | { available: false; message: string }
+  | {
+      available: true;
+      final_score: number;
+      predicate: string;
+      notes: string | null;
+      submitted_at: string | null;
+      assessed_by: string | null;
+      indicators: {
+        id: number;
+        category: string | null;
+        name: string;
+        description: string | null;
+        weight: number | null;
+        score: number;
+      }[];
+    };
+
 /** Bentuk respon `GET /api/intern/logbooks/{date}` menurut state stub. */
 const logbookDay = (): LogbookDayMock => ({
   date: "2026-10-12",
@@ -159,17 +260,21 @@ const logbookDay = (): LogbookDayMock => ({
       ? null
       : {
           status:
-            apiState.today.state === "clocked_out"
-              ? "hadir"
-              : apiState.today.state === "missed_clock_in"
-                ? "lupa_clock_in"
-                : "belum_clock_in",
+            apiState.today.state === "clocked_out" || apiState.today.state === "clocked_in"
+              ? "present"
+              : "missed_clock_in",
           clock_in_at: apiState.today.clock_in_at,
           clock_out_at: apiState.today.clock_out_at,
           missed_clock_out: false,
           is_corrected: false,
         },
+  logbook_state: apiState.report
+    ? apiState.report.status
+    : apiState.today.state === "not_clocked_in"
+      ? null
+      : "missing",
   logbook: apiState.report ? { ...apiState.report } : null,
+  reviews: apiState.logbookReviews.map(clone),
   // Draft hari ini masih bisa disimpan lagi; setelah clock out terkunci di mentor.
   action:
     apiState.report === null
@@ -268,7 +373,7 @@ type LeaveMock = {
   end_date: string;
   working_days: number;
   reason: string;
-  has_evidence: boolean;
+  evidence_url: string | null;
   status: "pending" | "approved" | "rejected" | "cancelled";
   submitted_at: string;
   submitted_late: boolean;
@@ -285,7 +390,7 @@ const LEAVE_PENDING: LeaveMock = {
   end_date: "2026-10-14",
   working_days: 2,
   reason: "Demam sejak semalam, istirahat di rumah.",
-  has_evidence: true,
+  evidence_url: "https://drive.google.com/file/d/surat-dokter/view",
   status: "pending",
   submitted_at: "2026-10-12T09:12:00+07:00",
   submitted_late: false,
@@ -302,7 +407,7 @@ const LEAVE_REJECTED: LeaveMock = {
   end_date: "2026-09-29",
   working_days: 2,
   reason: "Keperluan keluarga mendesak.",
-  has_evidence: false,
+  evidence_url: null,
   status: "rejected",
   submitted_at: "2026-09-27T08:05:00+07:00",
   submitted_late: true,
@@ -327,6 +432,56 @@ const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
   report: null as ReportMock | null,
+  /** Rekap bulanan & kuota izin dari GET /api/intern/dashboard. */
+  recap: {} as RecapMock,
+  quota: {} as QuotaMock,
+  announcements: [] as {
+    id: number;
+    title: string;
+    body: string;
+    author_name: string | null;
+    created_at: string | null;
+  }[],
+  actionNeeded: {
+    logbooks: [],
+    warnings: [],
+    corrections: [],
+    leaves: [],
+  } as {
+    logbooks: { date: string; logbook_state: string; comment: string | null }[];
+    warnings: { id: number; created_at: string | null }[];
+    corrections: { id: number; date: string; status: string }[];
+    leaves: {
+      id: number;
+      type: "sick" | "urgent";
+      start_date: string;
+      end_date: string;
+      status: string;
+    }[];
+  },
+  presentationBanner: null as {
+    state: "not_submitted" | "pending" | "revision";
+    end_date: string;
+    days_left: number;
+  } | null,
+  /** Riwayat presensi (GET /api/intern/attendance). */
+  attendanceDays: [] as AttendanceDayMock[],
+  /** Query bulan yang diminta server untuk riwayat presensi. */
+  attendanceParams: null as Record<string, string> | null,
+  /** Daftar logbook (GET /api/intern/logbooks). */
+  logbookDays: [] as LogbookListDayMock[],
+  logbookActionNeeded: [] as { date: string; logbook_state: string; comment: string | null }[],
+  /** Riwayat review pada detail logbook. */
+  logbookReviews: [] as LogbookReviewMock[],
+  logbookParams: null as Record<string, string> | null,
+  /** Body PUT logbook terakhir, untuk membuktikan tanggal + isian yang dikirim. */
+  logbookPosted: [] as { date: string; work: string; notes: string | null }[],
+  corrections: [] as CorrectionMock[],
+  correctionsPosted: [] as { date: string; reason: string }[],
+  presentation: {} as PresentationMock,
+  presentationPosted: [] as string[],
+  warnings: [] as WarningMock[],
+  assessment: null as AssessmentMock | null,
   clockInResult: null as null | { status: number; body: unknown },
   clockOutResult: null as null | { status: number; body: unknown },
   /** Clock in yang tidak pernah selesai, untuk menguji tombol nonaktif saat request berjalan. */
@@ -334,7 +489,11 @@ const apiState = {
   leaves: [] as LeaveMock[],
   /** Query izin terakhir yang diterima server, untuk membuktikan filter status dikirim. */
   leaveParams: null as Record<string, string> | null,
-  leavesPosted: [] as { type: string; start_date: string; evidence: string | null }[],
+  leavesPosted: [] as {
+    type: string;
+    start_date: string;
+    evidence_url: string | null;
+  }[],
   leaveCancelled: [] as number[],
   /** Mentor memproses izin tepat sebelum intern menekan "Ya, batalkan" (422). */
   leaveProcessedElsewhere: false,
@@ -367,6 +526,53 @@ const resetApi = () => {
   };
   apiState.offices = [KANTOR_T3];
   apiState.report = null;
+  apiState.recap = {
+    month: "2026-10",
+    present: 8,
+    late: 1,
+    missed_clock_in: 0,
+    leave: 1,
+    absent: 0,
+    missed_clock_out: 0,
+    corrected: 0,
+    working_days: 20,
+  };
+  apiState.quota = { used: 1, limit: 3, remaining: 2, exhausted: false };
+  apiState.announcements = [
+    {
+      id: 1,
+      title: "WFA besok",
+      body: "Besok WFA, presensi tetap wajib.",
+      author_name: "Admin Sinta",
+      created_at: "2026-10-10T09:00:00+07:00",
+    },
+  ];
+  apiState.actionNeeded = { logbooks: [], warnings: [], corrections: [], leaves: [] };
+  apiState.presentationBanner = null;
+  apiState.attendanceDays = [];
+  apiState.attendanceParams = null;
+  apiState.logbookDays = [];
+  apiState.logbookActionNeeded = [];
+  apiState.logbookReviews = [];
+  apiState.logbookParams = null;
+  apiState.logbookPosted = [];
+  apiState.corrections = [];
+  apiState.correctionsPosted = [];
+  apiState.presentation = {
+    state: "not_submitted",
+    end_date: "2026-12-31",
+    days_left: 7,
+    opens_on: "2026-12-24",
+    message: null,
+    evidence_url: null,
+    submitted_at: null,
+    decision_note: null,
+    decided_at: null,
+    can_submit: true,
+  };
+  apiState.presentationPosted = [];
+  apiState.warnings = [];
+  apiState.assessment = { available: false, message: "Nilai akhir belum tersedia." };
   apiState.clockInResult = null;
   apiState.clockOutResult = null;
   apiState.clockInPending = false;
@@ -521,31 +727,71 @@ const installFetch = () => {
         return jsonResponse({
           data: {
             date: "2026-10-12",
+            presentation_banner: apiState.presentationBanner
+              ? clone(apiState.presentationBanner)
+              : null,
             today: apiState.today,
             logbook_reminder:
               apiState.today.state === "clocked_in" && apiState.today.logbook === null,
+            action_needed: clone(apiState.actionNeeded),
+            monthly_recap: clone(apiState.recap),
+            leave_quota: clone(apiState.quota),
+            internship: {
+              start_date: "2026-10-01",
+              end_date: "2027-01-31",
+              mentor: { id: 2, name: "Sari Wulandari" },
+            },
+            announcements: clone(apiState.announcements),
           },
         });
       if (url.endsWith("/api/intern/offices")) return jsonResponse({ data: apiState.offices });
       if (url.includes("/api/intern/logbooks/")) {
+        const logDate =
+          /\/api\/intern\/logbooks\/(\d{4}-\d{2}-\d{2})$/.exec(url.split("?")[0] ?? "")?.[1] ??
+          "2026-10-12";
+        // Tanggal selain hari ini hanya dipakai halaman daftar: hari hasil koreksi yang belum diisi.
+        const detailDay = (date: string): LogbookDayMock =>
+          date === "2026-10-12"
+            ? logbookDay()
+            : {
+                date,
+                attendance: {
+                  status: "present",
+                  clock_in_at: "08:00",
+                  clock_out_at: "17:00",
+                  missed_clock_out: false,
+                  is_corrected: false,
+                },
+                logbook_state:
+                  apiState.logbookDays.find((d) => d.date === date)?.logbook_state ?? "missing",
+                logbook: null,
+                reviews: [],
+                action: "submit",
+              };
         if (method === "PUT") {
-          const body = JSON.parse(String(init?.body)) as { work: string; notes: string | null };
-          apiState.report = {
-            id: 9,
-            work: body.work,
-            notes: body.notes,
-            status: "draft",
-            updated_at: "2026-10-12T10:00:00+07:00",
+          const body = JSON.parse(String(init?.body)) as {
+            work: string;
+            notes: string | null;
           };
-          // Server mengizinkan clock out setelah logbook ada (dan jam pulang lewat; disimulasikan).
-          apiState.today = {
-            ...apiState.today,
-            logbook: { status: "draft", work: body.work, notes: body.notes },
-            can_clock_out: true,
-          };
-          return jsonResponse({ message: "Logbook tersimpan.", data: logbookDay() });
+          apiState.logbookPosted.push({ date: logDate, work: body.work, notes: body.notes });
+          if (logDate === "2026-10-12") {
+            apiState.report = {
+              id: 9,
+              work: body.work,
+              notes: body.notes,
+              status: "draft",
+              updated_at: "2026-10-12T10:00:00+07:00",
+            };
+            // Server mengizinkan clock out setelah logbook ada (dan jam pulang lewat; disimulasikan).
+            apiState.today = {
+              ...apiState.today,
+              logbook: { status: "draft", work: body.work, notes: body.notes },
+              can_clock_out: true,
+            };
+          }
+          return jsonResponse({ message: "Logbook tersimpan.", data: detailDay(logDate) });
         }
-        return jsonResponse({ data: logbookDay() });
+        return jsonResponse({ data: detailDay(logDate) });
       }
       if (url.endsWith("/api/intern/attendance/clock-in")) {
         if (apiState.clockInResult)
@@ -577,6 +823,20 @@ const installFetch = () => {
       if (url.endsWith("/api/intern/attendance/clock-out")) {
         if (apiState.clockOutResult)
           return jsonResponse(apiState.clockOutResult.body, apiState.clockOutResult.status);
+        // Logbook yang diisi di dialog clock out ikut tersimpan sebagai draft.
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          work?: string | null;
+          notes?: string | null;
+        };
+        if (typeof body.work === "string" && body.work.trim() !== "") {
+          apiState.report = {
+            id: 9,
+            work: body.work,
+            notes: body.notes ?? null,
+            status: "draft",
+            updated_at: "2026-10-12T17:00:00+07:00",
+          };
+        }
         apiState.today = {
           ...apiState.today,
           state: "clocked_out",
@@ -602,6 +862,138 @@ const installFetch = () => {
       }
       const path = url.split("?")[0] ?? url;
 
+      // ---- Dashboard intern lanjutan: logbook, riwayat presensi, koreksi ----
+      if (method === "GET" && path.endsWith("/api/intern/logbooks")) {
+        const params = new URL(url).searchParams;
+        apiState.logbookParams = Object.fromEntries(params.entries());
+        const status = params.get("status");
+        return jsonResponse({
+          data: {
+            month: params.get("month") ?? "2026-10",
+            selectable_months: { first: "2026-10", last: "2026-10" },
+            action_needed: clone(apiState.logbookActionNeeded),
+            days: apiState.logbookDays
+              .filter((d) => !status || d.logbook_state === status)
+              .map(clone),
+          },
+        });
+      }
+      const attendanceDayMatch = /\/api\/intern\/attendance\/days\/(\d{4}-\d{2}-\d{2})$/.exec(path);
+      if (method === "GET" && attendanceDayMatch) {
+        const date = attendanceDayMatch[1] ?? "";
+        const found = apiState.attendanceDays.find((d) => d.date === date);
+        if (!found) return jsonResponse({ message: "Presensi tidak ditemukan." }, 404);
+        return jsonResponse({
+          data: {
+            ...clone(found),
+            scheduled: { start: "08:00", end: "17:00" },
+            clock_in_office: { id: 1, name: "Kantor Pusat Terminal 3" },
+            clock_out_office: null,
+            logbook: null,
+          },
+        });
+      }
+      if (method === "GET" && path.endsWith("/api/intern/attendance")) {
+        const params = new URL(url).searchParams;
+        apiState.attendanceParams = Object.fromEntries(params.entries());
+        const status = params.get("status");
+        return jsonResponse({
+          data: {
+            month: params.get("month") ?? "2026-10",
+            selectable_months: { first: "2026-09", last: "2026-10" },
+            recap: clone(apiState.recap),
+            days: apiState.attendanceDays.filter((d) => !status || d.status === status).map(clone),
+          },
+        });
+      }
+      if (method === "GET" && path.endsWith("/api/intern/attendance-corrections")) {
+        return jsonResponse({ data: apiState.corrections.map(clone) });
+      }
+      if (method === "POST" && path.endsWith("/api/intern/attendance-corrections")) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          date?: string;
+          reason?: string;
+        };
+        const date = String(body.date ?? "");
+        const reason = String(body.reason ?? "");
+        if (!date) return jsonResponse({ message: "Tanggal presensi wajib diisi." }, 422);
+        if (!reason.trim()) return jsonResponse({ message: "Alasan wajib diisi." }, 422);
+        apiState.correctionsPosted.push({ date, reason });
+        const created: CorrectionMock = {
+          id: Math.max(0, ...apiState.corrections.map((c) => c.id)) + 1,
+          date,
+          recorded_status: "late",
+          recorded_missed_clock_out: false,
+          reason,
+          status: "pending_mentor",
+          submitted_at: "2026-10-12T15:00:00+07:00",
+          mentor: null,
+          mentor_note: null,
+          mentor_decided_at: null,
+          admin: null,
+          admin_note: null,
+          admin_decided_at: null,
+          can_cancel: true,
+        };
+        apiState.corrections = [created, ...apiState.corrections];
+        return jsonResponse(
+          { message: "Pengajuan koreksi terkirim. Menunggu mentor.", data: clone(created) },
+          201,
+        );
+      }
+      const correctionCancel = /\/api\/intern\/attendance-corrections\/(\d+)\/cancel$/.exec(path);
+      if (method === "POST" && correctionCancel) {
+        const found = apiState.corrections.find((c) => c.id === Number(correctionCancel[1]));
+        if (!found) return jsonResponse({ message: "Koreksi tidak ditemukan." }, 404);
+        if (!found.can_cancel) return jsonResponse({ message: "Koreksi ini sudah diproses." }, 422);
+        found.status = "cancelled";
+        found.can_cancel = false;
+        return jsonResponse({
+          message: "Pengajuan koreksi dibatalkan.",
+          data: clone(found),
+        });
+      }
+      const correctionShow = /\/api\/intern\/attendance-corrections\/(\d+)$/.exec(path);
+      if (method === "GET" && correctionShow) {
+        const found = apiState.corrections.find((c) => c.id === Number(correctionShow[1]));
+        if (!found) return jsonResponse({ message: "Koreksi tidak ditemukan." }, 404);
+        return jsonResponse({
+          data: {
+            ...clone(found),
+            recorded: { clock_in_at: "08:20", clock_out_at: null },
+          },
+        });
+      }
+      if (path.endsWith("/api/intern/presentation")) {
+        if (method === "PUT") {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { evidence_url?: string };
+          const link = String(body.evidence_url ?? "");
+          if (!/^https:\/\/(drive|docs)\.google\.com\//.test(link))
+            return jsonResponse(
+              { message: "Link harus berupa Google Drive atau Google Docs." },
+              422,
+            );
+          apiState.presentationPosted.push(link);
+          apiState.presentation = {
+            ...apiState.presentation,
+            state: "pending",
+            evidence_url: link,
+            submitted_at: "2026-10-12T15:00:00+07:00",
+            decision_note: null,
+            decided_at: null,
+          };
+          return jsonResponse({
+            message: "Bukti presentasi terkirim. Menunggu verifikasi admin.",
+            data: clone(apiState.presentation),
+          });
+        }
+        return jsonResponse({ data: clone(apiState.presentation) });
+      }
+      if (method === "GET" && path.endsWith("/api/intern/warnings"))
+        return jsonResponse({ data: apiState.warnings.map(clone) });
+      if (method === "GET" && path.endsWith("/api/intern/assessment"))
+        return jsonResponse({ data: clone(apiState.assessment) });
+
       // ---- Izin intern (API) ----
       if (path.endsWith("/api/intern/leaves/working-days")) {
         const params = new URL(url).searchParams;
@@ -612,25 +1004,34 @@ const installFetch = () => {
         return jsonResponse({ data: { working_days: countWorkingDays(start, end) } });
       }
       if (method === "POST" && path.endsWith("/api/intern/leaves")) {
-        const form = init?.body as FormData;
-        const type = String(form.get("type"));
-        const start = String(form.get("start_date"));
-        const end = String(form.get("end_date"));
-        const reason = String(form.get("reason"));
-        const evidence = form.get("evidence");
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          type?: string;
+          start_date?: string;
+          end_date?: string;
+          reason?: string;
+          evidence_url?: string | null;
+        };
+        const type = String(body.type ?? "");
+        const start = String(body.start_date ?? "");
+        const end = String(body.end_date ?? "");
+        const reason = String(body.reason ?? "");
+        const evidenceUrl =
+          body.evidence_url === null || body.evidence_url === undefined
+            ? null
+            : String(body.evidence_url);
         if (type !== "sick" && type !== "urgent")
           return jsonResponse({ message: "Pilih jenis izin." }, 422);
         if (!reason.trim()) return jsonResponse({ message: "Alasan wajib diisi." }, 422);
-        if (evidence instanceof File) {
-          const ext = evidence.name.split(".").pop()?.toLowerCase() ?? "";
-          if (!["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
-            return jsonResponse(
-              { message: "Jenis file tidak diizinkan. Gunakan PDF, Word, Excel, atau PowerPoint." },
-              422,
-            );
-          if (evidence.size > 2 * 1024 * 1024)
-            return jsonResponse({ message: "Ukuran file maksimal 2 MB." }, 422);
-        }
+        if (apiState.quota.exhausted)
+          return jsonResponse(
+            { message: "Kuota izin habis. Pengajuan berikutnya tidak dapat diproses." },
+            422,
+          );
+        if (evidenceUrl !== null && !/^https:\/\/(drive|docs)\.google\.com\//.test(evidenceUrl))
+          return jsonResponse(
+            { message: "Link bukti harus berupa tautan Google Drive atau Google Docs." },
+            422,
+          );
         const leave: LeaveMock = {
           id: Math.max(0, ...apiState.leaves.map((l) => l.id)) + 1,
           type: type as LeaveMock["type"],
@@ -638,7 +1039,7 @@ const installFetch = () => {
           end_date: end,
           working_days: countWorkingDays(start, end),
           reason,
-          has_evidence: evidence instanceof File,
+          evidence_url: evidenceUrl,
           status: "pending",
           submitted_at: "2026-10-12T15:00:00+07:00",
           submitted_late: false,
@@ -650,7 +1051,7 @@ const installFetch = () => {
         apiState.leavesPosted.push({
           type,
           start_date: start,
-          evidence: evidence instanceof File ? evidence.name : null,
+          evidence_url: evidenceUrl,
         });
         apiState.leaves = [...apiState.leaves, leave];
         return jsonResponse(
@@ -666,24 +1067,19 @@ const installFetch = () => {
         const leaves = apiState.leaves
           .filter((l) => !status || l.status === status)
           .sort((a, b) => b.start_date.localeCompare(a.start_date) || b.id - a.id);
-        return jsonResponse({ data: leaves.map(clone) });
+        return jsonResponse({
+          data: leaves.map(clone),
+          meta: { quota: clone(apiState.quota) },
+        });
       }
 
-      const leaveDetail = /\/api\/intern\/leaves\/(\d+)(?:\/(cancel|evidence))?$/.exec(path);
+      const leaveDetail = /\/api\/intern\/leaves\/(\d+)(?:\/(cancel))?$/.exec(path);
       if (leaveDetail) {
         const id = Number(leaveDetail[1]);
         const action = leaveDetail[2];
         const leave = apiState.leaves.find((l) => l.id === id);
         if (!leave) return jsonResponse({ message: "Izin tidak ditemukan." }, 404);
         if (!action) return jsonResponse({ data: clone(leave) });
-        if (action === "evidence") {
-          if (!leave.has_evidence)
-            return jsonResponse({ message: "Lampiran tidak ditemukan." }, 404);
-          return new Response("lampiran", {
-            status: 200,
-            headers: { "Content-Disposition": 'attachment; filename="lampiran-izin.pdf"' },
-          });
-        }
         if (method !== "POST") return jsonResponse({ message: "Metode tidak didukung." }, 405);
         if (leave.status !== "pending" || apiState.leaveProcessedElsewhere) {
           // Mentor atau admin memproses sebelum pembatalan sempat dikirim.
@@ -1026,26 +1422,11 @@ describe("Menu per role", () => {
 describe("Setiap halaman dapat dirender", () => {
   const pages: [Role, string, ReactNode, string | RegExp][] = [
     ["Intern", "/", <Dashboard key="d" />, "Rekap bulan ini (Oktober 2026)"],
-    ["Intern", "/absensi", <AttendancePage key="a" />, "Daily Report - Sen, 12 Okt 2026"],
-    [
-      "Intern",
-      "/logbook",
-      <LogbookPage key="lb" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
+    ["Intern", "/absensi", <AttendancePage key="a" />, "Hari Ini"],
+    ["Intern", "/logbook", <LogbookPage key="lb" />, "Daftar logbook"],
     ["Intern", "/izin", <LeavePage key="l" />, "Riwayat izin"],
-    [
-      "Intern",
-      "/presentasi",
-      <PresentationPage key="pr" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
-    [
-      "Intern",
-      "/catatan",
-      <NotesPage key="nt" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
+    ["Intern", "/presentasi", <PresentationPage key="pr" />, "Presentasi akhir"],
+    ["Intern", "/catatan", <NotesPage key="nt" />, "Catatan dari Admin"],
     ["Intern", "/chat", <ChatPage key="c" />, "Budi Santoso"],
     ["Intern", "/profil", <ProfilePage key="p" />, "Data akun"],
     ["Mentor", "/", <Dashboard key="d" />, /Izin pending/],
@@ -1185,40 +1566,37 @@ describe("Login dan profil (Fase 1)", () => {
 });
 
 describe("Alur utama", () => {
-  it("Intern: clock in, isi Daily Report, lalu clock out", async () => {
+  it("Intern: clock in, isi logbook, lalu clock out", async () => {
     show("Intern", <AttendancePage />, "/absensi");
-    expect(
-      await screen.findByText("Clock in dulu untuk mengisi Daily Report."),
-    ).toBeInTheDocument();
     // Tunggu daftar kantor dimuat; tombol Clock In nonaktif selama itu.
     expect(await screen.findByLabelText("Kantor untuk presensi")).toBeInTheDocument();
     // Tombol baru bernama "Clock In" setelah pembacaan GPS selesai.
     fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
-    expect(await screen.findByText(/Sudah Clock In/)).toBeInTheDocument();
-    expect(screen.getByText("15:00")).toBeInTheDocument();
+    expect(await screen.findByText(/Hadir sejak 15:00/)).toBeInTheDocument();
 
-    // Clock Out belum aktif sebelum Daily Report terkirim.
+    // Logbook hari ini belum ada: form isian tampil langsung di kartu Hari Ini.
+    expect(screen.getByLabelText(/Yang saya kerjakan hari ini/)).toBeInTheDocument();
+    // Clock Out belum aktif sebelum logbook tersimpan (can_clock_out dari server).
     expect(screen.getByRole("button", { name: /Clock Out/ })).toBeDisabled();
-    expect(screen.getByText("Isi Daily Report dulu sebelum clock out.")).toBeInTheDocument();
 
-    // Daily Report: kosong ditolak, lalu tersimpan.
-    fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
+    // Logbook: kosong ditolak, lalu tersimpan sebagai draft.
+    fireEvent.click(screen.getByRole("button", { name: "Simpan Logbook" }));
     expect(screen.getByText("Isi apa yang Anda kerjakan hari ini.")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/Yang saya kerjakan hari ini/), {
       target: { value: "Revisi halaman flight info" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Simpan Laporan" }));
-    await waitFor(() => expect(screen.getByText("Revisi halaman flight info")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Simpan Logbook" }));
+    await waitFor(() => expect(apiState.report?.work).toBe("Revisi halaman flight info"));
+    expect(await screen.findByText("Revisi halaman flight info")).toBeInTheDocument();
 
     // Setelah logbook tersimpan, Clock Out aktif (server mengirim can_clock_out = true).
     await waitFor(() => expect(screen.getByRole("button", { name: /Clock Out/ })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: /Clock Out/ }));
     expect(screen.getByRole("button", { name: /Membaca lokasi/ })).toBeDisabled();
-    expect(await screen.findByText(/Hadir, clock out 17:00/)).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByText("Laporan terkunci setelah clock out.")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByText("Selesai. Clock out 17:00. Logbook menunggu review mentor."),
+    ).toBeInTheDocument();
   });
 
   it("Admin: tidak bisa menyetujui izin pending tanpa bukti", async () => {
@@ -1239,7 +1617,7 @@ describe("Izin intern (API)", () => {
     expect(apiState.leaveParams).toEqual({});
 
     const rows = screen.getAllByRole("row");
-    expect(within(rows[1]!).getByText("Pending")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Menunggu")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("2")).toBeInTheDocument();
     // Izin yang sudah diputuskan tidak lagi bisa dibatalkan.
     expect(within(rows[2]!).queryByRole("button", { name: "Batalkan" })).toBeNull();
@@ -1252,14 +1630,14 @@ describe("Izin intern (API)", () => {
     expect(screen.getByText("27 Sep 08:05 · Diajukan setelah tanggal izin")).toBeInTheDocument();
   });
 
-  it("Izin Pending membuka Unduh lampiran dan dialog Batalkan", async () => {
+  it("Izin Pending menampilkan link bukti, bukan berkas", async () => {
     show("Intern", <LeavePage />, "/izin");
     const rows = await screen.findAllByRole("row");
     fireEvent.click(within(rows[1]!).getByRole("button", { name: "Lihat" }));
-    expect(await screen.findByText("Lampiran bukti")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Unduh" })).toBeInTheDocument();
+    const link = await screen.findByRole("link", { name: "Buka link bukti" });
+    expect(link).toHaveAttribute("href", "https://drive.google.com/file/d/surat-dokter/view");
     expect(screen.getByText("Demam sejak semalam, istirahat di rumah.")).toBeInTheDocument();
-    expect(screen.queryByText("Catatan pemroses")).toBeNull();
+    expect(screen.queryByText("Tidak ada bukti surat resmi.")).toBeNull();
   });
 
   it("Memilih status menyaring lewat server", async () => {
@@ -1271,7 +1649,7 @@ describe("Izin intern (API)", () => {
     expect(screen.queryByText("13-14 Okt")).toBeNull();
   });
 
-  it("Ajukan izin: jenis file lain ditolak di klien, lalu lampiran PDF terkirim", async () => {
+  it("Ajukan izin: link non-Google ditolak server, lalu link Drive terkirim", async () => {
     show("Intern", <LeavePage />, "/izin");
     await screen.findByText("13-14 Okt");
     fireEvent.click(screen.getByRole("button", { name: /Ajukan Izin/ }));
@@ -1289,24 +1667,32 @@ describe("Izin intern (API)", () => {
     fireEvent.change(screen.getByLabelText(/Alasan/), {
       target: { value: "Kontrol ke dokter gigi." },
     });
-    // Jenis file lain ditolak di klien sebelum dikirim.
-    fireEvent.change(screen.getByLabelText("Lampiran bukti"), {
-      target: { files: [new File(["isi"], "surat.png", { type: "image/png" })] },
+    // Bukan tautan Google Drive/Docs: server menolak dan pesannya ditampilkan apa adanya.
+    fireEvent.change(screen.getByLabelText(/Link bukti/), {
+      target: { value: "https://example.com/surat.png" },
     });
-    expect(await screen.findByText(/Jenis file tidak diizinkan/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+    expect(
+      await screen.findByText("Link bukti harus berupa tautan Google Drive atau Google Docs."),
+    ).toBeInTheDocument();
+    expect(apiState.leavesPosted).toEqual([]);
 
-    fireEvent.change(screen.getByLabelText("Lampiran bukti"), {
-      target: { files: [new File(["isi"], "surat-dokter.pdf", { type: "application/pdf" })] },
+    fireEvent.change(screen.getByLabelText(/Link bukti/), {
+      target: { value: "https://drive.google.com/file/d/surat-dokter/view" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
     await waitFor(() =>
       expect(apiState.leavesPosted).toEqual([
-        { type: "sick", start_date: "2026-10-19", evidence: "surat-dokter.pdf" },
+        {
+          type: "sick",
+          start_date: "2026-10-19",
+          evidence_url: "https://drive.google.com/file/d/surat-dokter/view",
+        },
       ]),
     );
-    // Izin baru tampil di riwayat dengan status Pending.
+    // Izin baru tampil di riwayat dengan status Menunggu.
     expect(await screen.findByText("19-21 Okt")).toBeInTheDocument();
-    expect(screen.getAllByText("Pending").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Menunggu").length).toBeGreaterThan(1);
   });
 
   it("Membatalkan izin Pending memakai konfirmasi", async () => {
@@ -1330,6 +1716,287 @@ describe("Izin intern (API)", () => {
     // Daftar dimuat ulang: izin kini Disetujui dan tidak bisa dibatalkan lagi.
     await waitFor(() => expect(screen.queryByRole("button", { name: "Batalkan" })).toBeNull());
     expect(within(screen.getByRole("table")).getByText("Disetujui")).toBeInTheDocument();
+  });
+});
+
+describe("Logbook, koreksi, presentasi, dan catatan intern (Fase 2)", () => {
+  it("Dashboard menampilkan banner presentasi, Perlu ditindak, kuota, dan pengumuman", async () => {
+    apiState.presentationBanner = {
+      state: "not_submitted",
+      end_date: "2026-12-31",
+      days_left: 7,
+    };
+    apiState.actionNeeded = {
+      logbooks: [
+        { date: "2026-10-08", logbook_state: "revision", comment: "Tambahkan hasil rapat." },
+      ],
+      warnings: [{ id: 3, created_at: "2026-10-10T09:00:00+07:00" }],
+      corrections: [{ id: 4, date: "2026-10-07", status: "approved" }],
+      leaves: [
+        {
+          id: 11,
+          type: "sick",
+          start_date: "2026-10-13",
+          end_date: "2026-10-14",
+          status: "approved",
+        },
+      ],
+    };
+    show("Intern", <Dashboard />);
+    expect(
+      await screen.findByText(/Presentasi akhir: kirim bukti sebelum 31 Des 2026/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Perlu ditindak (4)")).toBeInTheDocument();
+    // Tiap baris membuka itemnya (parameter URL detail ditangani router asli).
+    expect(screen.getByRole("link", { name: /Logbook Perlu revisi 8 Okt/ })).toHaveAttribute(
+      "href",
+      "/logbook",
+    );
+    expect(screen.getByRole("link", { name: /Warning Catatan baru dari admin/ })).toHaveAttribute(
+      "href",
+      "/catatan",
+    );
+    expect(screen.getByRole("link", { name: /Koreksi Disetujui 7 Okt/ })).toHaveAttribute(
+      "href",
+      "/absensi",
+    );
+    expect(screen.getByRole("link", { name: /Izin Izin Sakit · Disetujui/ })).toHaveAttribute(
+      "href",
+      "/izin",
+    );
+    // Sisa kuota dari server, bukan hitungan klien.
+    expect(screen.getByText("Sisa kuota izin: 2 dari 3")).toBeInTheDocument();
+    expect(screen.getByText("WFA besok")).toBeInTheDocument();
+  });
+
+  it("Logbook: daftar, filter status ke server, dan isi hari hasil koreksi", async () => {
+    apiState.logbookActionNeeded = [
+      { date: "2026-10-06", logbook_state: "missing", comment: null },
+    ];
+    apiState.logbookDays = [
+      {
+        date: "2026-10-09",
+        attendance_status: "present",
+        leave_type: null,
+        logbook_state: "pending_review",
+        work: "Menyusun ERD tahap 1",
+        action: null,
+      },
+      {
+        date: "2026-10-07",
+        attendance_status: "leave",
+        leave_type: "sick",
+        logbook_state: null,
+        work: null,
+        action: null,
+      },
+      {
+        date: "2026-10-06",
+        attendance_status: "present",
+        leave_type: null,
+        logbook_state: "missing",
+        work: null,
+        action: "submit",
+      },
+    ];
+    show("Intern", <LogbookPage />, "/logbook");
+    expect(await screen.findByText("Daftar logbook")).toBeInTheDocument();
+    expect(await screen.findByText("Menyusun ERD tahap 1")).toBeInTheDocument();
+    expect(screen.getByText("Menunggu Review")).toBeInTheDocument();
+    expect(screen.getByText("Izin Sakit")).toBeInTheDocument();
+    expect(screen.getByText("Perlu ditindak (1)")).toBeInTheDocument();
+
+    // Baris "Perlu ditindak" membuka detail hari itu, lalu isian dikirim sebagai `submit`.
+    fireEvent.click(screen.getByRole("button", { name: /Koreksi disetujui, logbook belum diisi/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(await within(dialog).findByLabelText(/Yang saya kerjakan hari ini/), {
+      target: { value: "Membersihkan data presensi" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim" }));
+    await waitFor(() =>
+      expect(apiState.logbookPosted).toEqual([
+        { date: "2026-10-06", work: "Membersihkan data presensi", notes: null },
+      ]),
+    );
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Tutup" }));
+    fireEvent.change(screen.getByLabelText("Filter status logbook"), {
+      target: { value: "pending_review" },
+    });
+    await waitFor(() => expect(apiState.logbookParams?.["status"]).toBe("pending_review"));
+    expect(await screen.findByText("Menyusun ERD tahap 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Izin Sakit")).toBeNull());
+  });
+
+  it("Koreksi: detail memuat data tercatat dari server", async () => {
+    router.search = { tab: "koreksi" };
+    apiState.corrections = [
+      {
+        id: 4,
+        date: "2026-10-07",
+        recorded_status: "late",
+        recorded_missed_clock_out: false,
+        reason: "Lupa clock in.",
+        status: "pending_mentor",
+        submitted_at: "2026-10-12T09:00:00+07:00",
+        mentor: null,
+        mentor_note: null,
+        mentor_decided_at: null,
+        admin: null,
+        admin_note: null,
+        admin_decided_at: null,
+        can_cancel: true,
+      },
+    ];
+    show("Intern", <AttendancePage />, "/absensi");
+    expect(await screen.findByText("Menunggu Mentor")).toBeInTheDocument();
+    // Baris bisa diklik untuk membuka detail (tanpa tombol Lihat saat masih bisa dibatalkan).
+    fireEvent.click(screen.getByText("7 Okt 2026"));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("Clock in 08:20 | Clock out -")).toBeInTheDocument();
+    expect(within(dialog).getByText("Lupa clock in.")).toBeInTheDocument();
+    expect(within(dialog).getByText("Kondisi tercatat")).toBeInTheDocument();
+  });
+
+  it("Koreksi: tanggal + alasan terkirim dengan pesan server", async () => {
+    apiState.attendanceDays = [
+      {
+        date: "2026-10-09",
+        status: "late",
+        clock_in_at: "08:20",
+        clock_out_at: "17:00",
+        late_minutes: 20,
+        missed_clock_out: false,
+        is_corrected: false,
+        logbook_state: "pending_review",
+        holiday_name: null,
+        leave_type: null,
+        has_active_correction: false,
+        can_request_correction: true,
+      },
+    ];
+    router.search = { tab: "koreksi" };
+    show("Intern", <AttendancePage />, "/absensi");
+    fireEvent.click(await screen.findByRole("button", { name: /Ajukan Koreksi/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim" }));
+    expect(within(dialog).getByText("Pilih tanggal yang akan dikoreksi.")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText(/Tanggal presensi/), {
+      target: { value: "2026-10-09" },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/Alasan/), {
+      target: { value: "Lupa clock in." },
+    });
+    // Kondisi hari yang dipilih dimuat dari server, bukan ditebak klien.
+    expect(await within(dialog).findByText(/Clock in 08:20/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim" }));
+    await waitFor(() =>
+      expect(apiState.correctionsPosted).toEqual([
+        { date: "2026-10-09", reason: "Lupa clock in." },
+      ]),
+    );
+  });
+
+  it("Tautan ?date= dari logbook mengisi tanggal koreksi", async () => {
+    router.search = { tab: "koreksi", date: "2026-10-09" };
+    show("Intern", <AttendancePage />, "/absensi");
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Tanggal presensi/)).toHaveValue("2026-10-09");
+  });
+
+  it("Presentasi akhir: link non-Google ditolak, lalu link Drive terkirim", async () => {
+    show("Intern", <PresentationPage />, "/presentasi");
+    const input = await screen.findByLabelText(/Link bukti/);
+    fireEvent.change(input, { target: { value: "https://example.com/bukti" } });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+    expect(
+      await screen.findByText("Link harus berupa Google Drive atau Google Docs."),
+    ).toBeInTheDocument();
+    expect(apiState.presentationPosted).toEqual([]);
+
+    fireEvent.change(input, {
+      target: { value: "https://drive.google.com/file/d/presentasi/view" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim" }));
+    await waitFor(() =>
+      expect(apiState.presentationPosted).toEqual([
+        "https://drive.google.com/file/d/presentasi/view",
+      ]),
+    );
+    expect(await screen.findByText("Menunggu")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buka link bukti" })).toHaveAttribute(
+      "href",
+      "https://drive.google.com/file/d/presentasi/view",
+    );
+  });
+
+  it("Presentasi belum dibuka: pesan server tampil dan form disembunyikan", async () => {
+    apiState.presentation = {
+      ...apiState.presentation,
+      state: "not_open",
+      can_submit: false,
+      message: "Presentasi akhir dapat dikirim mulai 24 Des 2026.",
+    };
+    show("Intern", <PresentationPage />, "/presentasi");
+    expect(
+      await screen.findByText("Presentasi akhir dapat dikirim mulai 24 Des 2026."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Link bukti/)).toBeNull();
+  });
+
+  it("Catatan: warning dan nilai akhir beserta indikator dari server", async () => {
+    apiState.warnings = [
+      {
+        id: 1,
+        body: "Terlambat 3 kali bulan ini.",
+        author: "Admin Sinta",
+        created_at: "2026-10-10T09:00:00+07:00",
+        updated_at: null,
+      },
+    ];
+    apiState.assessment = {
+      available: true,
+      final_score: 87.5,
+      predicate: "Baik Sekali",
+      notes: "Konsisten dan cepat belajar.",
+      submitted_at: "2026-10-11T10:00:00+07:00",
+      assessed_by: "Sari Wulandari",
+      indicators: [
+        {
+          id: 1,
+          category: "Sikap",
+          name: "Disiplin",
+          description: null,
+          weight: 40,
+          score: 90,
+        },
+        {
+          id: 2,
+          category: "Teknis",
+          name: "Kualitas kerja",
+          description: "Ketelitian",
+          weight: 60,
+          score: 85,
+        },
+      ],
+    };
+    show("Intern", <NotesPage />, "/catatan");
+    expect(await screen.findByText("Terlambat 3 kali bulan ini.")).toBeInTheDocument();
+    expect(screen.getByText(/Admin Sinta/)).toBeInTheDocument();
+    expect(await screen.findByText("87.5")).toBeInTheDocument();
+    expect(screen.getAllByText("Baik Sekali").length).toBeGreaterThan(0);
+    expect(screen.getByText("Konsisten dan cepat belajar.")).toBeInTheDocument();
+    // Indikator dikelompokkan per kategori dari server.
+    expect(screen.getByText("Sikap")).toBeInTheDocument();
+    expect(screen.getByText("Disiplin")).toBeInTheDocument();
+    expect(screen.getByText("Teknis")).toBeInTheDocument();
+  });
+
+  it("Catatan: keadaan kosong dan nilai belum tersedia memakai pesan server", async () => {
+    show("Intern", <NotesPage />, "/catatan");
+    expect(await screen.findByText("Tidak ada catatan untuk Anda.")).toBeInTheDocument();
+    expect(await screen.findByText("Nilai akhir belum tersedia.")).toBeInTheDocument();
   });
 });
 
@@ -1476,7 +2143,42 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
     expect(clockInCalls).toHaveLength(1);
   });
 
-  it("Clock Out ditolak server karena logbook belum diisi dan membuka dialog laporan", async () => {
+  it("Clock Out tanpa logbook membuka dialog logbook dan isian wajib", async () => {
+    apiState.today = {
+      ...apiState.today,
+      state: "clocked_in",
+      clock_in_at: "08:00",
+      can_clock_out: true,
+      logbook: null,
+    };
+    show("Intern", <AttendancePage />, "/absensi");
+    const clockOut = await screen.findByRole("button", { name: /Clock Out/ });
+    await waitFor(() => expect(clockOut).toBeEnabled());
+
+    fireEvent.click(clockOut);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Isi Logbook Sebelum Clock Out")).toBeInTheDocument();
+
+    // Kosong ditolak dan clock out belum dikirim.
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim & Clock Out" }));
+    expect(within(dialog).getByText("Isi apa yang Anda kerjakan hari ini.")).toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([input]) => String(input).endsWith("/api/intern/attendance/clock-out")),
+    ).toHaveLength(0);
+
+    fireEvent.change(within(dialog).getByLabelText(/Yang saya kerjakan hari ini/), {
+      target: { value: "Menyusun laporan harian" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Kirim & Clock Out" }));
+    await waitFor(() => expect(apiState.today.state).toBe("clocked_out"));
+    // Isian logbook ikut terkirim bersama clock out.
+    expect(apiState.report?.work).toBe("Menyusun laporan harian");
+  });
+
+  it("Server yang menolak clock out karena logbook hilang membuka dialog yang sama", async () => {
     apiState.today = {
       ...apiState.today,
       state: "clocked_in",
@@ -1498,8 +2200,8 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
     fireEvent.click(clockOut);
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Daily Report belum dikirim")).toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Isi Daily Report" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Isi Logbook Sebelum Clock Out")).toBeInTheDocument();
+    expect(within(dialog).getByText("Isi logbook dulu sebelum clock out.")).toBeInTheDocument();
   });
 
   it("Peta kecil menampilkan lingkaran radius kantor dan posisi user", async () => {

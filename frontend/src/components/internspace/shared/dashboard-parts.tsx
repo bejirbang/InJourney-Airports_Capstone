@@ -33,9 +33,33 @@ export function Metric({
   );
 }
 
-export function AnnouncementList() {
+/** Satu pengumuman dari API; bentuknya sama dengan yang dipakai halaman intern. */
+export interface AnnouncementItem {
+  id: number;
+  title: string;
+  body: string;
+  author_name: string | null;
+  created_at: string | null;
+}
+
+/**
+ * Daftar pengumuman. Halaman intern mengirim `items` dari `GET /api/intern/dashboard`;
+ * tanpa `items`, role lain masih memakai data contoh sampai fasenya tiba.
+ */
+export function AnnouncementList({ items }: { items?: AnnouncementItem[] }) {
   const m = useMock();
-  const list = m.announcements.filter((a) => a.audience.includes(m.role)).slice(0, 3);
+  const list: AnnouncementItem[] =
+    items ??
+    m.announcements
+      .filter((a) => a.audience.includes(m.role))
+      .slice(0, 3)
+      .map((a) => ({
+        id: a.id,
+        title: a.title,
+        body: a.text,
+        author_name: a.author,
+        created_at: a.date,
+      }));
   if (list.length === 0) return null;
   return (
     <Panel title="Pengumuman" subtitle="Dari admin untuk role Anda.">
@@ -43,9 +67,9 @@ export function AnnouncementList() {
         <div className="announcement" key={a.id}>
           <div>
             <h3>{a.title}</h3>
-            <p>{a.text}</p>
+            <p>{a.body}</p>
             <small>
-              {a.author} · {formatShort(a.date, true)}
+              {a.author_name ?? "-"} · {formatShort(a.created_at ?? "", true)}
             </small>
           </div>
         </div>
