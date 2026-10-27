@@ -133,7 +133,8 @@ class AdminPdfReports
     }
 
     /**
-     * Tanggal tanda tangan = tanggal submit penilaian, agar dokumen yang dicetak ulang tetap sama.
+     * Tanggal tanda tangan = tanggal submit penilaian, agar dokumen yang dicetak ulang tetap sama. `predicate`
+     * tetap disertakan untuk aplikasi; PDF hanya mencetak daftar rentang nilai.
      *
      * @return array<string, mixed>
      *
@@ -151,15 +152,34 @@ class AdminPdfReports
             throw new ActionRejected(self::NOT_SUBMITTED, 'not_submitted');
         }
 
-        $groups = [];
-        $number = 0;
+        // Dikelompokkan per kategori sesuai urutan indikator; tanpa kategori selalu paling akhir. Nomor kategori
+        // dan nomor indikator di dalamnya mulai dari 1, seperti formulir mitra.
+        $byCategory = [];
+        $uncategorized = [];
         $scores = $assessment->scores->sortBy(fn (AssessmentScore $score): string => sprintf('%010d-%010d', $score->indicator->sort_order, $score->indicator_id));
 
         foreach ($scores as $score) {
-            $groups[$score->indicator->category ?? self::OTHER_CATEGORY][] = [
-                'number' => ++$number,
-                'name' => $score->indicator->name,
-                'score' => $score->value(),
+            $row = ['name' => $score->indicator->name, 'score' => $score->value()];
+            $category = $score->indicator->category;
+
+            if ($category === null || $category === '') {
+                $uncategorized[] = $row;
+            } else {
+                $byCategory[$category][] = $row;
+            }
+        }
+
+        if ($uncategorized !== []) {
+            $byCategory[self::OTHER_CATEGORY] = [...($byCategory[self::OTHER_CATEGORY] ?? []), ...$uncategorized];
+        }
+
+        $groups = [];
+
+        foreach ($byCategory as $category => $rows) {
+            $groups[] = [
+                'number' => count($groups) + 1,
+                'name' => mb_strtoupper((string) $category),
+                'indicators' => array_map(fn (array $row, int $i): array => ['number' => $i + 1, ...$row], $rows, array_keys($rows)),
             ];
         }
 
