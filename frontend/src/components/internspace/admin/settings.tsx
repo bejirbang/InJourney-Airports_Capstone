@@ -18,15 +18,14 @@ import {
   monthEnd,
   weekdayIndex,
 } from "@/lib/mock-rules";
+import { ApiError, getToken } from "@/lib/api";
 import {
-  ApiError,
+  officeApi,
+  scheduleApi,
   type AdminAirport,
   type AdminHoliday,
   type WeeklyDay,
-  officeApi,
-  getToken,
-  scheduleApi,
-} from "@/lib/api";
+} from "@/lib/endpoints/admin";
 import {
   Confirm,
   FormError,

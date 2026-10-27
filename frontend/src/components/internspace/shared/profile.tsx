@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { MAX_FILE_MB, formatPeriod, validateFileSize } from "@/lib/mock-rules";
+import { formatPeriod } from "@/lib/mock-rules";
 import { ApiError, toMockRole } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { initials, useMock } from "@/components/internspace/shared/model";
@@ -14,11 +14,8 @@ export function ProfilePage() {
   const user = auth.user;
   const [name, setName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -26,53 +23,18 @@ export function ProfilePage() {
     setPhone(user.phone ?? "");
   }, [user]);
 
-  useEffect(() => {
-    if (!photoFile) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(photoFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [photoFile]);
-
-  const shownPhoto = previewUrl ?? user?.photo_url ?? null;
   const roleLabel = user ? toMockRole[user.role] : m.role;
-
-  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setPhotoFile(null);
-      return;
-    }
-    const sizeError = validateFileSize(file.size);
-    if (sizeError) {
-      e.target.value = "";
-      setPhotoFile(null);
-      setError(sizeError);
-      return;
-    }
-    setError(null);
-    setPhotoFile(file);
-  };
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return setError("Nama wajib diisi.");
-    if (photoFile) {
-      const sizeError = validateFileSize(photoFile.size);
-      if (sizeError) return setError(sizeError);
-    }
     setError(null);
     setBusy(true);
     const phoneTrimmed = phone.trim();
     void (async () => {
       try {
         await auth.updateProfile({ name: trimmed, phone: phoneTrimmed });
-        if (photoFile) await auth.uploadPhoto(photoFile);
-        setPhotoFile(null);
-        if (photoInput.current) photoInput.current.value = "";
         toast.success("Perubahan tersimpan.");
       } catch (submitErr) {
         setError(
@@ -90,50 +52,13 @@ export function ProfilePage() {
     <>
       <PageHeading
         title="Profil Saya"
-        subtitle="Anda dapat mengubah nama, foto, dan kontak. Data lain dikelola admin."
+        subtitle="Anda dapat mengubah nama dan kontak. Data lain dikelola admin."
       />
       <div className="grid gap-5 max-w-3xl">
         <Panel title="Data profil">
           <form className="form-grid px-5 pb-5" onSubmit={save}>
             <div className="flex items-center gap-4">
-              {shownPhoto ? (
-                <img
-                  className="avatar !w-16 !h-16"
-                  src={shownPhoto}
-                  alt={photoFile ? "Pratinjau foto profil" : "Foto profil"}
-                />
-              ) : (
-                <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
-              )}
-              <div className="form-field">
-                <span>Foto profil</span>
-                <div className="flex items-center gap-3">
-                  <input
-                    ref={photoInput}
-                    type="file"
-                    accept="image/*"
-                    aria-label="Foto profil"
-                    className="sr-only"
-                    onChange={pickPhoto}
-                    disabled={busy}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => photoInput.current?.click()}
-                  >
-                    Pilih file
-                  </Button>
-                  <small className="text-muted-foreground truncate">
-                    {photoFile ? photoFile.name : "Belum ada file dipilih"}
-                  </small>
-                </div>
-                <small className="text-muted-foreground">
-                  Maksimal {MAX_FILE_MB} MB. Foto baru tersimpan setelah Anda menekan Simpan.
-                </small>
-              </div>
+              <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
             </div>
             <div className="form-two">
               <label className="form-field">

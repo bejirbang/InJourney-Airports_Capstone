@@ -24,7 +24,8 @@ import {
   validateEvidenceFile,
   validateLeave,
 } from "@/lib/mock-rules";
-import { ApiError, internToken, leaveApi, type ApiLeaveStatus } from "@/lib/api";
+import { ApiError, internToken } from "@/lib/api";
+import { leaveApi, type ApiLeaveStatus } from "@/lib/endpoints/intern";
 import { useAuth } from "@/lib/auth";
 import { type PageSearch } from "@/lib/search";
 import {

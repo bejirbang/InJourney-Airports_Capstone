@@ -12,7 +12,6 @@ import {
   FlaskConical,
   History,
   LayoutDashboard,
-  ListTodo,
   LogOut,
   Megaphone,
   MapPin,
@@ -64,7 +63,6 @@ type NavItem = { to: AppPath; label: string; icon: LucideIcon; count?: number };
 const pageLabels: Record<string, string> = {
   "/": "Dashboard",
   "/absensi": "Presensi",
-  "/task": "Task",
   "/izin": "Izin",
   "/chat": "Chat",
   "/koreksi": "Koreksi",
@@ -82,17 +80,8 @@ const pageLabels: Record<string, string> = {
 };
 // Halaman yang boleh dibuka tiap role (design-*.md bagian 2.2). Chat dan profil untuk semua.
 const allowed: Record<Role, AppPath[]> = {
-  Intern: ["/", "/absensi", "/task", "/izin", "/chat", "/profil"],
-  Mentor: [
-    "/",
-    "/intern-saya",
-    "/task",
-    "/izin",
-    "/kalender-izin",
-    "/performa",
-    "/chat",
-    "/profil",
-  ],
+  Intern: ["/", "/absensi", "/izin", "/chat", "/profil"],
+  Mentor: ["/", "/intern-saya", "/izin", "/kalender-izin", "/performa", "/chat", "/profil"],
   Admin: [
     "/",
     "/users",
@@ -130,14 +119,12 @@ export function Workspace({ children }: { children: ReactNode }) {
       ? [
           { to: "/", label: "Dashboard", icon: LayoutDashboard },
           { to: "/absensi", label: "Presensi", icon: Clock3 },
-          { to: "/task", label: "Task", icon: ListTodo },
           { to: "/izin", label: "Izin", icon: CalendarCheck },
         ]
       : m.role === "Mentor"
         ? [
             { to: "/", label: "Dashboard", icon: LayoutDashboard },
             { to: "/intern-saya", label: "Intern Saya", icon: UsersRound },
-            { to: "/task", label: "Task", icon: ListTodo },
             {
               to: "/izin",
               label: "Izin",

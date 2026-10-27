@@ -1358,11 +1358,11 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 
 | Fase | Fitur | Bagian | PIC | Selesai |
 |---|---|---|---|---|
-| 0 | Pasang file panduan baru (`AGENTS.md`, `CLAUDE.md`, README, roadmap, `.env.example`) | 2.1 | | [ ] |
-| 0 | `endpoints/`, hapus `taskApi` | 4.1 | | [ ] |
-| 0 | `downloadFile()` | 4.4 | | [ ] |
-| 0 | `navigation.ts`, `search.ts` | 4.3, 4.5 | | [ ] |
-| 0 | `labels.ts` | 4.6 | | [ ] |
+| 0 | Pasang file panduan baru (`AGENTS.md`, `CLAUDE.md`, README, roadmap, `.env.example`) | 2.1 | | [x] 2026-10-27 |
+| 0 | `endpoints/`, hapus `taskApi` | 4.1 | | [x] 2026-10-27 |
+| 0 | `downloadFile()` | 4.4 | | [x] 2026-10-27 |
+| 0 | `navigation.ts`, `search.ts` | 4.3, 4.5 | | [x] 2026-10-27 |
+| 0 | `labels.ts` | 4.6 | | [x] 2026-10-27 |
 | 1 | Login, ganti password, tipe user | 5.1 | | [ ] |
 | 1 | Shell, menu, badge | 5.2 | | [ ] |
 | 1 | Profil | 5.3 | | [ ] |

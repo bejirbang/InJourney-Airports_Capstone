@@ -9,9 +9,7 @@ import {
   formatDate,
   formatPeriod,
   formatRange,
-  formatShort,
   hoursBetween,
-  taskIsLate,
 } from "@/lib/mock-rules";
 import { type PageSearch } from "@/lib/search";
 import { DayDetail, RecapStrip } from "@/components/internspace/shared/attendance-parts";
@@ -20,7 +18,6 @@ import {
   type Person,
   type Report,
   type Row,
-  type Task,
   recap,
   useMock,
 } from "@/components/internspace/shared/model";
@@ -155,7 +152,7 @@ export function MyInternsPage() {
   );
 }
 
-type DetailTab = "absensi" | "laporan" | "task" | "izin";
+type DetailTab = "absensi" | "laporan" | "izin";
 
 function InternDetail({
   person,
@@ -176,9 +173,6 @@ function InternDetail({
   const rows = m.rowsFor(person.name, `${month}-01`, `${month}-31`);
   const working = rows.filter((r) => r.status !== "Libur");
   const active = m.isActive(person);
-  const tasks = m.tasks.filter(
-    (t) => t.intern === person.name && (!readOnlyFormer || t.mentor === ME.Mentor),
-  );
   const leaves = m.leaves
     .filter((l) => l.intern === person.name)
     .sort((a, b) => b.submitted.localeCompare(a.submitted));
@@ -223,7 +217,6 @@ function InternDetail({
         items={[
           { value: "absensi", label: "Rekap Presensi" },
           { value: "laporan", label: "Daily Report" },
-          { value: "task", label: "Task" },
           { value: "izin", label: "Izin" },
         ]}
       />
@@ -320,61 +313,6 @@ function InternDetail({
               Klik baris untuk membaca laporan lengkap. Mentor tidak dapat mengedit atau
               mengomentari Daily Report.
             </p>
-          )}
-        </Panel>
-      )}
-      {tab === "task" && (
-        <Panel
-          title="Task"
-          action={
-            !readOnlyFormer && active ? (
-              <Link className="text-action" to="/task">
-                Ke halaman Task
-              </Link>
-            ) : undefined
-          }
-        >
-          {tasks.length === 0 ? (
-            <Empty>Belum ada Task untuk intern ini.</Empty>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Judul</th>
-                    <th>Status</th>
-                    <th>Tenggat</th>
-                    <th>Tanda</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.map((t) => (
-                    <tr key={t.id}>
-                      <td>{t.title}</td>
-                      <td>
-                        <Status status={t.status} />
-                      </td>
-                      <td>{formatShort(t.due)}</td>
-                      <td>
-                        {taskIsLate(t.due, t.status, t.submittedAt) && (
-                          <Status status="Terlambat" />
-                        )}
-                      </td>
-                      <td>
-                        {!readOnlyFormer && (
-                          <Button size="sm" variant="outline" asChild>
-                            <Link to="/task" search={{ open: t.id }}>
-                              Buka
-                            </Link>
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           )}
         </Panel>
       )}

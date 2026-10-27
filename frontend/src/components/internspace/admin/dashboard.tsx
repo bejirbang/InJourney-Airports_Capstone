@@ -14,7 +14,8 @@ import {
   isWorkingDay,
   pendingHours,
 } from "@/lib/mock-rules";
-import { internToken, officeApi } from "@/lib/api";
+import { internToken } from "@/lib/api";
+import { officeApi } from "@/lib/endpoints/admin";
 import { ExtendDialog } from "@/components/internspace/admin/extend-dialog";
 import { NoActiveOfficeBanner } from "@/components/internspace/admin/offices";
 import {

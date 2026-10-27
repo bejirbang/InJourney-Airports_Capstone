@@ -25,7 +25,6 @@ import { Route as PengaturanRouteImport } from './routes/pengaturan'
 import { Route as PengumumanRouteImport } from './routes/pengumuman'
 import { Route as PerformaRouteImport } from './routes/performa'
 import { Route as ProfilRouteImport } from './routes/profil'
-import { Route as TaskRouteImport } from './routes/task'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as WarningRouteImport } from './routes/warning'
 
@@ -109,11 +108,6 @@ const ProfilRoute = ProfilRouteImport.update({
   path: '/profil',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TaskRoute = TaskRouteImport.update({
-  id: '/task',
-  path: '/task',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const UsersRoute = UsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -142,7 +136,6 @@ export interface FileRoutesByFullPath {
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
-  '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
 }
@@ -163,7 +156,6 @@ export interface FileRoutesByTo {
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
-  '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
 }
@@ -185,7 +177,6 @@ export interface FileRoutesById {
   '/pengumuman': typeof PengumumanRoute
   '/performa': typeof PerformaRoute
   '/profil': typeof ProfilRoute
-  '/task': typeof TaskRoute
   '/users': typeof UsersRoute
   '/warning': typeof WarningRoute
 }
@@ -208,7 +199,6 @@ export interface FileRouteTypes {
     | '/pengumuman'
     | '/performa'
     | '/profil'
-    | '/task'
     | '/users'
     | '/warning'
   fileRoutesByTo: FileRoutesByTo
@@ -229,7 +219,6 @@ export interface FileRouteTypes {
     | '/pengumuman'
     | '/performa'
     | '/profil'
-    | '/task'
     | '/users'
     | '/warning'
   id:
@@ -250,7 +239,6 @@ export interface FileRouteTypes {
     | '/pengumuman'
     | '/performa'
     | '/profil'
-    | '/task'
     | '/users'
     | '/warning'
   fileRoutesById: FileRoutesById
@@ -272,7 +260,6 @@ export interface RootRouteChildren {
   PengumumanRoute: typeof PengumumanRoute
   PerformaRoute: typeof PerformaRoute
   ProfilRoute: typeof ProfilRoute
-  TaskRoute: typeof TaskRoute
   UsersRoute: typeof UsersRoute
   WarningRoute: typeof WarningRoute
 }
@@ -391,13 +378,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfilRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/task': {
-      id: '/task'
-      path: '/task'
-      fullPath: '/task'
-      preLoaderRoute: typeof TaskRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/users': {
       id: '/users'
       path: '/users'
@@ -432,7 +412,6 @@ const rootRouteChildren: RootRouteChildren = {
   PengumumanRoute: PengumumanRoute,
   PerformaRoute: PerformaRoute,
   ProfilRoute: ProfilRoute,
-  TaskRoute: TaskRoute,
   UsersRoute: UsersRoute,
   WarningRoute: WarningRoute,
 }

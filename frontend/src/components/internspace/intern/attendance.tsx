@@ -20,15 +20,14 @@ import {
   locationMessage,
   validateReport,
 } from "@/lib/mock-rules";
+import { ApiError, getToken } from "@/lib/api";
 import {
-  ApiError,
   attendanceApi,
-  getToken,
   type ApiTodayState,
-  type InternLogbookDay,
   type GeoPosition,
+  type InternLogbookDay,
   type OfficeInfo,
-} from "@/lib/api";
+} from "@/lib/endpoints/intern";
 import { type PageSearch } from "@/lib/search";
 import { CorrectionTab } from "@/components/internspace/intern/correction";
 import { AttendanceMap } from "@/components/internspace/intern/attendance-map";

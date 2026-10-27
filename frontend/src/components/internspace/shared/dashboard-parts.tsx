@@ -114,7 +114,7 @@ export function ActionRow({
   what: string;
   meta: string;
   warn?: boolean;
-  to: "/task" | "/izin" | "/koreksi";
+  to: "/izin" | "/koreksi";
   open: string;
 }) {
   return (

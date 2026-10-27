@@ -15,7 +15,7 @@ Catatan: sebagian isi prototipe (Task, Daily Report, upload file, jam kerja glob
 
 Panduan lengkap dan log progres per fitur ada di [`progress.md`](progress.md).
 
-- [ ] Fase 0: Fondasi (aturan agent, klien API, peta route, label, unduhan file)
+- [x] Fase 0: Fondasi (aturan agent, klien API, peta route, label, unduhan file)
 - [ ] Fase 1: Autentikasi, shell, profil
 - [ ] Fase 2: Intern (dashboard, presensi, logbook, koreksi, izin, presentasi, catatan)
 - [ ] Fase 3: Mentor (dashboard, intern saya, review logbook, koreksi, izin, kalender, performa, input nilai)

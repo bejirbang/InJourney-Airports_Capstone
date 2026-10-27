@@ -1,12 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { internToken, type ApiRole } from "@/lib/api";
 import {
-  internToken,
   leaveApi,
   type ApiInternLeave,
   type ApiLeaveStatus,
   type ApiLeaveType,
-  type ApiRole,
-} from "@/lib/api";
+} from "@/lib/endpoints/intern";
 import type { LeaveStatus, LeaveType, Role } from "@/lib/mock-rules";
 import { type Leave } from "@/components/internspace/shared/model";
 

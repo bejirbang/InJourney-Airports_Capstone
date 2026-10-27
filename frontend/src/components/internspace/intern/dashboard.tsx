@@ -1,11 +1,11 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TODAY, formatMonth, formatPeriod, formatShortTime, taskIsLate } from "@/lib/mock-rules";
+import { TODAY, formatMonth, formatPeriod } from "@/lib/mock-rules";
 import { TodayCard, useTodayStatus } from "@/components/internspace/intern/attendance";
 import { AnnouncementList, Metric } from "@/components/internspace/shared/dashboard-parts";
 import { ME, recap, useMock } from "@/components/internspace/shared/model";
-import { Empty, Panel, Status } from "@/components/internspace/shared/ui";
+import { Panel } from "@/components/internspace/shared/ui";
 
 // ---------- Intern (design-intern.md Alur 2) ----------
 export function InternDashboard() {
@@ -15,12 +15,6 @@ export function InternDashboard() {
   const reminder = todayQuery.data?.logbook_reminder === true;
   const month = TODAY.slice(0, 7);
   const r = recap(m.rowsFor(ME.Intern, `${month}-01`, `${month}-31`));
-  const tasks = m.tasks.filter((t) => t.intern === ME.Intern);
-  const active = tasks
-    .filter((t) => t.status !== "Done")
-    .sort((a, b) => a.due.localeCompare(b.due));
-  const late = active.filter((t) => taskIsLate(t.due, t.status, t.submittedAt));
-  const nearest = active.find((t) => t.due >= m.nowIso()) ?? active[0];
   return (
     <div className="grid gap-5">
       {reminder && (
@@ -54,46 +48,6 @@ export function InternDashboard() {
           </p>
         </Panel>
       </div>
-      <Panel
-        title="Task aktif"
-        action={
-          <Link className="text-action" to="/task">
-            Lihat Task <ArrowRight size={12} />
-          </Link>
-        }
-      >
-        {tasks.length === 0 ? (
-          <Empty>Belum ada Task dari mentor.</Empty>
-        ) : (
-          <div className="px-5 pb-5 grid gap-3">
-            <div className="flex flex-wrap gap-2">
-              {(["To Do", "In Progress", "In Review"] as const).map((s) => (
-                <span key={s} className="count-chip">
-                  <Status status={s} /> {tasks.filter((t) => t.status === s).length}
-                </span>
-              ))}
-              {late.length > 0 && (
-                <span className="count-chip">
-                  <Status status="Terlambat" /> {late.length}
-                </span>
-              )}
-            </div>
-            {nearest && (
-              <p className="text-xs">
-                Tenggat terdekat:{" "}
-                <Link
-                  className="font-semibold text-primary"
-                  to="/task"
-                  search={{ open: nearest.id }}
-                >
-                  {nearest.title}
-                </Link>{" "}
-                - {formatShortTime(nearest.due)}
-              </p>
-            )}
-          </div>
-        )}
-      </Panel>
       <div className="info-line">
         <span>Periode magang: {m.me.start ? formatPeriod(m.me.start, m.me.end) : "-"}</span>
         <span>Mentor: {m.me.mentor}</span>

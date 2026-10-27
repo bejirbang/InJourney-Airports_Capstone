@@ -23,7 +23,7 @@ export function Dashboard() {
           <h2>Selamat datang, {(auth.user?.name ?? m.me.name).split(" ")[0]}</h2>
           <p>
             {m.role === "Intern"
-              ? "Cek status hari ini dan Task yang perlu dikerjakan."
+              ? "Cek status hari ini dan logbook yang perlu diisi."
               : "Berikut hal yang perlu ditindak hari ini."}
           </p>
         </div>

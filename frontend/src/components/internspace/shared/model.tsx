@@ -887,15 +887,6 @@ const seedCorrections: Correction[] = [
 
 const seedNotices: Notice[] = [
   {
-    id: 1,
-    role: "Intern",
-    text: "Task 'Redesign halaman informasi penerbangan' perlu direvisi.",
-    at: "2026-10-12T10:00",
-    to: "/task",
-    search: { open: "TSK-024" },
-    read: false,
-  },
-  {
     id: 2,
     role: "Intern",
     text: "Pesan baru dari Ayu Wulandari.",
@@ -922,24 +913,6 @@ const seedNotices: Notice[] = [
     read: true,
   },
   {
-    id: 10,
-    role: "Mentor",
-    text: "Rizky P. mengumpulkan Task 'Laporan uji API login dan absensi'.",
-    at: "2026-10-12T08:30",
-    to: "/task",
-    search: { open: "TSK-022" },
-    read: false,
-  },
-  {
-    id: 11,
-    role: "Mentor",
-    text: "Sekar A. membalas komentar di 'Desain ERD modul absensi dan izin'.",
-    at: "2026-10-12T08:45",
-    to: "/task",
-    search: { open: "TSK-018" },
-    read: false,
-  },
-  {
     id: 12,
     role: "Mentor",
     text: "Nabila P. mengajukan Izin Sakit 14-15 Okt.",
@@ -947,15 +920,6 @@ const seedNotices: Notice[] = [
     to: "/izin",
     search: { open: "2" },
     read: false,
-  },
-  {
-    id: 13,
-    role: "Mentor",
-    text: "Task 'Dokumen kebutuhan sistem parkir' milik Fajar N. lewat tenggat lebih dari 2 hari kerja.",
-    at: "2026-10-12T00:05",
-    to: "/task",
-    search: { open: "TSK-017" },
-    read: true,
   },
   {
     id: 14,

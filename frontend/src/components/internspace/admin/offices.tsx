@@ -20,7 +20,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RADIUS_MAX, RADIUS_MIN, formatCoord, validateOffice } from "@/lib/mock-rules";
-import { ApiError, internToken, officeApi, type AdminAirport, type AdminOffice } from "@/lib/api";
+import { ApiError, internToken } from "@/lib/api";
+import { officeApi, type AdminAirport, type AdminOffice } from "@/lib/endpoints/admin";
 import {
   Confirm,
   Empty,
