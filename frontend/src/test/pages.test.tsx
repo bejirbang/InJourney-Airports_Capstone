@@ -1,5 +1,5 @@
 import { forwardRef, type ReactNode } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/lib/mock-rules";
@@ -24,10 +24,13 @@ vi.mock("@tanstack/react-router", () => ({
 
 // Leaflet butuh SVG renderer yang tidak ada di jsdom, jadi peta absensi di-stub.
 // Spy dipakai untuk memeriksa isi peta: lingkaran radius kantor dan marker posisi user.
+// Klik peta (pemilihan titik kantor) ditangkap di `mapClick` agar alur admin bisa diuji.
 const leafletSpy = vi.hoisted(() => ({
   circle: vi.fn(),
   circleMarker: vi.fn(),
   fitBounds: vi.fn(),
+  marker: vi.fn(),
+  mapClick: null as null | ((lat: number, lng: number) => void),
 }));
 
 vi.mock("leaflet", () => {
@@ -39,17 +42,28 @@ vi.mock("leaflet", () => {
   };
   leafletSpy.circle.mockImplementation(() => layer);
   leafletSpy.circleMarker.mockImplementation(() => layer);
+  leafletSpy.marker.mockImplementation(() => ({
+    ...layer,
+    getLatLng: () => ({ lat: -6.1256, lng: 106.6559 }),
+  }));
   const instance = {
     setView: () => instance,
     remove: () => undefined,
     fitBounds: leafletSpy.fitBounds,
     invalidateSize: () => undefined,
+    on: (event: string, handler: (e: { latlng: { lat: number; lng: number } }) => void) => {
+      if (event === "click")
+        leafletSpy.mapClick = (lat: number, lng: number) => handler({ latlng: { lat, lng } });
+      return instance;
+    },
   };
   const L = {
     map: () => instance,
     tileLayer: () => layer,
     circle: leafletSpy.circle,
     circleMarker: leafletSpy.circleMarker,
+    marker: leafletSpy.marker,
+    divIcon: () => ({ className: "office-pin" }),
     latLng: (lat: number, lng: number) => ({ lat, lng }),
     latLngBounds: () => ({ extend: () => ({}) }),
   };
@@ -125,6 +139,50 @@ const KANTOR_T2: OfficeMock = {
   longitude: 106.6559,
   clock_in_radius_meters: 80,
   clock_out_radius_meters: 150,
+};
+
+// ---- Lokasi kantor admin (API AdminOfficeResource) ----
+type AdminOfficeMock = OfficeMock & {
+  airport_id: number;
+  is_active: boolean;
+  airport: { id: number; name: string } | null;
+};
+type AirportMock = {
+  id: number;
+  name: string;
+  city: string;
+  is_active: boolean;
+  active_offices: number;
+  active_interns: number;
+};
+
+const BANDARA_CGK: AirportMock = {
+  id: 1,
+  name: "Bandara Soekarno-Hatta",
+  city: "Jakarta",
+  is_active: true,
+  active_offices: 1,
+  active_interns: 3,
+};
+
+/** Satu kantor aktif + satu nonaktif: dasar uji peringatan kantor aktif terakhir. */
+const ADMIN_KANTOR_T3: AdminOfficeMock = {
+  ...KANTOR_T3,
+  airport_id: BANDARA_CGK.id,
+  is_active: true,
+  airport: { id: BANDARA_CGK.id, name: BANDARA_CGK.name },
+};
+
+const ADMIN_KANTOR_T1: AdminOfficeMock = {
+  id: 3,
+  name: "Kantor Cabang Terminal 1",
+  latitude: -6.1275,
+  longitude: 106.6537,
+  clock_in_radius_meters: 150,
+  clock_out_radius_meters: 150,
+  airport_id: BANDARA_CGK.id,
+  is_active: false,
+  airport: { id: BANDARA_CGK.id, name: BANDARA_CGK.name },
 };
 
 // ---- Task intern (Alur 8 dan 9): daftar, detail, pindah status, kumpul hasil, komentar ----
@@ -352,6 +410,8 @@ const apiState = {
   /** Mentor memproses izin tepat sebelum intern menekan "Ya, batalkan" (422). */
   leaveProcessedElsewhere: false,
   leaveListError: false,
+  adminOffices: [] as AdminOfficeMock[],
+  adminAirports: [] as AirportMock[],
 };
 
 const resetApi = () => {
@@ -383,6 +443,8 @@ const resetApi = () => {
   apiState.leaveCancelled = [];
   apiState.leaveProcessedElsewhere = false;
   apiState.leaveListError = false;
+  apiState.adminOffices = [ADMIN_KANTOR_T3, ADMIN_KANTOR_T1].map(clone);
+  apiState.adminAirports = [BANDARA_CGK].map(clone);
 };
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -676,6 +738,81 @@ const installFetch = () => {
         return jsonResponse({ message: "Pengajuan izin dibatalkan.", data: clone(leave) });
       }
 
+      // ---- Lokasi kantor admin (API) ----
+      if (path.endsWith("/api/admin/airports"))
+        return jsonResponse({
+          data: apiState.adminAirports.map(clone),
+          meta: { active_count: apiState.adminAirports.filter((a) => a.is_active).length },
+        });
+      if (path.endsWith("/api/admin/offices")) {
+        const activeCount = () => apiState.adminOffices.filter((o) => o.is_active).length;
+        if (method === "POST") {
+          const body = JSON.parse(String(init?.body)) as Partial<AdminOfficeMock>;
+          if (!body.airport_id)
+            return jsonResponse({ message: "Pilih bandara pemilik titik presensi." }, 422);
+          if (!String(body.name ?? "").trim())
+            return jsonResponse({ message: "Nama kantor wajib diisi." }, 422);
+          const airport = apiState.adminAirports.find((a) => a.id === body.airport_id) ?? null;
+          const created: AdminOfficeMock = {
+            id: Math.max(0, ...apiState.adminOffices.map((o) => o.id)) + 1,
+            airport_id: body.airport_id,
+            name: String(body.name).trim(),
+            latitude: Number(body.latitude),
+            longitude: Number(body.longitude),
+            clock_in_radius_meters: Number(body.clock_in_radius_meters),
+            clock_out_radius_meters: Number(body.clock_out_radius_meters),
+            // Kantor baru selalu aktif, sesuai backend.
+            is_active: true,
+            airport: airport ? { id: airport.id, name: airport.name } : null,
+          };
+          apiState.adminOffices = [...apiState.adminOffices, created];
+          return jsonResponse(
+            {
+              message: "Kantor ditambahkan.",
+              data: clone(created),
+              meta: { active_count: activeCount() },
+            },
+            201,
+          );
+        }
+        return jsonResponse({
+          data: apiState.adminOffices.map(clone),
+          meta: { active_count: activeCount() },
+        });
+      }
+      const officeToggle = /\/api\/admin\/offices\/(\d+)\/(activate|deactivate)$/.exec(path);
+      if (officeToggle) {
+        const office = apiState.adminOffices.find((o) => o.id === Number(officeToggle[1]));
+        if (!office) return jsonResponse({ message: "Kantor tidak ditemukan." }, 404);
+        office.is_active = officeToggle[2] === "activate";
+        return jsonResponse({
+          message: "Perubahan tersimpan.",
+          data: clone(office),
+          meta: { active_count: apiState.adminOffices.filter((o) => o.is_active).length },
+        });
+      }
+      const officeDetail = /\/api\/admin\/offices\/(\d+)$/.exec(path);
+      if (officeDetail && method === "PUT") {
+        const index = apiState.adminOffices.findIndex((o) => o.id === Number(officeDetail[1]));
+        const previous = index < 0 ? undefined : apiState.adminOffices[index];
+        if (!previous) return jsonResponse({ message: "Kantor tidak ditemukan." }, 404);
+        const body = JSON.parse(String(init?.body)) as Partial<AdminOfficeMock>;
+        const updated: AdminOfficeMock = {
+          ...previous,
+          name: String(body.name ?? "").trim(),
+          latitude: Number(body.latitude),
+          longitude: Number(body.longitude),
+          clock_in_radius_meters: Number(body.clock_in_radius_meters),
+          clock_out_radius_meters: Number(body.clock_out_radius_meters),
+        };
+        apiState.adminOffices[index] = updated;
+        return jsonResponse({
+          message: "Perubahan tersimpan.",
+          data: clone(updated),
+          meta: { active_count: apiState.adminOffices.filter((o) => o.is_active).length },
+        });
+      }
+
       return jsonResponse({ message: `Belum ditangani: ${url}` }, 404);
     }),
   );
@@ -740,6 +877,8 @@ beforeEach(() => {
   leafletSpy.circle.mockClear();
   leafletSpy.circleMarker.mockClear();
   leafletSpy.fitBounds.mockClear();
+  leafletSpy.marker.mockClear();
+  leafletSpy.mapClick = null;
   installGeolocation();
   installFetch();
 });
@@ -1196,17 +1335,62 @@ describe("Izin intern (API)", () => {
 });
 
 describe("Lokasi Kantor", () => {
-  it("menonaktifkan kantor aktif terakhir memberi peringatan dan menampilkan banner", () => {
+  it("menonaktifkan kantor aktif terakhir memberi peringatan dan menampilkan banner", async () => {
     show("Admin", <OfficesPage />, "/lokasi-kantor");
-    fireEvent.keyDown(screen.getByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }), {
-      key: "Enter",
-    });
+    fireEvent.keyDown(
+      await screen.findByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }),
+      { key: "Enter" },
+    );
     fireEvent.click(screen.getByRole("menuitem", { name: "Nonaktifkan" }));
     expect(screen.getByText(/Ini kantor aktif terakhir/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Nonaktifkan" }));
+    // Daftar dimuat ulang dari server: kantor kini nonaktif dan banner tampil.
     expect(
-      screen.getByText("Belum ada kantor aktif. Intern tidak bisa clock in."),
+      await screen.findByText("Belum ada kantor aktif. Intern tidak bisa clock in."),
     ).toBeInTheDocument();
+    expect(apiState.adminOffices.find((o) => o.id === ADMIN_KANTOR_T3.id)?.is_active).toBe(false);
+  });
+
+  it("menambah kantor baru dikirim ke server lengkap dengan bandara pemilik", async () => {
+    show("Admin", <OfficesPage />, "/lokasi-kantor");
+    fireEvent.click(await screen.findByRole("button", { name: "Tambah Kantor" }));
+    fireEvent.change(screen.getByLabelText(/Nama kantor/), {
+      target: { value: "Kantor Bandung" },
+    });
+    // Pilih titik kantor lewat klik peta (Leaflet di-stub; klik ditangkap mapClick).
+    await waitFor(() => expect(leafletSpy.mapClick).not.toBeNull());
+    // Klik datang dari efek Leaflet asli, jadi dibungkus act agar state pin tersimpan.
+    act(() => leafletSpy.mapClick?.(-6.9175, 107.6191));
+    fireEvent.click(screen.getByRole("button", { name: "Simpan" }));
+    // Kantor baru muncul di daftar dan tersimpan di server dengan bandara yang dipilih.
+    expect(await screen.findByText("Kantor Bandung")).toBeInTheDocument();
+    expect(screen.getAllByText(BANDARA_CGK.name).length).toBeGreaterThan(0);
+    const saved = apiState.adminOffices.at(-1);
+    expect(saved).toMatchObject({
+      name: "Kantor Bandung",
+      airport_id: BANDARA_CGK.id,
+      latitude: -6.9175,
+      longitude: 107.6191,
+      is_active: true,
+    });
+  });
+
+  it("kantor yang diaktifkan kembali langsung bisa dipakai intern", async () => {
+    show("Admin", <OfficesPage />, "/lokasi-kantor");
+    fireEvent.keyDown(
+      await screen.findByRole("button", { name: "Aksi untuk Kantor Cabang Terminal 1" }),
+      { key: "Enter" },
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Aktifkan" }));
+    // Server menyimpan perubahan; daftar dimuat ulang dan statusnya kini Aktif.
+    await waitFor(() =>
+      expect(
+        apiState.adminOffices.find((o) => o.name === "Kantor Cabang Terminal 1")?.is_active,
+      ).toBe(true),
+    );
+    const rows = screen.getAllByRole("row");
+    const row = rows.find((r) => r.textContent?.includes("Kantor Cabang Terminal 1"));
+    expect(row?.textContent).toContain("Aktif");
   });
 });
 

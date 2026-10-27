@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type * as Leaflet from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, MoreHorizontal, Plus, RotateCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RADIUS_MAX, RADIUS_MIN, formatCoord, validateOffice } from "@/lib/mock-rules";
-import { useMock, type Office } from "@/components/internspace/shared/model";
+import { ApiError, internToken, officeApi, type AdminAirport, type AdminOffice } from "@/lib/api";
 import {
   Confirm,
   Empty,
@@ -32,14 +33,47 @@ import {
 // Bandara Soekarno-Hatta, titik awal peta saat belum ada pin.
 const DEFAULT_CENTER: [number, number] = [-6.1256, 106.6559];
 
+/** Pesan galat yang enak dibaca: ambil satu galat validasi pertama dari server. */
+const errorText = (err: unknown, fallback: string) =>
+  err instanceof ApiError
+    ? err.fields
+      ? (Object.values(err.fields)[0]?.[0] ?? err.message)
+      : err.message
+    : fallback;
+
 // ---------- Lokasi Kantor (design-admin.md Bagian 9A) ----------
 
 export function OfficesPage() {
-  const m = useMock();
-  const [form, setForm] = useState<Office | "new" | null>(null);
-  const [deactivate, setDeactivate] = useState<Office | null>(null);
-  const activeCount = m.offices.filter((o) => o.active).length;
-  const lastActive = deactivate?.active && activeCount === 1;
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<AdminOffice | "new" | null>(null);
+  const [deactivate, setDeactivate] = useState<AdminOffice | null>(null);
+
+  const officesQuery = useQuery({
+    queryKey: ["admin", "offices"],
+    queryFn: () => officeApi.list(internToken()),
+    refetchOnWindowFocus: false,
+  });
+  const airportsQuery = useQuery({
+    queryKey: ["admin", "airports"],
+    queryFn: () => officeApi.airports(internToken()),
+    refetchOnWindowFocus: false,
+  });
+
+  const offices = officesQuery.data?.offices ?? [];
+  const airports = airportsQuery.data ?? [];
+  const activeCount = offices.filter((o) => o.is_active).length;
+  const lastActive = deactivate?.is_active && activeCount === 1;
+
+  const toggle = useMutation({
+    mutationFn: ({ office, to }: { office: AdminOffice; to: "activate" | "deactivate" }) =>
+      officeApi[to](internToken(), office.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "offices"] });
+      toast.success("Perubahan tersimpan.");
+    },
+    onError: (err) => toast.error(errorText(err, "Perubahan gagal. Coba lagi.")),
+  });
+
   return (
     <>
       <PageHeading
@@ -52,9 +86,23 @@ export function OfficesPage() {
           </Button>
         }
       />
-      {activeCount === 0 && m.offices.length > 0 && <NoActiveOfficeBanner />}
+      {officesQuery.isSuccess && activeCount === 0 && offices.length > 0 && (
+        <NoActiveOfficeBanner />
+      )}
       <Panel title="Daftar kantor" subtitle={`${activeCount} kantor aktif`}>
-        {m.offices.length === 0 ? (
+        {officesQuery.isLoading ? (
+          <Empty>Memuat kantor...</Empty>
+        ) : officesQuery.isError ? (
+          <div className="px-5 py-4 grid gap-3">
+            <FormError text={errorText(officesQuery.error, "Daftar kantor gagal dimuat.")} />
+            <div>
+              <Button size="sm" variant="outline" onClick={() => void officesQuery.refetch()}>
+                <RotateCw />
+                Coba lagi
+              </Button>
+            </div>
+          </div>
+        ) : offices.length === 0 ? (
           <Empty>Belum ada kantor. Tambahkan kantor agar intern bisa clock in.</Empty>
         ) : (
           <div className="table-wrap">
@@ -62,6 +110,7 @@ export function OfficesPage() {
               <thead>
                 <tr>
                   <th>Nama</th>
+                  <th>Bandara</th>
                   <th>Koordinat</th>
                   <th>Radius clock in</th>
                   <th>Radius clock out</th>
@@ -70,14 +119,17 @@ export function OfficesPage() {
                 </tr>
               </thead>
               <tbody>
-                {m.offices.map((o) => (
+                {offices.map((o) => (
                   <tr key={o.id}>
                     <td className="font-semibold">{o.name}</td>
-                    <td className="text-muted-foreground">{formatCoord(o.lat, o.lng)}</td>
-                    <td>{o.radiusIn} m</td>
-                    <td>{o.radiusOut} m</td>
+                    <td className="text-muted-foreground">{o.airport?.name ?? "-"}</td>
+                    <td className="text-muted-foreground">
+                      {formatCoord(o.latitude, o.longitude)}
+                    </td>
+                    <td>{o.clock_in_radius_meters} m</td>
+                    <td>{o.clock_out_radius_meters} m</td>
                     <td>
-                      <Status status={o.active ? "Aktif" : "Nonaktif"} />
+                      <Status status={o.is_active ? "Aktif" : "Nonaktif"} />
                     </td>
                     <td>
                       <DropdownMenu>
@@ -88,7 +140,7 @@ export function OfficesPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onSelect={() => setForm(o)}>Ubah</DropdownMenuItem>
-                          {o.active ? (
+                          {o.is_active ? (
                             <DropdownMenuItem
                               className="text-destructive"
                               onSelect={() => setDeactivate(o)}
@@ -97,13 +149,7 @@ export function OfficesPage() {
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem
-                              onSelect={() => {
-                                m.setOffices((old) =>
-                                  old.map((x) => (x.id === o.id ? { ...x, active: true } : x)),
-                                );
-                                m.log("Lokasi kantor", o.name, "Aktifkan kantor.");
-                                toast.success("Perubahan tersimpan.");
-                              }}
+                              onSelect={() => toggle.mutate({ office: o, to: "activate" })}
                             >
                               Aktifkan
                             </DropdownMenuItem>
@@ -129,21 +175,25 @@ export function OfficesPage() {
           </span>
         </div>
       </Panel>
-      <OfficeForm target={form} onClose={() => setForm(null)} />
+      <OfficeForm
+        target={form}
+        airports={airports}
+        takenNames={offices
+          .filter((o) => o.id !== (form && form !== "new" ? form.id : null))
+          .map((o) => o.name)}
+        onClose={() => setForm(null)}
+      />
       <Confirm
         open={!!deactivate}
         title={`Nonaktifkan ${deactivate?.name ?? ""}?`}
         confirmLabel="Nonaktifkan"
         destructive
+        disabled={toggle.isPending}
         onClose={() => setDeactivate(null)}
         onConfirm={() => {
           if (!deactivate) return;
-          m.setOffices((old) =>
-            old.map((x) => (x.id === deactivate.id ? { ...x, active: false } : x)),
-          );
-          m.log("Lokasi kantor", deactivate.name, "Nonaktifkan kantor.");
+          toggle.mutate({ office: deactivate, to: "deactivate" });
           setDeactivate(null);
-          toast.success("Perubahan tersimpan.");
         }}
       >
         {lastActive
@@ -168,9 +218,20 @@ export function NoActiveOfficeBanner({ link = false }: { link?: boolean }) {
   );
 }
 
-function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClose: () => void }) {
-  const m = useMock();
+function OfficeForm({
+  target,
+  airports,
+  takenNames,
+  onClose,
+}: {
+  target: AdminOffice | "new" | null;
+  airports: AdminAirport[];
+  takenNames: string[];
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
   const editing = target && target !== "new" ? target : null;
+  const [airportId, setAirportId] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [name, setName] = useState("");
   const [radiusIn, setRadiusIn] = useState("100");
@@ -180,11 +241,14 @@ function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClos
   const [searchMsg, setSearchMsg] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bandara terpilih otomatis saat daftar bandara sudah dimuat (efek bisa jalan sebelum itu).
+  const airportValue = airportId || (airports[0] ? String(airports[0].id) : "");
   useEffect(() => {
-    setPin(editing ? { lat: editing.lat, lng: editing.lng } : null);
+    setAirportId(editing ? String(editing.airport_id) : "");
+    setPin(editing ? { lat: editing.latitude, lng: editing.longitude } : null);
     setName(editing?.name ?? "");
-    setRadiusIn(String(editing?.radiusIn ?? 100));
-    setRadiusOut(String(editing?.radiusOut ?? 300));
+    setRadiusIn(String(editing?.clock_in_radius_meters ?? 100));
+    setRadiusOut(String(editing?.clock_out_radius_meters ?? 300));
     setQuery("");
     setSearchMsg(null);
     setFocus(null);
@@ -212,38 +276,41 @@ function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClos
     }
   };
 
-  const save = () => {
+  const save = useMutation({
+    mutationFn: () => {
+      if (!pin) throw new Error("pin belum dipilih");
+      const input = {
+        airport_id: Number(airportValue),
+        name: name.trim(),
+        latitude: pin.lat,
+        longitude: pin.lng,
+        clock_in_radius_meters: Number(radiusIn),
+        clock_out_radius_meters: Number(radiusOut),
+      };
+      return editing
+        ? officeApi.update(internToken(), editing.id, input)
+        : officeApi.store(internToken(), input);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "offices"] });
+      toast.success("Perubahan tersimpan.");
+      onClose();
+    },
+    onError: (err) => setError(errorText(err, "Kantor gagal disimpan. Coba lagi.")),
+  });
+
+  const submit = () => {
+    if (!airportValue) {
+      setError("Pilih bandara pemilik titik presensi.");
+      return;
+    }
     const err = validateOffice(
       { name, lat: pin?.lat ?? null, lng: pin?.lng ?? null, radiusIn, radiusOut },
-      m.offices.filter((o) => o.id !== editing?.id).map((o) => o.name),
+      takenNames,
     );
     setError(err);
     if (err || !pin) return;
-    const data = {
-      name: name.trim(),
-      lat: pin.lat,
-      lng: pin.lng,
-      radiusIn: Number(radiusIn),
-      radiusOut: Number(radiusOut),
-    };
-    if (editing) {
-      m.setOffices((old) => old.map((o) => (o.id === editing.id ? { ...o, ...data } : o)));
-      const moved = editing.lat !== pin.lat || editing.lng !== pin.lng;
-      m.log(
-        "Lokasi kantor",
-        data.name,
-        `Ubah ${moved ? "titik dan " : ""}radius: clock in ${data.radiusIn} m, clock out ${data.radiusOut} m.`,
-      );
-    } else {
-      m.setOffices((old) => [...old, { id: Date.now(), ...data, active: true }]);
-      m.log(
-        "Lokasi kantor",
-        data.name,
-        `Tambah kantor di ${formatCoord(pin.lat, pin.lng)}, radius ${data.radiusIn} m / ${data.radiusOut} m.`,
-      );
-    }
-    toast.success("Perubahan tersimpan.");
-    onClose();
+    save.mutate();
   };
 
   return (
@@ -251,7 +318,8 @@ function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClos
       <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogTitle>{editing ? `Ubah Kantor - ${editing.name}` : "Tambah Kantor"}</DialogTitle>
         <DialogDescription>
-          Cari alamat atau geser peta, lalu klik titik kantor. Pin bisa digeser untuk dirapikan.
+          Pilih bandara pemilik, cari alamat atau geser peta, lalu klik titik kantor. Pin bisa
+          digeser untuk dirapikan.
         </DialogDescription>
         <form
           className="flex gap-2"
@@ -297,9 +365,30 @@ function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClos
           className="form-grid"
           onSubmit={(e) => {
             e.preventDefault();
-            save();
+            submit();
           }}
         >
+          <label className="form-field">
+            Bandara *
+            {editing ? (
+              // Pemindahan bandara tidak didukung backend; bandara asal tetap ditampilkan.
+              <select value={airportId} disabled>
+                <option value={airportId}>
+                  {editing.airport?.name ?? `Bandara #${editing.airport_id}`}
+                </option>
+              </select>
+            ) : (
+              <select value={airportValue} onChange={(e) => setAirportId(e.target.value)}>
+                {airports.length === 0 && <option value="">Belum ada bandara</option>}
+                {airports.map((a) => (
+                  <option key={a.id} value={String(a.id)}>
+                    {a.name}
+                    {a.is_active ? "" : " (nonaktif)"}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
           <label className="form-field">
             Nama kantor *
             <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -331,7 +420,9 @@ function OfficeForm({ target, onClose }: { target: Office | "new" | null; onClos
             <Button type="button" variant="outline" onClick={onClose}>
               Batal
             </Button>
-            <Button type="submit">Simpan</Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

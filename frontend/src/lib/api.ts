@@ -444,6 +444,98 @@ export const taskApi = {
   },
 };
 
+// ---- Lokasi kantor admin (Admin OfficeController) ----
+
+/** Referensi bandara pemilik kantor (`AdminOfficeResource`). */
+export interface AdminOfficeAirport {
+  id: number;
+  name: string;
+}
+
+/** Kantor dari sisi admin: lengkap dengan bandara pemilik dan status aktif. */
+export interface AdminOffice {
+  id: number;
+  airport_id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  clock_in_radius_meters: number;
+  clock_out_radius_meters: number;
+  is_active: boolean;
+  airport: AdminOfficeAirport | null;
+}
+
+/** Ringkasan bandara untuk dropdown bandara pemilik kantor (`AdminAirports::summary`). */
+export interface AdminAirport {
+  id: number;
+  name: string;
+  city: string;
+  is_active: boolean;
+  active_offices: number;
+  active_interns: number;
+}
+
+export interface AdminOfficeInput {
+  airport_id: number;
+  name: string;
+  latitude: number;
+  longitude: number;
+  clock_in_radius_meters: number;
+  clock_out_radius_meters: number;
+}
+
+export const officeApi = {
+  list(token: string): Promise<{ offices: AdminOffice[]; activeCount: number }> {
+    return request<{ data?: AdminOffice[]; meta?: { active_count?: number } }>(
+      "/api/admin/offices",
+      { token },
+    ).then((body) => ({
+      offices: unwrap<AdminOffice[]>(body),
+      activeCount: body.meta?.active_count ?? 0,
+    }));
+  },
+
+  /** Bandara yang tersedia untuk dipilih sebagai pemilik kantor. */
+  airports(token: string): Promise<AdminAirport[]> {
+    return request<{ data?: AdminAirport[] } | AdminAirport[]>("/api/admin/airports", {
+      token,
+    }).then(unwrap<AdminAirport[]>);
+  },
+
+  /** Kantor baru selalu aktif; intern bandara pemilik langsung bisa memakainya. */
+  store(token: string, input: AdminOfficeInput): Promise<AdminOffice> {
+    return request<{ data?: AdminOffice } | AdminOffice>("/api/admin/offices", {
+      method: "POST",
+      body: input,
+      token,
+    }).then(unwrap<AdminOffice>);
+  },
+
+  /** Backend tidak memindahkan kantor ke bandara lain; `airport_id` ikut dikirim agar validasi lolos. */
+  update(token: string, id: number, input: AdminOfficeInput): Promise<AdminOffice> {
+    return request<{ data?: AdminOffice } | AdminOffice>(`/api/admin/offices/${id}`, {
+      method: "PUT",
+      body: input,
+      token,
+    }).then(unwrap<AdminOffice>);
+  },
+
+  /** Kantor tidak dihapus, hanya dinonaktifkan (riwayat presensi tetap menunjuk kantor ini). */
+  deactivate(token: string, id: number): Promise<AdminOffice> {
+    return request<{ data?: AdminOffice } | AdminOffice>(`/api/admin/offices/${id}/deactivate`, {
+      method: "POST",
+      token,
+    }).then(unwrap<AdminOffice>);
+  },
+
+  activate(token: string, id: number): Promise<AdminOffice> {
+    return request<{ data?: AdminOffice } | AdminOffice>(`/api/admin/offices/${id}/activate`, {
+      method: "POST",
+      token,
+    }).then(unwrap<AdminOffice>);
+  },
+};
+
 // ---- Izin intern (Alur 11) ----
 
 export type ApiLeaveType = "sick" | "urgent";

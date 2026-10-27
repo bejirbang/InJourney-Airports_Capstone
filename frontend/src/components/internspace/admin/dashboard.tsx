@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   TODAY,
@@ -13,6 +14,7 @@ import {
   isWorkingDay,
   pendingHours,
 } from "@/lib/mock-rules";
+import { internToken, officeApi } from "@/lib/api";
 import { ExtendDialog } from "@/components/internspace/admin/extend-dialog";
 import { NoActiveOfficeBanner } from "@/components/internspace/admin/offices";
 import {
@@ -29,6 +31,13 @@ export function AdminDashboard() {
   const m = useMock();
   const navigate = useNavigate();
   const [extend, setExtend] = useState<Person | null>(null);
+  // Banner kantor tampil berdasarkan data server, sama dengan halaman Lokasi Kantor.
+  const officesQuery = useQuery({
+    queryKey: ["admin", "offices"],
+    queryFn: () => officeApi.list(internToken()),
+    refetchOnWindowFocus: false,
+  });
+  const hasActiveOffice = (officesQuery.data?.offices ?? []).some((o) => o.is_active);
   const inPeriod = m.people.filter((p) => p.role === "Intern" && m.isActive(p));
   let yesterday = addDays(TODAY, -1);
   while (!isWorkingDay(yesterday, m.holidayDates)) yesterday = addDays(yesterday, -1);
@@ -47,7 +56,7 @@ export function AdminDashboard() {
   return (
     <div className="grid gap-5">
       <HolidayBanner />
-      {!m.offices.some((o) => o.active) && <NoActiveOfficeBanner link />}
+      {officesQuery.isSuccess && !hasActiveOffice && <NoActiveOfficeBanner link />}
       {!holiday && (
         <Panel title={`Hari ini (${inPeriod.length} intern aktif)`}>
           <TodayCounts interns={inPeriod} />
