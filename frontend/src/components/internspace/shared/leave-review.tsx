@@ -9,32 +9,28 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  canApproveLeave,
-  canMentorDecideLeave,
-  canRejectLeave,
-  formatDate,
-  formatRange,
-  formatShortTime,
-  isOverduePending,
-  leaveSubmittedLate,
-  leaveTypes,
-  pendingHours,
-  workingDays,
-} from "@/lib/mock-rules";
+import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
+import { formatDate, formatDateTime, formatRange } from "@/lib/utils";
+import type { ApiLeaveType } from "@/lib/endpoints/intern";
+import type { ReviewerLeave } from "@/lib/endpoints/mentor";
 import { type PageSearch } from "@/lib/search";
+import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";
 import {
-  type Leave,
-  ME,
-  shortName,
-  useMock,
-  typeShort,
-} from "@/components/internspace/shared/model";
+  useApproveLeave,
+  useRejectLeave,
+  useReviewerLeaveDetail,
+  useReviewerLeaveInterns,
+  useReviewerLeaves,
+  type ReviewerRole,
+} from "@/components/internspace/shared/leave-review-data";
 import {
-  Attachment,
   DetailList,
   Empty,
+  ErrorState,
   FormError,
+  LoadingState,
   PageHeading,
   Panel,
   Status,
@@ -42,81 +38,133 @@ import {
   Tag,
 } from "@/components/internspace/shared/ui";
 
-// ---------- Mentor dan Admin (design-mentor.md Alur 7, design-admin.md Alur 5) ----------
+// ---------- Mentor dan Admin (design-mentor.md Alur 6, design-admin.md Alur 5) ----------
+
+type Tab = "pending" | "all";
+
+const errorMessage = (error: unknown, fallback: string | undefined = undefined) =>
+  error instanceof ApiError ? error.message : fallback;
+
 export function ReviewerLeave() {
-  const m = useMock();
-  const isAdmin = m.role === "Admin";
+  const auth = useAuth();
+  const role: ReviewerRole | null =
+    auth.user?.role === "admin" ? "admin" : auth.user?.role === "mentor" ? "mentor" : null;
+
+  // Hook data di bawah baru boleh dipanggil setelah role pasti, jadi isinya
+  // dipisah ke komponen sendiri agar urutan hook selalu sama.
+  if (role === null) return <LoadingState />;
+  return <ReviewerLeaveContent role={role} />;
+}
+
+function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
+  const isAdmin = role === "admin";
   const search = useSearch({ strict: false }) as PageSearch;
-  const names = isAdmin
-    ? m.people.filter((p) => p.role === "Intern").map((p) => p.name)
-    : m.internsOf(ME.Mentor).map((p) => p.name);
-  const scope = m.leaves.filter((l) => names.includes(l.intern));
-  const [tab, setTab] = useState<"pending" | "semua">("pending");
-  const [type, setType] = useState("Semua");
-  const [intern, setIntern] = useState("Semua");
+  const [tab, setTab] = useState<Tab>(search.tab === "all" ? "all" : "pending");
+  const [type, setType] = useState<"" | ApiLeaveType>("");
+  const [internId, setInternId] = useState("");
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
+  const airportId =
+    search.airport_id !== undefined && /^\d+$/.test(search.airport_id)
+      ? Number(search.airport_id)
+      : null;
+
   useEffect(() => {
-    if (search.open) setOpenId(Number(search.open));
+    if (search.tab === "all" || search.tab === "pending") setTab(search.tab);
+  }, [search.tab]);
+
+  useEffect(() => {
+    if (search.open === undefined) return;
+    const numeric = Number(search.open);
+    if (Number.isInteger(numeric) && numeric > 0) setOpenId(numeric);
   }, [search.open]);
-  const pending = scope.filter((l) => l.status === "Pending");
-  const list = (tab === "pending" ? pending : scope)
-    .filter((l) => type === "Semua" || l.type === type)
-    .filter((l) => intern === "Semua" || l.intern === intern)
-    .sort((a, b) =>
-      tab === "pending"
-        ? a.submitted.localeCompare(b.submitted)
-        : b.submitted.localeCompare(a.submitted),
-    );
+
+  const mentorInterns = useReviewerLeaveInterns(role);
+  const params = {
+    tab,
+    ...(type === "" ? {} : { type }),
+    ...(internId === "" ? {} : { intern_id: Number(internId) }),
+    ...(isAdmin && airportId !== null ? { airport_id: airportId } : {}),
+    ...(isAdmin && quotaExhausted ? { quota_exhausted: true } : {}),
+  };
+  const list = useReviewerLeaves(role, params);
+  const internOptions = isAdmin ? (list.data?.interns ?? []) : mentorInterns;
+  const pendingCount = list.data?.pendingCount ?? 0;
+  const rows = list.data?.leaves ?? [];
+
   return (
     <>
       <PageHeading
         title="Izin"
         subtitle={
           isAdmin
-            ? "Admin hanya memproses izin yang masih Pending lebih dari 24 jam, dan hanya bila ada surat resmi atau bukti."
+            ? "Admin hanya memproses izin yang menunggu lebih dari batas eskalasi, dan hanya bila ada surat resmi atau bukti."
             : "Proses izin intern bimbingan. Mentor memproses lebih dulu."
         }
       />
+
       <div className="toolbar">
         <Tabs
           label="Daftar izin"
           value={tab}
-          onChange={setTab}
+          onChange={(next) => setTab(next)}
           items={[
-            { value: "pending", label: `Pending (${pending.length})` },
-            { value: "semua", label: "Semua" },
+            { value: "pending", label: `Pending (${pendingCount})` },
+            { value: "all", label: "Semua" },
           ]}
         />
         <div className="toolbar-filters">
+          {isAdmin && <AdminLeaveAirportFilter />}
           <select
             className="role-select"
             aria-label="Filter jenis"
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(event) => setType(event.target.value as "" | ApiLeaveType)}
           >
-            <option value="Semua">Jenis: Semua</option>
-            {leaveTypes.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
+            <option value="">Jenis: Semua</option>
+            <option value="sick">{LEAVE_TYPE_LABEL["sick"]}</option>
+            <option value="urgent">{LEAVE_TYPE_LABEL["urgent"]}</option>
           </select>
           <select
             className="role-select"
             aria-label="Filter intern"
-            value={intern}
-            onChange={(e) => setIntern(e.target.value)}
+            value={internId}
+            onChange={(event) => setInternId(event.target.value)}
           >
-            <option value="Semua">Intern: Semua</option>
-            {names.map((n) => (
-              <option key={n}>{n}</option>
+            <option value="">Intern: Semua</option>
+            {internOptions.map((intern) => (
+              <option key={intern.id} value={intern.id}>
+                {intern.name}
+              </option>
             ))}
           </select>
+          {isAdmin && (
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={quotaExhausted}
+                onChange={(event) => setQuotaExhausted(event.target.checked)}
+              />
+              Kuota habis
+            </label>
+          )}
         </div>
       </div>
+
       <Panel
         title={tab === "pending" ? "Menunggu keputusan" : "Semua pengajuan"}
         subtitle={tab === "pending" ? "Diurutkan dari yang paling lama pending." : undefined}
       >
-        {list.length === 0 ? (
+        {list.isLoading ? (
+          <LoadingState />
+        ) : list.isError ? (
+          <div className="px-5 pb-5">
+            <ErrorState
+              message={errorMessage(list.error, undefined)}
+              onRetry={() => void list.refetch()}
+            />
+          </div>
+        ) : rows.length === 0 ? (
           <Empty>
             {tab === "pending" ? "Tidak ada izin yang menunggu." : "Belum ada pengajuan izin."}
           </Empty>
@@ -136,217 +184,280 @@ export function ReviewerLeave() {
                 </tr>
               </thead>
               <tbody>
-                {list.map((l) => {
-                  const overdue = isOverduePending(l.status, l.submitted);
-                  return (
-                    <tr key={l.id}>
-                      <td>{shortName(l.intern)}</td>
-                      {isAdmin && <td>{m.person(l.intern)?.mentor}</td>}
-                      <td>{typeShort(l.type)}</td>
-                      <td>
-                        {formatRange(l.start, l.end)}
-                        {leaveSubmittedLate(l.start, l.submitted) && (
-                          <div>
-                            <Tag tone="light">Diajukan setelah tanggal izin</Tag>
-                          </div>
-                        )}
-                      </td>
-                      <td>{workingDays(l.start, l.end, m.holidayDates)}</td>
-                      <td>{l.evidence ? "Ada" : "Tidak"}</td>
-                      <td>
-                        <Status status={l.status} />
-                        {l.status === "Pending" && (
-                          <div
-                            className={`text-[10px] mt-1 ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}
-                          >
-                            {overdue
-                              ? `! pending ${pendingHours(l.submitted)} jam`
-                              : `diajukan ${pendingHours(l.submitted)} jam lalu`}
-                          </div>
-                        )}
-                        {l.byRole === "Admin" && !isAdmin && (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            Diproses oleh admin
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <Button
-                          size="sm"
-                          variant={l.status === "Pending" ? "outline" : "ghost"}
-                          onClick={() => setOpenId(l.id)}
+                {rows.map((leave) => (
+                  <tr key={leave.id}>
+                    <td>{leave.intern.name}</td>
+                    {isAdmin && <td>{leave.mentor?.name ?? "-"}</td>}
+                    <td>{labelOf(LEAVE_TYPE_LABEL, leave.type)}</td>
+                    <td>
+                      {formatRange(leave.start_date, leave.end_date)}
+                      {leave.submitted_late && (
+                        <div>
+                          <Tag tone="light">Diajukan setelah tanggal izin</Tag>
+                        </div>
+                      )}
+                    </td>
+                    <td>{leave.working_days}</td>
+                    <td>{leave.evidence_url ? "Ada" : "Tidak"}</td>
+                    <td>
+                      <Status status={labelOf(LEAVE_STATUS_LABEL, leave.status, leave.status)} />
+                      {leave.status === "pending" && (
+                        <div
+                          className={`text-[10px] mt-1 ${
+                            leave.is_overdue
+                              ? "text-destructive font-semibold"
+                              : "text-muted-foreground"
+                          }`}
                         >
-                          {l.status === "Pending" ? "Buka" : "Lihat"}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                          {leave.is_overdue
+                            ? `! pending ${leave.pending_hours} jam`
+                            : `diajukan ${leave.pending_hours} jam lalu`}
+                        </div>
+                      )}
+                      {leave.decided_by?.role === "admin" && !isAdmin && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          Diproses oleh admin
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant={leave.status === "pending" ? "outline" : "ghost"}
+                        onClick={() => setOpenId(leave.id)}
+                      >
+                        {leave.status === "pending" ? "Buka" : "Lihat"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </Panel>
+
       <DecisionDialog
-        leave={scope.find((l) => l.id === openId) ?? null}
+        role={role}
+        id={openId === null ? null : String(openId)}
         onClose={() => setOpenId(null)}
       />
     </>
   );
 }
 
-function DecisionDialog({ leave, onClose }: { leave: Leave | null; onClose: () => void }) {
-  const m = useMock();
-  const isAdmin = m.role === "Admin";
+function AdminLeaveAirportFilter() {
+  const filter = useAirportFilter();
+  return (
+    <AirportFilter
+      value={filter.airportId}
+      onChange={filter.setAirport}
+      airports={filter.airports}
+      disabled={filter.airportsLoading}
+    />
+  );
+}
+
+function DecisionDialog({
+  role,
+  id,
+  onClose,
+}: {
+  role: ReviewerRole;
+  id: string | null;
+  onClose: () => void;
+}) {
+  const isAdmin = role === "admin";
+  const detail = useReviewerLeaveDetail(role, id);
+  const approve = useApproveLeave(role);
+  const reject = useRejectLeave(role);
   const [note, setNote] = useState("");
   const [checked, setChecked] = useState(false);
-  const [touched, setTouched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     setNote("");
     setChecked(false);
-    setTouched(false);
-  }, [leave?.id]);
-  if (!leave) return <Dialog open={false} />;
-  const pending = leave.status === "Pending";
-  const adminCanAct = !isAdmin || isOverduePending(leave.status, leave.submitted);
-  const approveOk = isAdmin
-    ? canApproveLeave(leave.status, !!leave.evidence, checked, note)
-    : canMentorDecideLeave(leave.status, note);
-  const rejectOk = isAdmin
-    ? canRejectLeave(leave.status, note)
-    : canMentorDecideLeave(leave.status, note);
-  const decide = (status: "Disetujui" | "Ditolak") => {
-    setTouched(true);
-    if (!(status === "Disetujui" ? approveOk : rejectOk)) return;
-    m.setLeaves((old) =>
-      old.map((l) =>
-        l.id === leave.id
-          ? {
-              ...l,
-              status,
-              by: m.me.name,
-              byRole: m.role,
-              note: note.trim(),
-              decidedAt: m.nowIso(),
-            }
-          : l,
-      ),
-    );
-    const verb = status === "Disetujui" ? "disetujui" : "ditolak";
-    if (leave.intern === ME.Intern)
-      m.notify("Intern", `${leave.type} ${formatRange(leave.start, leave.end)} ${verb}.`, "/izin", {
-        open: String(leave.id),
-      });
-    if (isAdmin) {
-      m.notify("Mentor", `Izin ${shortName(leave.intern)} diproses oleh admin.`, "/izin", {
-        open: String(leave.id),
-      });
-      m.log(
-        "Izin",
-        leave.intern,
-        `${status === "Disetujui" ? "Setujui" : "Tolak"} izin pending ${formatRange(leave.start, leave.end)}.`,
-      );
+    setError(null);
+  }, [id]);
+
+  const leave: ReviewerLeave | undefined = detail.data;
+  const pending = leave?.status === "pending";
+  const canDecide = leave?.can_decide === true;
+  const canApprove = !isAdmin || leave?.can_approve === true;
+  const busy = approve.isPending || reject.isPending;
+
+  const decide = (action: "approve" | "reject") => {
+    if (!id || !leave) return;
+    const numeric = Number(id);
+    setError(null);
+
+    if (note.trim() === "") {
+      setError("Catatan wajib diisi.");
+      return;
     }
-    toast.success(
-      status === "Disetujui"
-        ? "Izin disetujui. Status presensi hari terkait menjadi Izin."
-        : "Izin ditolak.",
-    );
-    onClose();
+
+    const options = {
+      onSuccess: (result: { message: string }) => {
+        toast.success(result.message);
+        onClose();
+      },
+      onError: (mutationError: unknown) =>
+        setError(errorMessage(mutationError, "Izin gagal diproses.") ?? null),
+    };
+
+    if (action === "approve") {
+      approve.mutate(
+        {
+          id: numeric,
+          note: note.trim(),
+          ...(isAdmin ? { evidenceChecked: checked } : {}),
+        },
+        options,
+      );
+    } else {
+      reject.mutate({ id: numeric, note: note.trim() }, options);
+    }
   };
+
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={id !== null} onOpenChange={(value) => !value && onClose()}>
       <DialogContent>
         <div className="flex justify-between items-start pr-6 gap-3">
-          <DialogTitle>Izin - {leave.intern}</DialogTitle>
-          <Status status={leave.status} />
+          <DialogTitle>{leave ? `Izin - ${leave.intern.name}` : "Detail izin"}</DialogTitle>
+          {leave && <Status status={labelOf(LEAVE_STATUS_LABEL, leave.status, leave.status)} />}
         </div>
-        <DialogDescription>
-          {isAdmin && `Mentor: ${m.person(leave.intern)?.mentor} · `}
-          {leave.type} · {workingDays(leave.start, leave.end, m.holidayDates)} hari kerja
-        </DialogDescription>
-        <DetailList
-          items={[
-            ["Tanggal", `${formatDate(leave.start)} - ${formatDate(leave.end)}`],
-            ["Alasan", `"${leave.reason}"`],
-            [
-              "Lampiran",
-              leave.evidence ? (
-                <Attachment key="a" name={leave.evidence} />
-              ) : (
-                <Tag key="t" tone="orange">
-                  Tanpa bukti
-                </Tag>
-              ),
-            ],
-            [
-              "Diajukan",
-              `${formatShortTime(leave.submitted)} (${pendingHours(leave.submitted)} jam lalu)${leaveSubmittedLate(leave.start, leave.submitted) ? " · Diajukan setelah tanggal izin" : ""}`,
-            ],
-            ...(!pending
-              ? ([
-                  [
-                    "Diproses oleh",
-                    leave.by
-                      ? `${leave.by} (${leave.byRole === "Admin" ? "admin" : "mentor"})`
-                      : "-",
-                  ],
-                  ["Catatan", leave.note ?? "-"],
-                ] as [string, string][])
-              : []),
-          ]}
-        />
-        {!pending && (
-          <p className="text-[11px] text-muted-foreground">
-            {leave.status === "Dibatalkan"
-              ? "Pengajuan ini sudah dibatalkan intern."
-              : "Keputusan sudah dibuat dan tidak dapat diubah."}
-          </p>
-        )}
-        {pending && isAdmin && !adminCanAct && (
-          <div className="banner muted">
-            Izin ini belum lewat 24 jam. Tunggu mentor memproses lebih dulu.
-          </div>
-        )}
-        {pending && adminCanAct && (
-          <div className="form-grid">
-            {isAdmin && (
-              <label className="check-line">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={!leave.evidence}
-                  onChange={(e) => setChecked(e.target.checked)}
-                />
-                <span>Saya sudah memeriksa surat resmi atau bukti</span>
-              </label>
+
+        {detail.isLoading ? (
+          <LoadingState />
+        ) : detail.isError ? (
+          <ErrorState
+            message={errorMessage(detail.error, undefined)}
+            onRetry={() => void detail.refetch()}
+          />
+        ) : leave ? (
+          <>
+            <DialogDescription>
+              {isAdmin && `Mentor: ${leave.mentor?.name ?? "-"} · `}
+              {labelOf(LEAVE_TYPE_LABEL, leave.type)} · {leave.working_days} hari kerja
+            </DialogDescription>
+
+            <DetailList
+              items={[
+                ["Tanggal", `${formatDate(leave.start_date)} - ${formatDate(leave.end_date)}`],
+                ["Alasan", `"${leave.reason ?? "-"}"`],
+                [
+                  "Bukti",
+                  leave.evidence_url ? (
+                    <a
+                      key="evidence"
+                      className="text-action"
+                      href={leave.evidence_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Buka bukti
+                    </a>
+                  ) : (
+                    <Tag key="no-evidence" tone="orange">
+                      Tanpa bukti
+                    </Tag>
+                  ),
+                ],
+                [
+                  "Diajukan",
+                  leave.submitted_at
+                    ? `${formatDateTime(leave.submitted_at)} · ${leave.pending_hours} jam lalu${
+                        leave.submitted_late ? " · Diajukan setelah tanggal izin" : ""
+                      }`
+                    : "-",
+                ],
+                ...(leave.quota
+                  ? [
+                      ["Sisa kuota izin", `${leave.quota.remaining} dari ${leave.quota.limit}`] as [
+                        string,
+                        string,
+                      ],
+                    ]
+                  : []),
+                ...(!pending
+                  ? ([
+                      [
+                        "Diproses oleh",
+                        leave.decided_by
+                          ? `${leave.decided_by.name} (${
+                              leave.decided_by.role === "admin" ? "admin" : "mentor"
+                            })`
+                          : "-",
+                      ],
+                      ["Catatan", leave.decision_note ?? "-"],
+                      ["Diputuskan", leave.decided_at ? formatDateTime(leave.decided_at) : "-"],
+                    ] as [string, string][])
+                  : []),
+              ]}
+            />
+
+            {!pending && (
+              <p className="text-[11px] text-muted-foreground">
+                {leave.status === "cancelled"
+                  ? "Pengajuan ini sudah dibatalkan intern."
+                  : "Keputusan sudah dibuat dan tidak dapat diubah."}
+              </p>
             )}
-            <label className="form-field">
-              Catatan *
-              <textarea
-                className="!min-h-20"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </label>
-            {touched && !note.trim() && <FormError text="Catatan wajib diisi." />}
-            {isAdmin && !leave.evidence && (
-              <FormError text="Tidak ada surat resmi atau bukti. Admin hanya dapat menolak atau menunggu mentor." />
+
+            {pending && !canDecide && (
+              <div className="banner muted">
+                {isAdmin
+                  ? "Izin ini belum lewat batas eskalasi. Tunggu mentor memproses lebih dulu."
+                  : "Izin ini tidak dapat diputuskan oleh Anda saat ini."}
+              </div>
             )}
-            <DialogFooter>
-              <Button variant="outline" disabled={!rejectOk} onClick={() => decide("Ditolak")}>
-                Tolak
-              </Button>
-              <Button
-                disabled={!approveOk}
-                title={isAdmin && !leave.evidence ? "Tidak ada surat resmi atau bukti." : undefined}
-                onClick={() => decide("Disetujui")}
-              >
-                Setujui
-              </Button>
-            </DialogFooter>
-          </div>
-        )}
+
+            {pending && canDecide && (
+              <div className="form-grid">
+                {isAdmin && (
+                  <label className="check-line">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={!leave.evidence_url}
+                      onChange={(event) => setChecked(event.target.checked)}
+                    />
+                    <span>Saya sudah memeriksa surat resmi atau bukti</span>
+                  </label>
+                )}
+                <label className="form-field">
+                  Catatan *
+                  <textarea
+                    className="!min-h-20"
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                  />
+                </label>
+                <FormError text={error} />
+                {isAdmin && !leave.evidence_url && (
+                  <FormError text="Tidak ada surat resmi atau bukti. Admin hanya dapat menolak atau menunggu mentor." />
+                )}
+                <DialogFooter>
+                  <Button variant="outline" disabled={busy} onClick={() => decide("reject")}>
+                    Tolak
+                  </Button>
+                  <Button
+                    disabled={busy || !canApprove || (isAdmin && !checked)}
+                    title={
+                      isAdmin && !leave.evidence_url
+                        ? "Tidak ada surat resmi atau bukti."
+                        : undefined
+                    }
+                    onClick={() => decide("approve")}
+                  >
+                    Setujui
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
+          </>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

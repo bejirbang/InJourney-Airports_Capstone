@@ -8,39 +8,47 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ApiError } from "@/lib/api";
+import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
+import { TODAY, formatMonth, formatRange } from "@/lib/utils";
+import type { MentorLeaveCalendarDay, MentorLeaveCalendarEntry } from "@/lib/endpoints/mentor";
+import { useMentorLeaveCalendar } from "@/components/internspace/mentor/leave-calendar-data";
+import { useMentorInterns } from "@/components/internspace/mentor/interns-data";
 import {
-  TODAY,
-  addDays,
-  formatMonth,
-  formatRange,
-  formatShort,
-  isWorkingDay,
-  monthEnd,
-  weekdayIndex,
-} from "@/lib/mock-rules";
-import { type Leave, ME, useMock, typeShort } from "@/components/internspace/shared/model";
-import { MonthNav, PageHeading, Panel, Status } from "@/components/internspace/shared/ui";
+  Empty,
+  ErrorState,
+  LoadingState,
+  MonthNav,
+  PageHeading,
+  Panel,
+  Status,
+} from "@/components/internspace/shared/ui";
 
-// ---------- Kalender Izin mentor (design-mentor.md Alur 8) ----------
+// ---------- Kalender Izin mentor (design-mentor.md Alur 7) ----------
+
+const WEEKDAYS = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
+
+const typeShort = (entry: MentorLeaveCalendarEntry) => (entry.type === "sick" ? "S" : "U");
+
 export function LeaveCalendarPage() {
-  const m = useMock();
-  const interns = m.internsOf(ME.Mentor);
-  const names = interns.map((p) => p.name);
   const [month, setMonth] = useState(TODAY.slice(0, 7));
-  const [intern, setIntern] = useState("Semua");
-  const [pick, setPick] = useState<Leave | null>(null);
-  const [more, setMore] = useState<string | null>(null);
-  const visible = m.leaves.filter(
-    (l) =>
-      names.includes(l.intern) &&
-      (l.status === "Pending" || l.status === "Disetujui") &&
-      (intern === "Semua" || l.intern === intern),
-  );
-  const first = `${month}-01`;
-  const last = monthEnd(month);
-  const cells: (string | null)[] = [...Array<null>(weekdayIndex(first)).fill(null)];
-  for (let d = first; d <= last; d = addDays(d, 1)) cells.push(d);
-  const inMonth = visible.filter((l) => l.start <= last && l.end >= first);
+  const [internId, setInternId] = useState("");
+  const [pick, setPick] = useState<{
+    entry: MentorLeaveCalendarEntry;
+    day: string;
+  } | null>(null);
+  const [more, setMore] = useState<MentorLeaveCalendarDay | null>(null);
+
+  const interns = useMentorInterns("all", "");
+  const calendar = useMentorLeaveCalendar(month, internId === "" ? undefined : Number(internId));
+
+  const data = calendar.data;
+  const days = data?.days ?? [];
+  const padding = days[0] ? days[0].weekday - 1 : 0;
+  const pickLeave = pick
+    ? data?.leaves.find((leave) => leave.id === pick.entry.leave_id)
+    : undefined;
+
   return (
     <>
       <PageHeading
@@ -52,103 +60,142 @@ export function LeaveCalendarPage() {
         <select
           className="role-select"
           aria-label="Filter intern"
-          value={intern}
-          onChange={(e) => setIntern(e.target.value)}
+          value={internId}
+          onChange={(event) => setInternId(event.target.value)}
         >
-          <option value="Semua">Intern: Semua</option>
-          {names.map((n) => (
-            <option key={n}>{n}</option>
+          <option value="">Intern: Semua</option>
+          {(interns.data?.interns ?? []).map((intern) => (
+            <option key={intern.id} value={intern.id}>
+              {intern.name}
+            </option>
           ))}
         </select>
       </div>
+
       <Panel
         title={formatMonth(month)}
         subtitle={
-          inMonth.length === 0 ? "Tidak ada izin pada bulan ini." : `${inMonth.length} pengajuan`
+          data
+            ? data.leaves.length === 0
+              ? "Tidak ada izin pada bulan ini."
+              : `${data.leaves.length} pengajuan`
+            : undefined
         }
       >
-        <div className="calendar">
-          {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((d) => (
-            <div key={d} className="calendar-head">
-              {d}
+        {calendar.isLoading ? (
+          <LoadingState />
+        ) : calendar.isError ? (
+          <div className="px-5 pb-5">
+            <ErrorState
+              message={calendar.error instanceof ApiError ? calendar.error.message : undefined}
+              onRetry={() => void calendar.refetch()}
+            />
+          </div>
+        ) : days.length === 0 ? (
+          <Empty>Tidak ada data kalender pada bulan ini.</Empty>
+        ) : (
+          <>
+            <div className="calendar">
+              {WEEKDAYS.map((day) => (
+                <div key={day} className="calendar-head">
+                  {day}
+                </div>
+              ))}
+              {Array.from({ length: padding }, (_, index) => (
+                <div key={`empty-${index}`} className="calendar-cell empty" />
+              ))}
+              {days.map((day) => (
+                <div
+                  key={day.date}
+                  className={`calendar-cell ${day.is_off ? "off" : ""} ${
+                    day.is_today ? "today" : ""
+                  }`}
+                >
+                  <span className="calendar-day">{Number(day.date.slice(8))}</span>
+                  {day.is_off && <span className="text-[9px]">{day.holiday_name ?? "libur"}</span>}
+                  {!day.is_off &&
+                    day.entries.slice(0, 3).map((entry) => (
+                      <button
+                        key={`${entry.leave_id}-${entry.intern_id}`}
+                        type="button"
+                        className={`leave-chip ${
+                          entry.status === "pending" ? "pending" : "approved"
+                        }`}
+                        onClick={() => setPick({ entry, day: day.date })}
+                      >
+                        {entry.short_name} ({typeShort(entry)})
+                      </button>
+                    ))}
+                  {!day.is_off && day.entries.length > 3 && (
+                    <button
+                      type="button"
+                      className="text-[9px] text-primary"
+                      onClick={() => setMore(day)}
+                    >
+                      +{day.entries.length - 3} lagi
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-          {cells.map((d, i) => {
-            if (!d) return <div key={`e${i}`} className="calendar-cell empty" />;
-            const off = !isWorkingDay(d, m.holidayDates);
-            const entries = off ? [] : visible.filter((l) => l.start <= d && l.end >= d);
-            return (
-              <div
-                key={d}
-                className={`calendar-cell ${off ? "off" : ""} ${d === TODAY ? "today" : ""}`}
-              >
-                <span className="calendar-day">{Number(d.slice(8))}</span>
-                {off && <span className="text-[9px]">{m.holidayName(d) ?? "libur"}</span>}
-                {entries.slice(0, 3).map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    className={`leave-chip ${l.status === "Pending" ? "pending" : "approved"}`}
-                    onClick={() => setPick(l)}
-                  >
-                    {l.intern.split(" ")[0]} ({typeShort(l.type)[0]})
-                  </button>
-                ))}
-                {entries.length > 3 && (
-                  <button
-                    type="button"
-                    className="text-[9px] text-primary"
-                    onClick={() => setMore(d)}
-                  >
-                    +{entries.length - 3} lagi
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="calendar-legend">
-          <span>
-            <i className="leave-chip approved">Penuh</i> Izin Disetujui
-          </span>
-          <span>
-            <i className="leave-chip pending">Garis tepi</i> Izin Pending
-          </span>
-          <span>(S) = Sakit · (U) = Urgent</span>
-        </div>
+            <div className="calendar-legend">
+              <span>
+                <i className="leave-chip approved">Penuh</i> Izin Disetujui
+              </span>
+              <span>
+                <i className="leave-chip pending">Garis tepi</i> Izin Pending
+              </span>
+              <span>(S) = Sakit · (U) = Urgent</span>
+            </div>
+          </>
+        )}
       </Panel>
-      <Dialog open={!!pick} onOpenChange={(o) => !o && setPick(null)}>
+
+      <Dialog open={pick !== null} onOpenChange={(open) => !open && setPick(null)}>
         <DialogContent className="max-w-sm">
-          <DialogTitle>{pick?.intern}</DialogTitle>
+          <DialogTitle>{pickLeave?.intern.name ?? pick?.entry.short_name ?? "Izin"}</DialogTitle>
           <DialogDescription>
-            {pick?.type} · {pick && formatRange(pick.start, pick.end)}
+            {labelOf(LEAVE_TYPE_LABEL, pickLeave?.type ?? pick?.entry.type)}
+            {pickLeave
+              ? ` · ${formatRange(pickLeave.start_date, pickLeave.end_date)}`
+              : pick
+                ? ` · ${pick.day}`
+                : ""}
           </DialogDescription>
-          {pick && <Status status={pick.status} />}
+          {(pickLeave?.status ?? pick?.entry.status) && (
+            <Status status={labelOf(LEAVE_STATUS_LABEL, pickLeave?.status ?? pick?.entry.status)} />
+          )}
           <DialogFooter>
             <Button asChild>
-              <Link to="/izin" search={{ open: String(pick?.id ?? "") }}>
+              <Link
+                to="/izin"
+                search={{ open: String(pickLeave?.id ?? pick?.entry.leave_id ?? "") }}
+              >
                 Buka izin
               </Link>
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Dialog open={!!more} onOpenChange={(o) => !o && setMore(null)}>
+
+      <Dialog open={more !== null} onOpenChange={(open) => !open && setMore(null)}>
         <DialogContent className="max-w-sm">
-          <DialogTitle>Izin {more && formatShort(more, true)}</DialogTitle>
+          <DialogTitle>Izin {more?.date}</DialogTitle>
           <DialogDescription>Semua intern yang izin pada tanggal ini.</DialogDescription>
-          {visible
-            .filter((l) => more && l.start <= more && l.end >= more)
-            .map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                className="text-left text-xs"
-                onClick={() => setPick(l)}
-              >
-                {l.intern} · {l.type} · <Status status={l.status} />
-              </button>
-            ))}
+          {more?.entries.map((entry) => (
+            <button
+              key={`${entry.leave_id}-${entry.intern_id}`}
+              type="button"
+              className="text-left text-xs"
+              onClick={() => {
+                setPick({ entry, day: more.date });
+                setMore(null);
+              }}
+            >
+              {entry.short_name} · {labelOf(LEAVE_TYPE_LABEL, entry.type)} ·{" "}
+              <Status status={labelOf(LEAVE_STATUS_LABEL, entry.status, entry.status)} />
+            </button>
+          ))}
         </DialogContent>
       </Dialog>
     </>

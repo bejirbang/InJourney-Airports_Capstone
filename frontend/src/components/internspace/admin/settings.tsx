@@ -1,4 +1,4 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,294 +9,441 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ApiError } from "@/lib/api";
+import type { AdminHoliday, AdminHolidayInput, AdminUnit } from "@/lib/endpoints/admin";
 import {
-  TODAY,
-  addDays,
-  formatDate,
-  formatMonth,
-  formatShort,
-  isWorkingDay,
-  monthEnd,
-  timeAfter,
-  weekdayIndex,
-} from "@/lib/mock-rules";
-import { type Holiday, useMock } from "@/components/internspace/shared/model";
+  useAdminHolidays,
+  useAdminSettings,
+  useAdminUnits,
+  useCreateUnit,
+  useDeleteHoliday,
+  useSaveHoliday,
+  useSaveSettings,
+  useToggleUnit,
+  useUpdateUnit,
+} from "@/components/internspace/admin/settings-data";
+import { errorText, todayIso } from "@/components/internspace/admin/utils";
 import {
   Confirm,
+  Empty,
+  ErrorState,
   FormError,
-  MonthNav,
+  LoadingState,
   PageHeading,
   Panel,
-  SimpleTable,
   Status,
   Tabs,
 } from "@/components/internspace/shared/ui";
 
-// ---------- Pengaturan (design-admin.md Alur 7) ----------
+type Tab = "general" | "holidays" | "units";
+
+// ---------- Pengaturan (design-admin.md Alur 11) ----------
 export function SettingsPage() {
-  const m = useMock();
-  const [tab, setTab] = useState<"jam" | "libur">("jam");
+  const [tab, setTab] = useState<Tab>("general");
   return (
     <>
       <PageHeading
         title="Pengaturan"
-        subtitle="Jam kerja dan kalender libur dipakai sistem untuk menentukan status kehadiran."
+        subtitle="Pengaturan umum, kalender libur, dan unit. Jam kerja diatur per bandara di Lokasi & Jadwal."
       />
       <Tabs
-        label="Pengaturan"
+        label="Bagian pengaturan"
         value={tab}
         onChange={setTab}
         items={[
-          { value: "jam", label: "Jam Kerja" },
-          { value: "libur", label: "Kalender Libur" },
+          { value: "general", label: "Pengaturan Umum" },
+          { value: "holidays", label: "Kalender Libur" },
+          { value: "units", label: "Unit" },
         ]}
       />
-      {tab === "jam" ? <WorkHoursTab /> : <HolidayTab />}
-      <p className="text-[11px] text-muted-foreground mt-3">
-        Jam kerja saat ini: {m.workHours.start} - {m.workHours.end}.
-      </p>
+      {tab === "general" && <GeneralSettings />}
+      {tab === "holidays" && <Holidays />}
+      {tab === "units" && <Units />}
     </>
   );
 }
 
-function WorkHoursTab() {
-  const m = useMock();
-  const [start, setStart] = useState(m.workHours.start);
-  const [end, setEnd] = useState(m.workHours.end);
-  const [from, setFrom] = useState(addDays(TODAY, 1));
+function GeneralSettings() {
+  const data = useAdminSettings();
+  const save = useSaveSettings();
+  const [form, setForm] = useState({
+    late_tolerance_minutes: 0,
+    leave_quota: 3,
+    end_reminder_days: 7,
+    leave_escalation_hours: 24,
+  });
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data.data) setForm(data.data);
+  }, [data.data]);
+
+  if (data.isLoading) return <LoadingState />;
+  if (data.isError) return <ErrorState error={data.error} onRetry={() => void data.refetch()} />;
+
   return (
-    <div className="grid gap-5 max-w-2xl">
-      <Panel title="Jam kerja" subtitle="Berlaku untuk semua intern.">
-        <form
-          className="form-grid px-5 pb-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!timeAfter(start, end)) return setError("Jam pulang harus setelah jam masuk.");
-            if (!from || from < TODAY)
-              return setError("Tanggal berlaku tidak boleh sebelum hari ini.");
-            setError(null);
-            m.setWorkHistory((old) => [
-              ...old.filter((w) => w.from !== from),
-              { start, end, from },
-            ]);
-            m.log(
-              "Kalender dan jam kerja",
-              "Jam kerja",
-              `Ubah jam kerja menjadi ${start} - ${end} mulai ${formatShort(from, true)}.`,
-            );
-            toast.success("Perubahan tersimpan.", {
-              description: "Data presensi sebelumnya tidak berubah.",
-            });
-          }}
-        >
-          <div className="form-two">
-            <label className="form-field">
-              Jam masuk
-              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-            </label>
-            <label className="form-field">
-              Jam pulang
-              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-            </label>
-          </div>
-          <label className="form-field">
-            Berlaku mulai
-            <input type="date" value={from} min={TODAY} onChange={(e) => setFrom(e.target.value)} />
-          </label>
-          <p className="text-[11px] text-muted-foreground">
-            Batas penetapan status otomatis: 23:59 (tidak dapat diubah).
-          </p>
-          <FormError text={error} />
-          <div className="form-actions">
-            <Button type="submit">Simpan</Button>
-          </div>
-        </form>
-      </Panel>
-      <Panel title="Riwayat jam kerja">
-        <SimpleTable
-          empty="-"
-          head={["Berlaku mulai", "Jam masuk", "Jam pulang"]}
-          rows={[...m.workHistory]
-            .sort((a, b) => b.from.localeCompare(a.from))
-            .map((w) => [formatDate(w.from), w.start, w.end])}
-        />
-      </Panel>
-    </div>
+    <Panel title="Pengaturan umum">
+      <form
+        className="form-grid max-w-xl p-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setError(null);
+          save.mutate(form, {
+            onSuccess: (body) => toast.success(body.message ?? "Perubahan tersimpan."),
+            onError: (cause) => setError(errorText(cause, "Pengaturan gagal disimpan.")),
+          });
+        }}
+      >
+        <label className="form-field">
+          Toleransi keterlambatan (menit) *
+          <input
+            type="number"
+            min={0}
+            max={120}
+            value={form.late_tolerance_minutes}
+            onChange={(event) =>
+              setForm((old) => ({ ...old, late_tolerance_minutes: Number(event.target.value) }))
+            }
+          />
+        </label>
+        <label className="form-field">
+          Kuota izin per intern *
+          <input
+            type="number"
+            min={1}
+            max={30}
+            value={form.leave_quota}
+            onChange={(event) =>
+              setForm((old) => ({ ...old, leave_quota: Number(event.target.value) }))
+            }
+          />
+        </label>
+        <label className="form-field">
+          Pengingat akhir magang (hari) *
+          <input
+            type="number"
+            min={1}
+            max={60}
+            value={form.end_reminder_days}
+            onChange={(event) =>
+              setForm((old) => ({ ...old, end_reminder_days: Number(event.target.value) }))
+            }
+          />
+        </label>
+        <label className="form-field">
+          Eskalasi izin (jam) *
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={form.leave_escalation_hours}
+            onChange={(event) =>
+              setForm((old) => ({ ...old, leave_escalation_hours: Number(event.target.value) }))
+            }
+          />
+        </label>
+        <FormError text={error} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={save.isPending}>
+            {save.isPending ? "Menyimpan..." : "Simpan"}
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }
 
-function HolidayTab() {
-  const m = useMock();
-  const [month, setMonth] = useState(TODAY.slice(0, 7));
-  const [form, setForm] = useState<Holiday | "new" | null>(null);
-  const [date, setDate] = useState("");
+function Holidays() {
+  const data = useAdminHolidays();
+  const save = useSaveHoliday();
+  const remove = useDeleteHoliday();
+  const [form, setForm] = useState<AdminHoliday | "new" | null>(null);
+  const [toDelete, setToDelete] = useState<AdminHoliday | null>(null);
+  const [date, setDate] = useState(todayIso());
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [past, setPast] = useState<Holiday | null>(null);
-  const [del, setDel] = useState<Holiday | null>(null);
+  const [confirmPast, setConfirmPast] = useState<{
+    id: number | undefined;
+    input: AdminHolidayInput;
+    message: string;
+    affected: number;
+  } | null>(null);
+
   const editing = form && form !== "new" ? form : null;
   useEffect(() => {
-    setDate(editing?.date ?? "");
+    setDate(editing?.date ?? todayIso());
     setName(editing?.name ?? "");
     setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form]);
-  const affected = (d: string) =>
-    m.people.filter((p) => p.role === "Intern" && p.start && p.start <= d && p.end >= d).length;
-  const save = (h: Holiday) => {
-    m.setHolidays((old) =>
-      [...old.filter((x) => x.date !== editing?.date && x.date !== h.date), h].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
+  }, [form, editing]);
+
+  const send = (id: number | undefined, input: AdminHolidayInput) => {
+    save.mutate(
+      { ...(id === undefined ? {} : { id }), input },
+      {
+        onSuccess: (body) => {
+          toast.success(body.message);
+          setForm(null);
+          setConfirmPast(null);
+        },
+        onError: (cause) => {
+          if (cause instanceof ApiError && cause.reason === "confirm_recalculate") {
+            setConfirmPast({
+              id,
+              input,
+              message: cause.message,
+              affected: Number(cause.details?.["affected"] ?? 0),
+            });
+            return;
+          }
+          setError(errorText(cause, "Libur gagal disimpan."));
+        },
+      },
     );
-    const recount = h.date < TODAY ? ` ${affected(h.date)} presensi dihitung ulang.` : "";
-    m.log(
-      "Kalender dan jam kerja",
-      formatShort(h.date, true),
-      `${editing ? "Ubah" : "Tambah"} libur "${h.name}".${recount}`,
-    );
-    toast.success("Perubahan tersimpan.");
-    setForm(null);
-    setPast(null);
   };
-  const first = `${month}-01`;
-  const last = monthEnd(month);
-  const cells: (string | null)[] = [...Array<null>(weekdayIndex(first)).fill(null)];
-  for (let d = first; d <= last; d = addDays(d, 1)) cells.push(d);
+
   return (
-    <div className="grid gap-5">
+    <>
       <Panel
         title="Kalender libur"
-        subtitle="Sabtu dan Minggu libur otomatis (abu-abu). Libur tambahan admin diberi warna dan nama."
+        subtitle="Libur berlaku untuk semua bandara."
         action={
-          <div className="flex gap-2 items-center">
-            <MonthNav value={month} onChange={setMonth} min="2026-07" max="2027-12" />
-            <Button size="sm" onClick={() => setForm("new")}>
-              <Plus />
-              Tambah Libur
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setForm("new")}>
+            <Plus /> Tambah Libur
+          </Button>
         }
       >
-        <div className="calendar">
-          {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((d) => (
-            <div key={d} className="calendar-head">
-              {d}
-            </div>
-          ))}
-          {cells.map((d, i) => {
-            if (!d) return <div key={`e${i}`} className="calendar-cell empty" />;
-            const h = m.holidays.find((x) => x.date === d);
-            const weekend = !h && !isWorkingDay(d, []);
-            return (
-              <div
-                key={d}
-                className={`calendar-cell ${weekend ? "off" : ""} ${h ? "holiday" : ""} ${d === TODAY ? "today" : ""}`}
-              >
-                <span className="calendar-day">{Number(d.slice(8))}</span>
-                {weekend && <span className="text-[9px]">(a)</span>}
-                {h && <span className="text-[9px] font-semibold">{h.name}</span>}
-              </div>
-            );
-          })}
-        </div>
-        <p className="px-5 pb-4 text-[10px] text-muted-foreground">
-          Kalender ini mengikuti {formatMonth(month)}.
-        </p>
+        {data.isLoading ? (
+          <LoadingState />
+        ) : data.isError ? (
+          <ErrorState error={data.error} onRetry={() => void data.refetch()} />
+        ) : (data.data ?? []).length === 0 ? (
+          <Empty>Belum ada hari libur.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Nama</th>
+                  <th>Keterangan</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.data ?? []).map((holiday) => (
+                  <tr key={holiday.id}>
+                    <td>{holiday.date}</td>
+                    <td className="font-semibold">{holiday.name}</td>
+                    <td>{holiday.is_past ? <Status status="Tanggal lampau" /> : "-"}</td>
+                    <td>
+                      <span className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setForm(holiday)}>
+                          Ubah
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => setToDelete(holiday)}
+                        >
+                          Hapus
+                        </Button>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Panel>
-      <Panel title="Daftar libur tambahan">
-        <SimpleTable
-          empty="Belum ada libur tambahan."
-          head={["Tanggal", "Nama libur", "Aksi"]}
-          rows={m.holidays.map((h) => [
-            formatDate(h.date),
-            h.name,
-            <span key="a" className="flex gap-1">
-              <Button size="sm" variant="ghost" onClick={() => setForm(h)}>
-                <Pencil />
-                Ubah
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-destructive"
-                onClick={() => setDel(h)}
-              >
-                <Trash2 />
-                Hapus
-              </Button>
-            </span>,
-          ])}
-        />
-      </Panel>
-      <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
-        <DialogContent className="max-w-md">
+
+      <Dialog open={form !== null} onOpenChange={(open) => !open && setForm(null)}>
+        <DialogContent>
           <DialogTitle>{editing ? "Ubah Libur" : "Tambah Libur"}</DialogTitle>
-          <DialogDescription>Sabtu dan Minggu tidak perlu dimasukkan.</DialogDescription>
+          <DialogDescription>
+            Menambah atau mengubah libur di tanggal lampau menghitung ulang status presensi.
+          </DialogDescription>
           <form
             className="form-grid"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!date || !name.trim()) return setError("Tanggal dan nama libur wajib diisi.");
-              if (!isWorkingDay(date, []))
-                return setError("Sabtu dan Minggu sudah libur otomatis.");
-              if (m.holidays.some((h) => h.date === date && h.date !== editing?.date))
-                return setError("Tanggal ini sudah menjadi hari libur.");
-              const h = { date, name: name.trim() };
-              if (date < TODAY) setPast(h);
-              else save(h);
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (name.trim() === "") return setError("Nama libur wajib diisi.");
+              send(editing?.id, { date, name: name.trim() });
             }}
           >
             <label className="form-field">
               Tanggal *
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </label>
             <label className="form-field">
-              Nama libur *
-              <input value={name} onChange={(e) => setName(e.target.value)} />
+              Nama *
+              <input
+                value={name}
+                maxLength={255}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
             <FormError text={error} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setForm(null)}>
                 Batal
               </Button>
-              <Button type="submit">Simpan</Button>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending ? "Menyimpan..." : "Simpan"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
       <Confirm
-        open={!!past}
-        title="Tanggal ini sudah lewat"
+        open={confirmPast !== null}
+        title="Hitung ulang presensi?"
         confirmLabel="Ya, hitung ulang"
-        onClose={() => setPast(null)}
-        onConfirm={() => past && save(past)}
-      >
-        {past &&
-          `${formatShort(past.date, true)} akan menjadi hari libur. Status presensi ${affected(past.date)} intern pada tanggal ini akan dihitung ulang (contoh: Tidak Hadir menjadi Libur).`}
-      </Confirm>
-      <Confirm
-        open={!!del}
-        title="Hapus hari libur?"
-        confirmLabel="Hapus"
-        destructive
-        onClose={() => setDel(null)}
+        disabled={save.isPending}
+        onClose={() => setConfirmPast(null)}
         onConfirm={() => {
-          if (!del) return;
-          m.setHolidays((old) => old.filter((h) => h.date !== del.date));
-          m.log(
-            "Kalender dan jam kerja",
-            formatShort(del.date, true),
-            `Hapus libur "${del.name}".`,
-          );
-          setDel(null);
-          toast.success("Perubahan tersimpan.");
+          if (confirmPast === null) return;
+          send(confirmPast.id, { ...confirmPast.input, confirm: true });
         }}
       >
-        {del &&
-          `${formatDate(del.date)} (${del.name}) akan kembali menjadi hari kerja.${del.date < TODAY ? " Status presensi tanggal itu dihitung ulang." : ""}`}
+        {confirmPast?.message} Ada {confirmPast?.affected ?? 0} presensi yang akan dihitung ulang.
       </Confirm>
-    </div>
+
+      <Confirm
+        open={toDelete !== null}
+        title="Hapus libur?"
+        confirmLabel="Hapus"
+        destructive
+        disabled={remove.isPending}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => {
+          if (toDelete === null) return;
+          remove.mutate(toDelete.id, {
+            onSuccess: (message) => toast.success(message),
+            onError: (cause) => toast.error(errorText(cause, "Libur gagal dihapus.")),
+          });
+          setToDelete(null);
+        }}
+      >
+        "{toDelete?.name}" tidak lagi dianggap libur dan status presensi pada tanggal itu mengikuti
+        jadwal bandara.
+      </Confirm>
+    </>
+  );
+}
+
+function Units() {
+  const data = useAdminUnits();
+  const create = useCreateUnit();
+  const update = useUpdateUnit();
+  const toggle = useToggleUnit();
+  const [name, setName] = useState("");
+  const [editing, setEditing] = useState<AdminUnit | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = () => {
+    if (name.trim() === "") return setError("Nama unit wajib diisi.");
+    const onSuccess = (body: { message: string }) => {
+      toast.success(body.message);
+      setName("");
+      setEditing(null);
+      setError(null);
+    };
+    const onError = (cause: unknown) => setError(errorText(cause, "Unit gagal disimpan."));
+    if (editing) update.mutate({ id: editing.id, name: name.trim() }, { onSuccess, onError });
+    else create.mutate(name.trim(), { onSuccess, onError });
+  };
+
+  return (
+    <Panel title="Unit">
+      <div className="grid gap-4 p-5">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="form-field flex-1">
+            {editing ? `Ubah unit - ${editing.name}` : "Nama unit baru"} *
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <Button onClick={submit} disabled={create.isPending || update.isPending}>
+            {create.isPending || update.isPending ? "Menyimpan..." : editing ? "Simpan" : "Tambah"}
+          </Button>
+          {editing && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditing(null);
+                setName("");
+                setError(null);
+              }}
+            >
+              Batal
+            </Button>
+          )}
+        </div>
+        <FormError text={error} />
+        {data.isLoading ? (
+          <LoadingState />
+        ) : data.isError ? (
+          <ErrorState error={data.error} onRetry={() => void data.refetch()} />
+        ) : (data.data ?? []).length === 0 ? (
+          <Empty>Belum ada unit.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nama</th>
+                  <th>Jumlah pengguna</th>
+                  <th>Status</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data.data ?? []).map((unit) => (
+                  <tr key={unit.id}>
+                    <td className="font-semibold">{unit.name}</td>
+                    <td>{unit.user_count}</td>
+                    <td>
+                      <Status status={unit.is_active ? "Aktif" : "Nonaktif"} />
+                    </td>
+                    <td>
+                      <span className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditing(unit);
+                            setName(unit.name);
+                            setError(null);
+                          }}
+                        >
+                          Ubah
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            toggle.mutate(
+                              { unit, active: !unit.is_active },
+                              {
+                                onSuccess: (body) => toast.success(body.message),
+                                onError: (cause) =>
+                                  toast.error(errorText(cause, "Unit gagal diubah.")),
+                              },
+                            )
+                          }
+                        >
+                          {unit.is_active ? "Nonaktifkan" : "Aktifkan"}
+                        </Button>
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }

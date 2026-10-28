@@ -1,10 +1,23 @@
-import { CalendarDays, Search } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { TODAY, formatDateLong, formatMonth } from "@/lib/mock-rules";
-import { DayDetail } from "@/components/internspace/shared/attendance-parts";
-import { type Report, type Row, recap, useMock } from "@/components/internspace/shared/model";
+import { Button } from "@/components/ui/button";
+import {
+  ATTENDANCE_STATUS_LABEL,
+  CORRECTED_LABEL,
+  LEAVE_TYPE_LABEL,
+  MISSED_CLOCK_OUT_LABEL,
+  labelOf,
+} from "@/lib/labels";
+import { formatDate, formatShortTime } from "@/lib/utils";
+import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";
+import {
+  useAdminAttendanceDaily,
+  useAdminAttendanceMonth,
+} from "@/components/internspace/admin/attendance-data";
 import {
   Empty,
+  ErrorState,
+  LoadingState,
   MonthNav,
   PageHeading,
   Panel,
@@ -12,141 +25,120 @@ import {
   Tabs,
   Tag,
 } from "@/components/internspace/shared/ui";
+import { todayIso } from "@/components/internspace/admin/utils";
 
-// ---------- Admin ----------
+type View = "month" | "day";
+
+// ---------- Presensi admin (design-admin.md Alur 4) ----------
 export function AdminAttendance() {
-  const m = useMock();
-  const [tab, setTab] = useState<"harian" | "rekap">("harian");
-  const [date, setDate] = useState(TODAY);
-  const [month, setMonth] = useState(TODAY.slice(0, 7));
-  const [mentor, setMentor] = useState("Semua");
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("Aktif");
-  const [detail, setDetail] = useState<Row | null>(null);
-  const interns = m.people
-    .filter((p) => p.role === "Intern" && p.start)
-    .filter((p) => mentor === "Semua" || p.mentor === mentor)
-    .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()));
-  const mentors = m.people.filter((p) => p.role === "Mentor");
-  const daily = interns
-    .map((p) => ({ p, row: m.rowsFor(p.name, date, date)[0] }))
-    .filter((x): x is { p: (typeof interns)[number]; row: Row } => !!x.row);
+  const filter = useAirportFilter();
+  const [view, setView] = useState<View>("month");
+  const [q, setQ] = useState("");
+  const [month, setMonth] = useState(todayIso().slice(0, 7));
+  const [date, setDate] = useState(todayIso());
+  const monthly = useAdminAttendanceMonth({ month, airportId: filter.airportId, q });
+  const daily = useAdminAttendanceDaily({ date, airportId: filter.airportId, q });
+
   return (
     <>
       <PageHeading
         title="Presensi"
-        subtitle="Data presensi seluruh intern dan rekap bulanan. Perubahan hanya lewat permintaan koreksi."
-      />
-      <Tabs
-        label="Tampilan presensi"
-        value={tab}
-        onChange={setTab}
-        items={[
-          { value: "harian", label: "Harian" },
-          { value: "rekap", label: "Rekap Bulanan" },
-        ]}
+        subtitle="Rekap kehadiran semua intern per bandara. Status dan angka berasal dari server."
       />
       <div className="toolbar">
-        <div className="flex flex-wrap gap-3 items-center">
-          <label className="search-field">
-            <Search size={15} className="text-muted-foreground" />
-            <input
-              aria-label="Cari intern"
-              placeholder="Cari intern"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+        <AirportFilter
+          value={filter.airportId}
+          onChange={filter.setAirport}
+          airports={filter.airports}
+          disabled={filter.airportsLoading}
+        />
+        <label className="search-field">
+          <input
+            aria-label="Cari intern"
+            placeholder="Cari nama intern"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+          />
+        </label>
+        {view === "month" ? (
+          monthly.data?.selectable_months ? (
+            <MonthNav
+              value={month}
+              onChange={setMonth}
+              min={monthly.data.selectable_months.first}
+              max={monthly.data.selectable_months.last}
             />
-          </label>
-          <select
-            className="role-select"
-            aria-label="Filter mentor"
-            value={mentor}
-            onChange={(e) => setMentor(e.target.value)}
-          >
-            <option value="Semua">Semua mentor</option>
-            {mentors.map((x) => (
-              <option key={x.id}>{x.name}</option>
-            ))}
-          </select>
-          {tab === "rekap" && (
-            <select
-              className="role-select"
-              aria-label="Filter status akun"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option>Aktif</option>
-              <option>Nonaktif</option>
-              <option>Semua</option>
-            </select>
-          )}
-        </div>
-        {tab === "harian" ? (
-          <label className="date-chip">
-            <CalendarDays size={14} />
+          ) : null
+        ) : (
+          <label className="inline-flex items-center gap-2 text-sm">
+            Tanggal
             <input
               type="date"
-              aria-label="Tanggal"
+              className="role-select"
               value={date}
-              max={TODAY}
-              onChange={(e) => setDate(e.target.value || TODAY)}
+              onChange={(event) => setDate(event.target.value)}
             />
           </label>
-        ) : (
-          <MonthNav value={month} onChange={setMonth} min="2026-07" max={TODAY.slice(0, 7)} />
         )}
       </div>
-      {tab === "harian" ? (
-        <Panel
-          title={formatDateLong(date)}
-          subtitle={
-            date === TODAY
-              ? "Hari berjalan: yang belum clock in tampil Belum Clock In sampai 23:59."
-              : "Status final."
-          }
-        >
-          {daily.length === 0 ? (
-            <Empty>Tidak ada intern dalam periode magang pada tanggal ini.</Empty>
+      <Tabs
+        label="Tampilan presensi"
+        value={view}
+        onChange={setView}
+        items={[
+          { value: "month", label: "Rekap Bulanan" },
+          { value: "day", label: "Presensi Harian" },
+        ]}
+      />
+
+      {view === "month" ? (
+        <Panel title="Rekap bulanan">
+          {monthly.isLoading ? (
+            <LoadingState />
+          ) : monthly.isError ? (
+            <ErrorState error={monthly.error} onRetry={() => void monthly.refetch()} />
+          ) : (monthly.data?.interns ?? []).length === 0 ? (
+            <Empty>Tidak ada intern pada bulan dan filter ini.</Empty>
           ) : (
             <div className="table-wrap">
-              <table className="data-table clickable">
+              <table className="data-table">
                 <thead>
                   <tr>
                     <th>Intern</th>
+                    <th>Bandara</th>
                     <th>Mentor</th>
-                    <th>Clock In</th>
-                    <th>Clock Out</th>
-                    <th>Status</th>
-                    <th>Daily Report</th>
+                    <th>Hadir</th>
+                    <th>Terlambat</th>
+                    <th>Lupa Clock In</th>
+                    <th>Izin</th>
+                    <th>Tidak Hadir</th>
+                    <th>Lupa Clock Out</th>
+                    <th>Hari kerja</th>
+                    <th>Kehadiran</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {daily.map(({ p, row }) => (
-                    <tr
-                      key={p.id}
-                      onClick={() => setDetail(row)}
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === "Enter" && setDetail(row)}
-                    >
-                      <td>{p.name}</td>
-                      <td>{p.mentor}</td>
-                      <td>{row.clockIn || "-"}</td>
-                      <td>{row.clockOut || "-"}</td>
+                  {monthly.data?.interns.map((row) => (
+                    <tr key={row.intern.id}>
                       <td>
-                        <span className="flex gap-2">
-                          <Status status={row.status} />
-                          {row.corrected && <Tag>Dikoreksi admin</Tag>}
-                        </span>
+                        <Link
+                          to="/users"
+                          search={{ open: String(row.intern.id), tab: "attendance" }}
+                          className="font-semibold hover:underline"
+                        >
+                          {row.intern.name}
+                        </Link>
                       </td>
-                      <td>
-                        {row.report ? (
-                          <Status status="Terkirim" />
-                        ) : row.status === "Libur" || row.status === "Izin" ? (
-                          "-"
-                        ) : (
-                          <span className="text-muted-foreground">Belum ada laporan</span>
-                        )}
-                      </td>
+                      <td>{row.airport?.name ?? "-"}</td>
+                      <td>{row.mentor?.name ?? "-"}</td>
+                      <td>{row.recap.present}</td>
+                      <td>{row.recap.late}</td>
+                      <td>{row.recap.missed_clock_in}</td>
+                      <td>{row.recap.leave}</td>
+                      <td>{row.recap.absent}</td>
+                      <td>{row.recap.missed_clock_out}</td>
+                      <td>{row.recap.working_days}</td>
+                      <td>{row.attendance_rate === null ? "-" : `${row.attendance_rate}%`}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -155,53 +147,74 @@ export function AdminAttendance() {
           )}
         </Panel>
       ) : (
-        <Panel
-          title={`Rekap ${formatMonth(month)}`}
-          subtitle="Sabtu, Minggu, dan hari libur tidak dihitung hari kerja."
-        >
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Intern</th>
-                  <th>Mentor</th>
-                  <th>Hadir</th>
-                  <th>Izin</th>
-                  <th>Tidak Hadir</th>
-                  <th>Lupa Clock Out</th>
-                  <th>Hari kerja</th>
-                  <th>Akun</th>
-                </tr>
-              </thead>
-              <tbody>
-                {interns
-                  .filter((p) => status === "Semua" || (status === "Aktif") === m.isActive(p))
-                  .map((p) => {
-                    const r = recap(m.rowsFor(p.name, `${month}-01`, `${month}-31`));
-                    return (
-                      <tr key={p.id}>
-                        <td>{p.name}</td>
-                        <td>{p.mentor}</td>
-                        <td>{r.hadir}</td>
-                        <td>{r.izin}</td>
-                        <td>{r.tidakHadir}</td>
-                        <td>{r.lupa}</td>
-                        <td>{r.hariKerja}</td>
+        <Panel title={`Presensi harian ${daily.data ? formatDate(daily.data.date) : ""}`}>
+          {daily.isLoading ? (
+            <LoadingState />
+          ) : daily.isError ? (
+            <ErrorState error={daily.error} onRetry={() => void daily.refetch()} />
+          ) : (daily.data?.interns ?? []).length === 0 ? (
+            <Empty>Tidak ada intern pada tanggal dan filter ini.</Empty>
+          ) : (
+            <>
+              <div className="recap-strip">
+                {Object.entries(daily.data?.counts ?? {}).map(([key, value]) => (
+                  <span key={key}>
+                    {labelOf(ATTENDANCE_STATUS_LABEL, key)} <strong>{value}</strong>
+                  </span>
+                ))}
+              </div>
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Intern</th>
+                      <th>Bandara</th>
+                      <th>Status</th>
+                      <th>Clock In</th>
+                      <th>Clock Out</th>
+                      <th>Keterangan</th>
+                      <th>Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daily.data?.interns.map((row) => (
+                      <tr key={row.intern.id}>
+                        <td className="font-semibold">{row.intern.name}</td>
+                        <td>{row.airport?.name ?? "-"}</td>
                         <td>
-                          <Status status={m.isActive(p) ? "Aktif" : "Nonaktif"} />
+                          <Status status={labelOf(ATTENDANCE_STATUS_LABEL, row.status)} />
+                        </td>
+                        <td>{row.clock_in_at ? formatShortTime(row.clock_in_at) : "-"}</td>
+                        <td>{row.clock_out_at ? formatShortTime(row.clock_out_at) : "-"}</td>
+                        <td>
+                          <span className="flex flex-wrap gap-2">
+                            {row.leave_type && (
+                              <Tag>{labelOf(LEAVE_TYPE_LABEL, row.leave_type)}</Tag>
+                            )}
+                            {row.missed_clock_out && <Tag>{MISSED_CLOCK_OUT_LABEL}</Tag>}
+                            {row.is_corrected && <Tag>{CORRECTED_LABEL}</Tag>}
+                            {row.late_minutes !== null && <Tag>{row.late_minutes} menit</Tag>}
+                          </span>
+                        </td>
+                        <td>
+                          <Button size="sm" variant="outline" asChild>
+                            <Link
+                              to="/users"
+                              search={{ open: String(row.intern.id), tab: "attendance" }}
+                            >
+                              Buka
+                            </Link>
+                          </Button>
                         </td>
                       </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </Panel>
       )}
-      <DayDetail row={detail} name={detail?.intern} onClose={() => setDetail(null)} />
-      <p className="text-[11px] text-muted-foreground mt-3">
-        Admin tidak mengubah presensi langsung. Perubahan hanya lewat menu Koreksi.
-      </p>
     </>
   );
 }

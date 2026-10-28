@@ -1,79 +1,48 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { MAX_FILE_MB, formatPeriod, validateFileSize } from "@/lib/mock-rules";
-import { ApiError, toMockRole } from "@/lib/api";
+import { formatPeriod } from "@/lib/utils";
+import { ApiError, toDisplayRole } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { initials, useMock } from "@/components/internspace/shared/model";
-import { DetailList, FormError, PageHeading, Panel } from "@/components/internspace/shared/ui";
+import { initials } from "@/lib/utils";
+import {
+  DetailList,
+  FormError,
+  LoadingState,
+  PageHeading,
+  Panel,
+} from "@/components/internspace/shared/ui";
 
 // ---------- Profil (semua role) ----------
+// Hanya nomor telepon yang bisa diubah; nama, email, unit, dan data magang hanya tampil
+// (progress.md 5.3, design-*.md bagian Profil). Avatar = inisial nama, tanpa unggah foto.
 export function ProfilePage() {
   const auth = useAuth();
-  const m = useMock();
   const user = auth.user;
-  const [name, setName] = useState(user?.name ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const photoInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!user) return;
-    setName(user.name);
-    setPhone(user.phone ?? "");
+    if (user) setPhone(user.phone ?? "");
   }, [user]);
 
-  useEffect(() => {
-    if (!photoFile) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(photoFile);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [photoFile]);
+  if (!user) return <LoadingState />;
 
-  const shownPhoto = previewUrl ?? user?.photo_url ?? null;
-  const roleLabel = user ? toMockRole[user.role] : m.role;
-
-  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    if (!file) {
-      setPhotoFile(null);
-      return;
-    }
-    const sizeError = validateFileSize(file.size);
-    if (sizeError) {
-      e.target.value = "";
-      setPhotoFile(null);
-      setError(sizeError);
-      return;
-    }
-    setError(null);
-    setPhotoFile(file);
-  };
+  const roleLabel = toDisplayRole[user.role];
+  const profile = user.intern_profile;
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return setError("Nama wajib diisi.");
-    if (photoFile) {
-      const sizeError = validateFileSize(photoFile.size);
-      if (sizeError) return setError(sizeError);
-    }
     setError(null);
     setBusy(true);
     const phoneTrimmed = phone.trim();
     void (async () => {
       try {
-        await auth.updateProfile({ name: trimmed, phone: phoneTrimmed });
-        if (photoFile) await auth.uploadPhoto(photoFile);
-        setPhotoFile(null);
-        if (photoInput.current) photoInput.current.value = "";
-        toast.success("Perubahan tersimpan.");
+        // `phone` wajib ikut dikirim; kosong dikirim null agar lolos validasi server.
+        const result = await auth.updateProfile(phoneTrimmed === "" ? null : phoneTrimmed);
+        setPhone(result.user.phone ?? "");
+        toast.success(result.message);
       } catch (submitErr) {
         setError(
           submitErr instanceof ApiError
@@ -90,55 +59,18 @@ export function ProfilePage() {
     <>
       <PageHeading
         title="Profil Saya"
-        subtitle="Anda dapat mengubah nama, foto, dan kontak. Data lain dikelola admin."
+        subtitle="Anda dapat mengubah nomor telepon. Data lain dikelola admin."
       />
       <div className="grid gap-5 max-w-3xl">
         <Panel title="Data profil">
           <form className="form-grid px-5 pb-5" onSubmit={save}>
             <div className="flex items-center gap-4">
-              {shownPhoto ? (
-                <img
-                  className="avatar !w-16 !h-16"
-                  src={shownPhoto}
-                  alt={photoFile ? "Pratinjau foto profil" : "Foto profil"}
-                />
-              ) : (
-                <span className="avatar !w-16 !h-16 !text-xl">{initials(name || m.me.name)}</span>
-              )}
-              <div className="form-field">
-                <span>Foto profil</span>
-                <div className="flex items-center gap-3">
-                  <input
-                    ref={photoInput}
-                    type="file"
-                    accept="image/*"
-                    aria-label="Foto profil"
-                    className="sr-only"
-                    onChange={pickPhoto}
-                    disabled={busy}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => photoInput.current?.click()}
-                  >
-                    Pilih file
-                  </Button>
-                  <small className="text-muted-foreground truncate">
-                    {photoFile ? photoFile.name : "Belum ada file dipilih"}
-                  </small>
-                </div>
-                <small className="text-muted-foreground">
-                  Maksimal {MAX_FILE_MB} MB. Foto baru tersimpan setelah Anda menekan Simpan.
-                </small>
-              </div>
+              <span className="avatar !w-16 !h-16 !text-xl">{initials(user.name)}</span>
             </div>
             <div className="form-two">
               <label className="form-field">
                 Nama lengkap
-                <input value={name} onChange={(e) => setName(e.target.value)} disabled={busy} />
+                <input value={user.name} readOnly aria-readonly="true" />
               </label>
               <label className="form-field">
                 Nomor telepon
@@ -153,7 +85,7 @@ export function ProfilePage() {
             <div className="form-two">
               <label className="form-field">
                 Email internal
-                <input readOnly value={user?.email ?? m.me.email} aria-readonly="true" />
+                <input readOnly value={user.email} aria-readonly="true" />
               </label>
               <label className="form-field">
                 Role
@@ -172,11 +104,14 @@ export function ProfilePage() {
           <div className="px-5 pb-5">
             <DetailList
               items={[
-                ["Jabatan atau bidang", user?.title ?? m.me.title],
-                ...(roleLabel === "Intern"
+                ["Unit", user.unit?.name ?? "-"],
+                ...(roleLabel === "Intern" && profile
                   ? ([
-                      ["Mentor", m.me.mentor],
-                      ["Periode magang", m.me.start ? formatPeriod(m.me.start, m.me.end) : "-"],
+                      ["Lokasi magang", profile.airport.name],
+                      ["Universitas", profile.university],
+                      ["Jurusan", profile.major],
+                      ["Mentor", profile.mentor.name],
+                      ["Periode magang", formatPeriod(profile.start_date, profile.end_date)],
                     ] as [string, string][])
                   : []),
                 ["Password", "Diganti saat login pertama atau lewat reset oleh admin."],

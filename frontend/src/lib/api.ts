@@ -1,29 +1,15 @@
-import type { Role } from "@/lib/mock-rules";
+import type { Role } from "@/lib/utils";
 
 // Klien REST API Laravel untuk autentikasi (Sanctum mode token/Bearer).
 // Basis URL diambil dari VITE_API_URL, bawaan http://localhost:8000 (php artisan serve).
+// Fungsi endpoint per role ada di src/lib/endpoints/ (progress.md 4.1).
 
 export type ApiRole = "intern" | "mentor" | "admin";
 
-export interface ApiUser {
-  id: number;
-  name: string;
-  email: string;
-  role: ApiRole;
-  title: string | null;
-  phone: string | null;
-  photo_url: string | null;
-  is_active: boolean;
-  must_change_password: boolean;
-  intern_profile?: {
-    mentor_id: number | null;
-    start_date: string;
-    end_date: string;
-  } | null;
-}
+// Tipe `ApiUser` ada di src/lib/endpoints/auth.ts (progress.md 5.1).
 
 /** Role API (huruf kecil) ke Role tampilan (huruf kapital). */
-export const toMockRole: Record<ApiRole, Role> = {
+export const toDisplayRole: Record<ApiRole, Role> = {
   intern: "Intern",
   mentor: "Mentor",
   admin: "Admin",
@@ -32,21 +18,32 @@ export const toMockRole: Record<ApiRole, Role> = {
 export class ApiError extends Error {
   status: number;
   fields: Record<string, string[]> | undefined;
-  /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `daily_report_missing`. */
+  /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `logbook_missing`. */
   reason: string | undefined;
+  /** Isi tambahan dari bodi penolakan, misalnya `affected` saat konfirmasi libur lampau. */
+  details: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, fields?: Record<string, string[]>, reason?: string) {
+  constructor(
+    message: string,
+    status: number,
+    fields?: Record<string, string[]>,
+    reason?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fields = fields;
     this.reason = reason;
+    this.details = details;
   }
 }
 
-const API_URL = (
+export const apiBaseUrl = (
   (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const API_URL = apiBaseUrl;
 
 const TOKEN_KEY = "internspace_token";
 
@@ -86,12 +83,29 @@ function pickMessage(body: unknown, status: number): string {
     }
   }
   if (status === 401) return "Sesi Anda sudah berakhir. Silakan masuk lagi.";
-  if (status === 429) return "Terlalu banyak percobaan. Coba lagi dalam satu menit.";
+  if (status === 429) return "Terlalu banyak permintaan, coba lagi sebentar.";
   if (status >= 500) return "Terjadi kesalahan pada server. Coba lagi nanti.";
   return "Terjadi kesalahan. Coba lagi.";
 }
 
-async function request<T>(
+/** `errors` dan `reason` dari bodi 422, untuk ApiError. */
+function errorDetails(data: unknown): {
+  fields?: Record<string, string[]>;
+  reason?: string;
+  details?: Record<string, unknown>;
+} {
+  if (!data || typeof data !== "object") return {};
+  const body = data as { errors?: unknown; reason?: unknown };
+  return {
+    ...(body.errors && typeof body.errors === "object"
+      ? { fields: body.errors as Record<string, string[]> }
+      : {}),
+    ...(typeof body.reason === "string" ? { reason: body.reason } : {}),
+    details: body as Record<string, unknown>,
+  };
+}
+
+export async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; formData?: FormData; token?: string | null } = {},
 ): Promise<T> {
@@ -119,193 +133,30 @@ async function request<T>(
   }
 
   if (!response.ok) {
-    const fields =
-      data && typeof data === "object" && (data as { errors?: unknown }).errors
-        ? ((data as { errors: Record<string, string[]> }).errors as Record<string, string[]>)
-        : undefined;
-    const reason =
-      data && typeof data === "object" && typeof (data as { reason?: unknown }).reason === "string"
-        ? (data as { reason: string }).reason
-        : undefined;
+    const { fields, reason, details } = errorDetails(data);
     if (response.status === 401 && token && typeof window !== "undefined") {
       clearToken();
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
-    throw new ApiError(pickMessage(data, response.status), response.status, fields, reason);
+    throw new ApiError(
+      pickMessage(data, response.status),
+      response.status,
+      fields,
+      reason,
+      details,
+    );
   }
 
   return data as T;
 }
 
 /** Laravel membungkus resource teratas dalam {"data": ...}, kecuali login. */
-const unwrap = <T>(body: { data?: T } | T): T =>
+export const unwrap = <T>(body: { data?: T } | T): T =>
   body && typeof body === "object" && "data" in (body as Record<string, unknown>)
     ? ((body as { data: T }).data as T)
     : (body as T);
 
-export type ApiTodayState =
-  "not_clocked_in" | "clocked_in" | "clocked_out" | "holiday" | "on_leave" | "outside_period";
-
-export interface TodayStatus {
-  state: ApiTodayState;
-  clock_in_at: string | null;
-  clock_out_at: string | null;
-  late_minutes: number | null;
-  daily_report_sent: boolean;
-  holiday_name: string | null;
-  leave_type: "sick" | "urgent" | null;
-  has_active_office: boolean;
-  work_hours: { start: string; end: string } | null;
-}
-
-export interface InternDashboard {
-  date: string;
-  today: TodayStatus;
-  daily_report_reminder: boolean;
-}
-
-export interface OfficeInfo {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  clock_in_radius_meters: number;
-  clock_out_radius_meters: number;
-}
-
-export interface DailyReportData {
-  id: number;
-  date: string;
-  work: string;
-  notes: string | null;
-  sent_at: string;
-  editable: boolean;
-}
-
-export interface AttendanceRecord {
-  id: number;
-  date: string;
-  clock_in_at: string | null;
-  clock_out_at: string | null;
-  late_minutes: number | null;
-  clock_in_office?: { id: number; name: string } | null;
-  clock_out_office?: { id: number; name: string } | null;
-  is_corrected: boolean;
-}
-
-export interface GeoPosition {
-  lat: number;
-  lng: number;
-}
-
-export const attendanceApi = {
-  dashboard(token: string): Promise<InternDashboard> {
-    return request<{ data?: InternDashboard } | InternDashboard>("/api/intern/dashboard", {
-      token,
-    }).then(unwrap<InternDashboard>);
-  },
-
-  offices(token: string): Promise<OfficeInfo[]> {
-    return request<{ data?: OfficeInfo[] } | OfficeInfo[]>("/api/intern/offices", {
-      token,
-    }).then(unwrap<OfficeInfo[]>);
-  },
-
-  clockIn(
-    token: string,
-    position: GeoPosition,
-  ): Promise<{ message: string; data: AttendanceRecord }> {
-    return request("/api/intern/attendance/clock-in", {
-      method: "POST",
-      body: { latitude: position.lat, longitude: position.lng },
-      token,
-    });
-  },
-
-  clockOut(
-    token: string,
-    position: GeoPosition,
-  ): Promise<{ message: string; data: AttendanceRecord }> {
-    return request("/api/intern/attendance/clock-out", {
-      method: "POST",
-      body: { latitude: position.lat, longitude: position.lng },
-      token,
-    });
-  },
-
-  /** `data` null jika Daily Report hari ini belum dikirim. */
-  dailyReport(token: string): Promise<DailyReportData | null> {
-    return request<{ data?: DailyReportData | null } | DailyReportData | null>(
-      "/api/intern/attendance/daily-report",
-      { token },
-    ).then(unwrap<DailyReportData | null>);
-  },
-
-  saveDailyReport(
-    token: string,
-    input: { work: string; notes: string | null },
-  ): Promise<{ message: string; data: DailyReportData }> {
-    return request("/api/intern/attendance/daily-report", {
-      method: "PUT",
-      body: input,
-      token,
-    });
-  },
-};
-
-// ---- Task intern (Alur 8 dan 9) ----
-
-export type ApiTaskStatus = "todo" | "in_progress" | "in_review" | "done";
-
-export interface ApiTaskComment {
-  id: number;
-  author: { id: number; name: string; role: ApiRole } | null;
-  body: string;
-  is_revision: boolean;
-  is_unread: boolean;
-  created_at: string | null;
-}
-
-export interface ApiTaskSubmission {
-  link: string | null;
-  file: { name: string; size: number | null } | null;
-  submitted_at: string;
-  submitted_late: boolean;
-  late_hours: number | null;
-}
-
-/** Kartu Task intern. Field detail hanya ikut pada `GET /api/intern/tasks/{task}`. */
-export interface ApiInternTask {
-  id: number;
-  code: string;
-  title: string;
-  mentor: { id: number; name: string } | null;
-  status: ApiTaskStatus;
-  due_at: string;
-  is_late: boolean;
-  late_label: string | null;
-  done_at: string | null;
-  unread_comments: number;
-  ever_submitted: boolean;
-  revise_pending: boolean;
-  /** Tombol di detail: start = Mulai Kerjakan, submit = Kumpulkan Hasil, replace = Ganti Hasil. */
-  action: "start" | "submit" | "replace" | null;
-  description?: string;
-  submission?: ApiTaskSubmission | null;
-  /** Thread terkunci pada Task Done. */
-  can_comment?: boolean;
-  comments?: ApiTaskComment[];
-}
-
-export interface TaskListParams {
-  status?: ApiTaskStatus;
-  late?: boolean;
-  q?: string;
-  sort?: "due" | "newest";
-  include_older_done?: boolean;
-}
-
-/** Nama file dari header Content-Disposition; server memberi "hasil-TSK-024.pdf". */
+/** Nama file dari header Content-Disposition; server memberi "daftar-kehadiran_....pdf". */
 function downloadName(disposition: string | null): string | null {
   if (!disposition) return null;
   const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
@@ -320,18 +171,34 @@ function downloadName(disposition: string | null): string | null {
 }
 
 /**
- * Unduh berkas terproteksi (file hasil Task, lampiran izin). Berkas tidak punya URL publik,
- * jadi diambil dengan Bearer token lalu dibuka lewat blob.
+ * Unduh berkas terproteksi (Excel, PDF, lampiran izin). Endpoint export memakai POST dengan
+ * body JSON dan header Authorization, jadi tidak bisa memakai `<a href>`. Nama file diambil dari
+ * `Content-Disposition`; bila tidak ada, memakai `fallbackName`. Bila respons gagal, bodi dibaca
+ * sebagai JSON dan dilempar sebagai `ApiError` (bukan file).
  */
-async function downloadAttachment(
+export async function downloadFile(
   path: string,
-  token: string,
-  fallbackName: string,
+  options: {
+    method?: string;
+    body?: unknown;
+    /** Bearer token; default memakai token yang tersimpan. */
+    token?: string | null;
+    fallbackName: string;
+  },
 ): Promise<string> {
+  const { method = "POST", body, fallbackName } = options;
+  const token = options.token === undefined ? internToken() : options.token;
+
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
-      headers: { Accept: "*/*", Authorization: `Bearer ${token}` },
+      method,
+      headers: {
+        Accept: "*/*",
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
     throw new ApiError("Tidak bisa menghubungi server. Periksa koneksi dan API.", 0);
@@ -344,11 +211,18 @@ async function downloadAttachment(
     } catch {
       data = null;
     }
-    if (response.status === 401 && typeof window !== "undefined") {
+    const { fields, reason, details } = errorDetails(data);
+    if (response.status === 401 && token && typeof window !== "undefined") {
       clearToken();
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
-    throw new ApiError(pickMessage(data, response.status), response.status);
+    throw new ApiError(
+      pickMessage(data, response.status),
+      response.status,
+      fields,
+      reason,
+      details,
+    );
   }
 
   const name = downloadName(response.headers.get("Content-Disposition")) ?? fallbackName;
@@ -364,224 +238,3 @@ async function downloadAttachment(
 
   return name;
 }
-
-export const taskApi = {
-  list(
-    token: string,
-    params: TaskListParams = {},
-  ): Promise<{ tasks: ApiInternTask[]; hiddenDone: number }> {
-    const search = new URLSearchParams();
-    if (params.status) search.set("status", params.status);
-    if (params.late) search.set("late", "1");
-    if (params.q) search.set("q", params.q);
-    if (params.sort) search.set("sort", params.sort);
-    if (params.include_older_done) search.set("include_older_done", "1");
-    const query = search.toString();
-
-    return request<{ data?: ApiInternTask[]; meta?: { hidden_done?: number } }>(
-      `/api/intern/tasks${query ? `?${query}` : ""}`,
-      { token },
-    ).then((body) => ({
-      tasks: unwrap<ApiInternTask[]>(body),
-      hiddenDone: body.meta?.hidden_done ?? 0,
-    }));
-  },
-
-  /** Detail lengkap: deskripsi, hasil kumpulan, dan thread komentar. Membuka detail menandai komentar terbaca. */
-  show(token: string, task: number): Promise<ApiInternTask> {
-    return request<{ data?: ApiInternTask } | ApiInternTask>(`/api/intern/tasks/${task}`, {
-      token,
-    }).then(unwrap<ApiInternTask>);
-  },
-
-  move(
-    token: string,
-    task: number,
-    to: ApiTaskStatus,
-    from?: ApiTaskStatus,
-  ): Promise<ApiInternTask> {
-    return request<{ data?: ApiInternTask } | ApiInternTask>(`/api/intern/tasks/${task}/move`, {
-      method: "POST",
-      body: { to, ...(from ? { from } : {}) },
-      token,
-    }).then(unwrap<ApiInternTask>);
-  },
-
-  /** Kumpulkan atau ganti hasil (multipart: link, file, from). */
-  submit(
-    token: string,
-    task: number,
-    input: { link?: string | null; file?: File | null; from?: ApiTaskStatus },
-  ): Promise<{ message: string; task: ApiInternTask }> {
-    const formData = new FormData();
-    if (input.link) formData.append("link", input.link);
-    if (input.file) formData.append("file", input.file);
-    if (input.from) formData.append("from", input.from);
-
-    return request<{ message?: string; data?: ApiInternTask }>(
-      `/api/intern/tasks/${task}/submission`,
-      { method: "POST", formData, token },
-    ).then((body) => ({
-      message: body.message ?? "Hasil terkumpul. Menunggu pemeriksaan mentor.",
-      task: unwrap<ApiInternTask>(body),
-    }));
-  },
-
-  comment(token: string, task: number, body: string): Promise<ApiTaskComment> {
-    return request<{ data?: ApiTaskComment } | ApiTaskComment>(
-      `/api/intern/tasks/${task}/comments`,
-      {
-        method: "POST",
-        body: { body },
-        token,
-      },
-    ).then(unwrap<ApiTaskComment>);
-  },
-
-  /** Unduh file hasil: diambil dengan Bearer token karena tidak punya URL publik. */
-  downloadFile(token: string, task: number, fallbackName: string): Promise<string> {
-    return downloadAttachment(`/api/intern/tasks/${task}/submission/file`, token, fallbackName);
-  },
-};
-
-// ---- Izin intern (Alur 11) ----
-
-export type ApiLeaveType = "sick" | "urgent";
-export type ApiLeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
-
-/** Izin dari sisi intern (`InternLeaveResource`). */
-export interface ApiInternLeave {
-  id: number;
-  type: ApiLeaveType;
-  start_date: string;
-  end_date: string;
-  /** Dihitung server saat dibaca, jadi libur yang ditambahkan admin ikut mengurangi. */
-  working_days: number;
-  reason: string;
-  has_evidence: boolean;
-  status: ApiLeaveStatus;
-  submitted_at: string;
-  submitted_late: boolean;
-  /** Mentor atau admin yang memutuskan; null selama Pending. */
-  decided_by: { name: string; role: ApiRole } | null | undefined;
-  decision_note: string | null;
-  decided_at: string | null;
-  /** Hanya izin Pending yang boleh dibatalkan intern. */
-  can_cancel: boolean;
-}
-
-export interface LeaveListParams {
-  status?: ApiLeaveStatus;
-}
-
-export const leaveApi = {
-  list(token: string, params: LeaveListParams = {}): Promise<ApiInternLeave[]> {
-    const query = params.status ? `?status=${params.status}` : "";
-    return request<{ data?: ApiInternLeave[] } | ApiInternLeave[]>(`/api/intern/leaves${query}`, {
-      token,
-    }).then(unwrap<ApiInternLeave[]>);
-  },
-
-  /** "Total: 2 hari kerja" di formulir izin; server memakai kalender libur terbaru. */
-  workingDays(token: string, start: string, end: string): Promise<number> {
-    return request<{ data?: { working_days: number } }>(
-      `/api/intern/leaves/working-days?start_date=${start}&end_date=${end}`,
-      { token },
-    ).then((body) => unwrap<{ working_days: number }>(body).working_days);
-  },
-
-  /** Ajukan izin (multipart: type, start_date, end_date, reason, evidence). */
-  store(
-    token: string,
-    input: {
-      type: ApiLeaveType;
-      start_date: string;
-      end_date: string;
-      reason: string;
-      evidence?: File | null;
-    },
-  ): Promise<{ message: string; leave: ApiInternLeave }> {
-    const formData = new FormData();
-    formData.append("type", input.type);
-    formData.append("start_date", input.start_date);
-    formData.append("end_date", input.end_date);
-    formData.append("reason", input.reason);
-    if (input.evidence) formData.append("evidence", input.evidence);
-
-    return request<{ message?: string; data?: ApiInternLeave }>("/api/intern/leaves", {
-      method: "POST",
-      formData,
-      token,
-    }).then((body) => ({
-      message: body.message ?? "Izin diajukan. Menunggu mentor.",
-      leave: unwrap<ApiInternLeave>(body),
-    }));
-  },
-
-  show(token: string, leave: number): Promise<ApiInternLeave> {
-    return request<{ data?: ApiInternLeave } | ApiInternLeave>(`/api/intern/leaves/${leave}`, {
-      token,
-    }).then(unwrap<ApiInternLeave>);
-  },
-
-  /** Batalkan izin Pending. Ditolak 422 bila sudah diproses mentor atau admin. */
-  cancel(token: string, leave: number): Promise<{ message: string; leave: ApiInternLeave }> {
-    return request<{ message?: string; data?: ApiInternLeave }>(
-      `/api/intern/leaves/${leave}/cancel`,
-      { method: "POST", token },
-    ).then((body) => ({
-      message: body.message ?? "Pengajuan izin dibatalkan.",
-      leave: unwrap<ApiInternLeave>(body),
-    }));
-  },
-
-  /** Unduh lampiran bukti; file tidak punya URL publik. */
-  evidence(token: string, leave: number, fallbackName: string): Promise<string> {
-    return downloadAttachment(`/api/intern/leaves/${leave}/evidence`, token, fallbackName);
-  },
-};
-
-export const authApi = {
-  async login(email: string, password: string): Promise<{ token: string; user: ApiUser }> {
-    const result = await request<{ token: string; user: ApiUser }>("/api/auth/login", {
-      method: "POST",
-      body: { email, password },
-    });
-    setToken(result.token);
-    return result;
-  },
-
-  me(token: string): Promise<ApiUser> {
-    return request<{ data?: ApiUser } | ApiUser>("/api/auth/me", { token }).then(unwrap<ApiUser>);
-  },
-
-  logout(token: string): Promise<void> {
-    return request<void>("/api/auth/logout", { method: "POST", token }).then(() => undefined);
-  },
-
-  changePassword(token: string, password: string, password_confirmation: string): Promise<ApiUser> {
-    return request<{ data?: ApiUser } | ApiUser>("/api/auth/password", {
-      method: "PUT",
-      body: { password, password_confirmation },
-      token,
-    }).then(unwrap<ApiUser>);
-  },
-
-  updateProfile(token: string, input: { name: string; phone: string }): Promise<ApiUser> {
-    return request<{ data?: ApiUser } | ApiUser>("/api/auth/profile", {
-      method: "PUT",
-      body: input,
-      token,
-    }).then(unwrap<ApiUser>);
-  },
-
-  uploadPhoto(token: string, photo: File): Promise<ApiUser> {
-    const formData = new FormData();
-    formData.append("photo", photo);
-    return request<{ data?: ApiUser } | ApiUser>("/api/auth/profile/photo", {
-      method: "POST",
-      formData,
-      token,
-    }).then(unwrap<ApiUser>);
-  },
-};

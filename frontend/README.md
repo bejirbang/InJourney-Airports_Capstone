@@ -1,26 +1,44 @@
-# Injourney Canvas
+# Frontend: InternSpace (InJourney Airports)
 
-tolong buatkan mockup website pada PRD tersebut. dengan warna tema menyesuaikan dengan perusahaan InJourney airports
+Aplikasi web **Intern Management dan Attendance System** untuk tiga role: Intern, Mentor, Admin. Dibangun dengan TanStack Start dan tersambung ke API Laravel di folder `backend/`.
 
-This project was built with [Lovable](https://lovable.dev).
+Proyek ini juga tersambung ke [Lovable](https://lovable.dev/projects/3735cd30-9f65-4963-a0a3-0b95d51251af). Commit ke `main` tersinkron ke editor Lovable dan sebaliknya.
 
-**Live app**: https://injourney-canvas.lovable.app
+**Preview Lovable**: https://injourney-canvas.lovable.app
 
-## Build with Lovable
+## Status
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/3735cd30-9f65-4963-a0a3-0b95d51251af).
+Integrasi API Fase 0-6 selesai; data contoh dan `MockProvider` sudah dihapus. Uji live dua browser dan Reverb menunggu PostgreSQL/Reverb lokal. Lihat:
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+| Dokumen | Isi |
+|---|---|
+| [`progress.md`](progress.md) | Panduan integrasi per fitur dan log progres |
+| [`roadmap.md`](roadmap.md) | Ringkasan tahap pengerjaan |
+| [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md) | Batasan dan panduan untuk asisten AI |
+| [`src/components/internspace/README.md`](src/components/internspace/README.md) | Pemetaan menu per role ke file komponen |
+| `../docs/design-*.md` | Desain tampilan dan alur per role |
 
-## Development
+## Menjalankan secara lokal
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Butuh Node.js dan npm. Backend harus berjalan lebih dulu (lihat `progress.md` bagian 3).
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+cd frontend
+cp .env.example .env   # isi VITE_REVERB_APP_KEY sama dengan backend/.env
+npm install
 npm run dev
 ```
+
+Perintah lain:
+
+```sh
+npm run test    # vitest
+npm run lint    # eslint
+npm run build   # build produksi
+```
+
+## Aturan git
+
+- `git pull` sebelum mengedit.
+- Jangan force push, rebase, atau amend commit yang sudah di-push (merusak riwayat Lovable).
+- Jangan commit file `.env`.

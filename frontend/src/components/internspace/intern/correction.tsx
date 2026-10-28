@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -9,30 +10,37 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ApiError } from "@/lib/api";
+import { ATTENDANCE_STATUS_LABEL, CORRECTION_STATUS_LABEL, labelOf } from "@/lib/labels";
+import { TODAY, addDays, formatShort, formatShortTime } from "@/lib/utils";
+import { type PageSearch } from "@/lib/search";
+import { useAttendanceDay } from "@/components/internspace/intern/attendance-data";
+import { useInternDashboard } from "@/components/internspace/intern/dashboard-data";
 import {
-  TODAY,
-  canCancelCorrection,
-  formatShort,
-  formatShortTime,
-  isWorkingDay,
-  validateCorrection,
-} from "@/lib/mock-rules";
-import {
-  type AttRec,
-  type Correction,
-  ME,
-  shortName,
-  useMock,
-} from "@/components/internspace/shared/model";
+  useCancelCorrection,
+  useCorrectionDetail,
+  useCorrections,
+  useSubmitCorrection,
+} from "@/components/internspace/intern/correction-data";
 import {
   Confirm,
   DetailList,
   Empty,
-  FileField,
+  ErrorState,
   FormError,
+  LoadingState,
   Panel,
   Status,
 } from "@/components/internspace/shared/ui";
+
+// ---------- Koreksi presensi intern (design-intern.md Alur 7) ----------
+
+const errorText = (err: unknown, fallback: string) =>
+  err instanceof ApiError ? err.message : fallback;
+
+/** Catatan terakhir yang dipakai kolom Catatan: keputusan admin lebih dulu, lalu mentor. */
+const latestNote = (mentorNote: string | null, adminNote: string | null) =>
+  adminNote ?? mentorNote ?? "-";
 
 export function CorrectionTab({
   presetDate,
@@ -41,57 +49,96 @@ export function CorrectionTab({
   presetDate: string | null;
   onPresetUsed: () => void;
 }) {
-  const m = useMock();
-  const mine = m.corrections
-    .filter((c) => c.intern === ME.Intern)
-    .sort((a, b) => b.submitted.localeCompare(a.submitted));
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<Correction | null>(null);
-  const [cancel, setCancel] = useState<Correction | null>(null);
+  const search = useSearch({ strict: false }) as PageSearch;
+  const list = useCorrections();
+  const dashboard = useInternDashboard();
+  const [formOpen, setFormOpen] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(search.open ?? null);
+  const [cancelId, setCancelId] = useState<number | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const detail = useCorrectionDetail(openId);
+  const cancel = useCancelCorrection();
+
   useEffect(() => {
-    if (presetDate) setOpen(true);
+    if (search.open) setOpenId(search.open);
+  }, [search.open]);
+  useEffect(() => {
+    if (presetDate) setFormOpen(true);
   }, [presetDate]);
+
+  const today = dashboard.data?.date ?? TODAY;
+  const periodStart = dashboard.data?.internship?.start_date ?? TODAY;
+
   return (
     <Panel
       title="Koreksi presensi"
-      subtitle="Permintaan diajukan ke admin. Admin memverifikasi dulu, bisa lewat chat."
+      subtitle="Diajukan ke mentor dulu, lalu diproses admin. Tanpa bukti."
       action={
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => setFormOpen(true)}>
           <Plus />
           Ajukan Koreksi
         </Button>
       }
     >
-      {mine.length === 0 ? (
-        <Empty>Belum ada permintaan koreksi.</Empty>
+      {list.isPending ? (
+        <LoadingState />
+      ) : list.isError ? (
+        <ErrorState
+          message={list.error instanceof ApiError ? list.error.message : undefined}
+          onRetry={() => void list.refetch()}
+        />
+      ) : list.data.length === 0 ? (
+        <Empty>Belum ada pengajuan koreksi.</Empty>
       ) : (
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table clickable">
             <thead>
               <tr>
                 <th>Tanggal presensi</th>
                 <th>Diajukan</th>
                 <th>Status</th>
-                <th>Catatan admin</th>
+                <th>Catatan</th>
                 <th>Aksi</th>
               </tr>
             </thead>
             <tbody>
-              {mine.map((c) => (
-                <tr key={c.id}>
-                  <td>{formatShort(c.date, true)}</td>
-                  <td>{formatShortTime(c.submitted)}</td>
+              {list.data.map((item) => (
+                <tr
+                  key={item.id}
+                  onClick={() => setOpenId(String(item.id))}
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && setOpenId(String(item.id))}
+                >
+                  <td>{formatShort(item.date, true)}</td>
+                  <td>{item.submitted_at ? formatShortTime(item.submitted_at) : "-"}</td>
                   <td>
-                    <Status status={c.status} />
+                    <Status status={labelOf(CORRECTION_STATUS_LABEL, item.status)} />
                   </td>
-                  <td className="max-w-56 truncate">{c.note ? `"${c.note}"` : "-"}</td>
+                  <td className="max-w-56 truncate">
+                    {latestNote(item.mentor_note, item.admin_note)}
+                  </td>
                   <td>
-                    {canCancelCorrection(c.status) ? (
-                      <Button size="sm" variant="outline" onClick={() => setCancel(c)}>
+                    {item.can_cancel ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCancelError(null);
+                          setCancelId(item.id);
+                        }}
+                      >
                         Batalkan
                       </Button>
                     ) : (
-                      <Button size="sm" variant="ghost" onClick={() => setView(c)}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenId(String(item.id));
+                        }}
+                      >
                         Lihat
                       </Button>
                     )}
@@ -102,56 +149,109 @@ export function CorrectionTab({
           </table>
         </div>
       )}
+
       <CorrectionForm
-        open={open}
+        open={formOpen}
         presetDate={presetDate}
+        periodStart={periodStart}
+        today={today}
         onClose={() => {
-          setOpen(false);
+          setFormOpen(false);
           onPresetUsed();
         }}
       />
-      <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
+
+      <Dialog open={openId !== null} onOpenChange={(o) => !o && setOpenId(null)}>
         <DialogContent>
-          <DialogTitle>Koreksi {view && formatShort(view.date, true)}</DialogTitle>
+          <DialogTitle>
+            Koreksi {detail.data ? formatShort(detail.data.date, true) : ""}
+          </DialogTitle>
           <DialogDescription>
-            Keputusan yang sudah diproses tidak bisa dibuka ulang.
+            Keputusan yang sudah diproses tidak bisa dibuka ulang. Jika perlu, ajukan koreksi baru.
           </DialogDescription>
-          {view && (
+          {detail.isPending ? (
+            <LoadingState />
+          ) : detail.isError ? (
+            <ErrorState
+              message={detail.error instanceof ApiError ? detail.error.message : undefined}
+              onRetry={() => void detail.refetch()}
+            />
+          ) : detail.data ? (
             <DetailList
               items={[
-                ["Status", <Status key="s" status={view.status} />],
                 [
-                  "Data tercatat",
-                  `Clock in ${view.recIn || "-"} | Clock out ${view.recOut || "-"}`,
+                  "Status",
+                  <Status
+                    key="status"
+                    status={labelOf(CORRECTION_STATUS_LABEL, detail.data.status)}
+                  />,
                 ],
-                ["Diajukan", `Clock in ${view.reqIn || "-"} | Clock out ${view.reqOut || "-"}`],
-                ["Alasan", view.reason],
-                ["Bukti", view.evidence || "-"],
-                ["Diproses oleh", view.by ?? "-"],
-                ["Catatan admin", view.note ?? "-"],
+                [
+                  "Kondisi tercatat",
+                  `${labelOf(ATTENDANCE_STATUS_LABEL, detail.data.recorded_status)}${
+                    detail.data.recorded_missed_clock_out ? " · Lupa Clock Out" : ""
+                  }`,
+                ],
+                [
+                  "Jam tercatat",
+                  `Clock in ${detail.data.recorded?.clock_in_at ?? "-"} | Clock out ${
+                    detail.data.recorded?.clock_out_at ?? "-"
+                  }`,
+                ],
+                ["Alasan", detail.data.reason],
+                [
+                  "Diajukan",
+                  detail.data.submitted_at ? formatShortTime(detail.data.submitted_at) : "-",
+                ],
+                [
+                  "Mentor",
+                  detail.data.mentor
+                    ? `${detail.data.mentor.name}${
+                        detail.data.mentor_decided_at
+                          ? ` · ${formatShortTime(detail.data.mentor_decided_at)}`
+                          : ""
+                      }`
+                    : "-",
+                ],
+                ["Catatan mentor", detail.data.mentor_note ?? "-"],
+                [
+                  "Admin",
+                  detail.data.admin
+                    ? `${detail.data.admin.name}${
+                        detail.data.admin_decided_at
+                          ? ` · ${formatShortTime(detail.data.admin_decided_at)}`
+                          : ""
+                      }`
+                    : "-",
+                ],
+                ["Catatan admin", detail.data.admin_note ?? "-"],
               ]}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
+
       <Confirm
-        open={!!cancel}
-        title="Batalkan permintaan koreksi?"
+        open={cancelId !== null}
+        title="Batalkan pengajuan koreksi?"
         confirmLabel="Ya, batalkan"
         cancelLabel="Kembali"
         destructive
-        onClose={() => setCancel(null)}
+        disabled={cancel.isPending}
+        onClose={() => setCancelId(null)}
         onConfirm={() => {
-          if (!cancel) return;
-          m.setCorrections((old) =>
-            old.map((c) => (c.id === cancel.id ? { ...c, status: "Dibatalkan" } : c)),
-          );
-          setCancel(null);
-          toast.success("Permintaan koreksi dibatalkan.");
+          if (cancelId === null) return;
+          cancel.mutate(cancelId, {
+            onSuccess: (result) => {
+              setCancelId(null);
+              toast.success(result.message);
+            },
+            onError: (err) => setCancelError(errorText(err, "Pengajuan gagal dibatalkan.")),
+          });
         }}
       >
-        Permintaan koreksi tanggal {cancel && formatShort(cancel.date, true)} akan dibatalkan dan
-        tidak diproses admin.
+        Pengajuan akan ditarik dari antrean mentor. Presensi tidak berubah.
+        <FormError text={cancelError} />
       </Confirm>
     </Panel>
   );
@@ -160,85 +260,81 @@ export function CorrectionTab({
 function CorrectionForm({
   open,
   presetDate,
+  periodStart,
+  today,
   onClose,
 }: {
   open: boolean;
   presetDate: string | null;
+  periodStart: string;
+  today: string;
   onClose: () => void;
 }) {
-  const m = useMock();
+  const submit = useSubmitCorrection();
   const [date, setDate] = useState("");
-  const [inT, setIn] = useState("");
-  const [outT, setOut] = useState("");
   const [reason, setReason] = useState("");
-  const [file, setFile] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const recorded: AttRec | undefined = m.att.find((r) => r.intern === ME.Intern && r.date === date);
+  const recorded = useAttendanceDay(date === "" ? null : date);
+
   useEffect(() => {
     if (!open) return;
-    const d = presetDate ?? "";
-    const rec = m.att.find((r) => r.intern === ME.Intern && r.date === d);
-    setDate(d);
-    setIn(rec?.clockIn ?? "");
-    setOut(rec?.clockOut ?? "");
+    setDate(presetDate ?? "");
     setReason("");
-    setFile("");
     setError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, presetDate]);
-  const submit = () => {
-    const err = validateCorrection(
-      { date, clockIn: inT, clockOut: outT, reason },
+
+  const onSubmit = () => {
+    const trimmed = reason.trim();
+    if (date === "") {
+      setError("Pilih tanggal yang akan dikoreksi.");
+      return;
+    }
+    if (trimmed === "") {
+      setError("Alasan wajib diisi.");
+      return;
+    }
+    if (trimmed.length > 1000) {
+      setError("Alasan maksimal 1000 karakter.");
+      return;
+    }
+    setError(null);
+    submit.mutate(
+      { date, reason: trimmed },
       {
-        today: TODAY,
-        periodStart: m.me.start ?? TODAY,
-        periodEnd: m.me.end,
-        holidays: m.holidayDates,
-        pendingDates: m.corrections
-          .filter((c) => c.intern === ME.Intern && c.status === "Pending")
-          .map((c) => c.date),
+        onSuccess: (result) => {
+          toast.success(result.message);
+          onClose();
+        },
+        onError: (err) =>
+          setError(
+            errorText(err, "Pengajuan koreksi belum terkirim. Periksa koneksi lalu coba lagi."),
+          ),
       },
     );
-    setError(err);
-    if (err) return;
-    const id = Date.now();
-    m.setCorrections((old) => [
-      ...old,
-      {
-        id,
-        intern: ME.Intern,
-        date,
-        recIn: recorded?.clockIn ?? "",
-        recOut: recorded?.clockOut ?? "",
-        reqIn: inT,
-        reqOut: outT,
-        reason: reason.trim(),
-        evidence: file,
-        status: "Pending",
-        submitted: m.nowIso(),
-      },
-    ]);
-    m.notify(
-      "Admin",
-      `${shortName(ME.Intern)} mengajukan koreksi presensi ${formatShort(date)}.`,
-      "/koreksi",
-      { open: String(id) },
-    );
-    toast.success("Permintaan koreksi terkirim. Menunggu admin.");
-    onClose();
   };
+
+  const day = recorded.data;
+  const condition = day
+    ? `${labelOf(ATTENDANCE_STATUS_LABEL, day.status)}${
+        day.missed_clock_out ? " · Lupa Clock Out" : ""
+      } · Clock in ${day.clock_in_at ?? "-"} | Clock out ${day.clock_out_at ?? "-"}${
+        day.holiday_name ? ` · ${day.holiday_name}` : ""
+      }`
+    : null;
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogTitle>Ajukan Koreksi Presensi</DialogTitle>
         <DialogDescription>
-          Admin dapat menghubungi Anda lewat chat untuk verifikasi.
+          Pengajuan diperiksa mentor lebih dulu, lalu diproses admin. Jika disetujui, status hari
+          itu menjadi Hadir.
         </DialogDescription>
         <form
           className="form-grid"
           onSubmit={(e) => {
             e.preventDefault();
-            submit();
+            onSubmit();
           }}
         >
           <label className="form-field">
@@ -246,48 +342,44 @@ function CorrectionForm({
             <input
               type="date"
               value={date}
-              min={m.me.start}
-              max={TODAY}
+              min={periodStart}
+              max={addDays(today, -1)}
               onChange={(e) => {
-                const rec = m.att.find((r) => r.intern === ME.Intern && r.date === e.target.value);
                 setDate(e.target.value);
-                setIn(rec?.clockIn ?? "");
-                setOut(rec?.clockOut ?? "");
+                setError(null);
               }}
             />
           </label>
-          {date && (
+          {date !== "" && (
             <p className="text-[11px] text-muted-foreground">
-              Data tercatat: Clock in {recorded?.clockIn || "-"} | Clock out{" "}
-              {recorded?.clockOut || "-"}
-              {!isWorkingDay(date, m.holidayDates) && " (hari libur)"}
+              {recorded.isPending
+                ? "Memuat kondisi presensi..."
+                : recorded.isError
+                  ? "Kondisi presensi tidak bisa dimuat. Anda tetap bisa mengirim pengajuan."
+                  : `Kondisi: ${condition}`}
             </p>
           )}
-          <div className="form-two">
-            <label className="form-field">
-              Clock in yang benar
-              <input type="time" value={inT} onChange={(e) => setIn(e.target.value)} />
-            </label>
-            <label className="form-field">
-              Clock out yang benar
-              <input type="time" value={outT} onChange={(e) => setOut(e.target.value)} />
-            </label>
-          </div>
           <label className="form-field">
             Alasan *
             <textarea
               className="!min-h-20"
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              maxLength={1000}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setError(null);
+              }}
             />
+            <small className="text-muted-foreground">{reason.trim().length}/1000 karakter</small>
           </label>
-          <FileField label="Bukti (opsional)" onFile={setFile} />
           <FormError text={error} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Batal
             </Button>
-            <Button type="submit">Kirim</Button>
+            <Button type="submit" disabled={submit.isPending}>
+              {submit.isPending ? "Mengirim..." : "Kirim"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

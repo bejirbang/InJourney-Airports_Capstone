@@ -1,12 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import {
-  ApiError,
-  UNAUTHORIZED_EVENT,
-  authApi,
-  clearToken,
-  getToken,
-  type ApiUser,
-} from "@/lib/api";
+import { ApiError, UNAUTHORIZED_EVENT, clearToken, getToken } from "@/lib/api";
+import { authApi, type ApiUser } from "@/lib/endpoints/auth";
+import { connectEcho, disconnectEcho } from "@/lib/realtime";
 
 // Status sesi autentikasi terhadap backend Laravel.
 export type AuthStatus = "loading" | "guest" | "authed";
@@ -20,10 +15,8 @@ interface AuthValue {
   logout: () => Promise<void>;
   /** Ganti password sementara, mengembalikan user terbaru. */
   changePassword: (password: string, password_confirmation: string) => Promise<ApiUser>;
-  /** Simpan nama dan telepon, mengembalikan user terbaru. */
-  updateProfile: (input: { name: string; phone: string }) => Promise<ApiUser>;
-  /** Unggah foto profil, mengembalikan user terbaru. */
-  uploadPhoto: (photo: File) => Promise<ApiUser>;
+  /** Simpan nomor telepon (satu-satunya bagian profil yang bisa diubah), mengembalikan pesan server dan user terbaru. */
+  updateProfile: (phone: string | null) => Promise<{ message: string; user: ApiUser }>;
   /** Muat ulang data user dari server. */
   refresh: () => Promise<void>;
 }
@@ -61,6 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
   }, [refresh]);
 
+  // WebSocket hanya hidup selama sesi authed; logout/401 langsung memutusnya.
+  useEffect(() => {
+    if (status !== "authed" || !user) {
+      disconnectEcho();
+      return;
+    }
+    const token = getToken();
+    if (token) void connectEcho(token, user.id).catch(() => undefined);
+  }, [status, user]);
+
   const login = useCallback(async (email: string, password: string) => {
     const result = await authApi.login(email, password);
     setUser(result.user);
@@ -91,25 +94,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return updated;
   }, []);
 
-  const updateProfile = useCallback(async (input: { name: string; phone: string }) => {
+  const updateProfile = useCallback(async (phone: string | null) => {
     const token = getToken();
     if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
-    const updated = await authApi.updateProfile(token, input);
-    setUser(updated);
-    return updated;
-  }, []);
-
-  const uploadPhoto = useCallback(async (photo: File) => {
-    const token = getToken();
-    if (!token) throw new ApiError("Sesi Anda sudah berakhir. Silakan masuk lagi.", 401);
-    const updated = await authApi.uploadPhoto(token, photo);
-    setUser(updated);
-    return updated;
+    const result = await authApi.updateProfile(token, phone);
+    setUser(result.user);
+    return result;
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ status, user, login, logout, changePassword, updateProfile, uploadPhoto, refresh }}
+      value={{ status, user, login, logout, changePassword, updateProfile, refresh }}
     >
       {children}
     </AuthContext.Provider>

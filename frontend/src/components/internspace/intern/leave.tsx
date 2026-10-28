@@ -1,5 +1,4 @@
 import { useSearch } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -11,33 +10,21 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DOCUMENT_EXTENSIONS,
-  MAX_FILE_MB,
-  type LeaveType,
-  canCancelLeave,
-  formatDate,
-  formatRange,
-  formatShortTime,
-  leaveSubmittedLate,
-  leaveTypes,
-  validateEvidenceFile,
-  validateLeave,
-} from "@/lib/mock-rules";
-import { ApiError, internToken, leaveApi, type ApiLeaveStatus } from "@/lib/api";
+import { ApiError } from "@/lib/api";
+import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
+import { type LeaveType, formatDate, formatRange, formatShortTime, leaveTypes } from "@/lib/utils";
+import type { ApiInternLeave, ApiLeaveStatus } from "@/lib/endpoints/intern";
 import { useAuth } from "@/lib/auth";
 import { type PageSearch } from "@/lib/search";
 import {
-  LEAVES_KEY,
-  toApiLeaveType,
-  toViewLeave,
+  useCancelLeave,
   useInternLeaveDetail,
   useInternLeaveList,
   useLeaveWorkingDays,
+  useSubmitLeave,
+  toApiLeaveType,
 } from "@/components/internspace/intern/leaves-data";
-import { ME, type Leave, typeShort } from "@/components/internspace/shared/model";
 import {
-  Attachment,
   Confirm,
   DetailList,
   Empty,
@@ -51,50 +38,65 @@ import {
 
 // ---------- Intern (design-intern.md Alur 11) ----------
 // Riwayat, pengajuan, dan pembatalan izin dibaca langsung dari API Laravel.
+
+const errorText = (err: unknown, fallback: string) =>
+  err instanceof ApiError ? err.message : fallback;
+
+const STATUS_OPTIONS: { value: "Semua" | ApiLeaveStatus; label: string }[] = [
+  { value: "Semua", label: "Semua" },
+  { value: "pending", label: labelOf(LEAVE_STATUS_LABEL, "pending") },
+  { value: "approved", label: labelOf(LEAVE_STATUS_LABEL, "approved") },
+  { value: "rejected", label: labelOf(LEAVE_STATUS_LABEL, "rejected") },
+  { value: "cancelled", label: labelOf(LEAVE_STATUS_LABEL, "cancelled") },
+];
+
+/** Link bukti dibuka di tab baru; server sudah memastikan domainnya Google Drive/Docs. */
+function EvidenceLink({ url }: { url: string | null }) {
+  if (!url) return <>Tanpa bukti</>;
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="underline">
+      Buka link bukti
+    </a>
+  );
+}
+
 export function InternLeave() {
-  const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as PageSearch;
   const [filter, setFilter] = useState<"Semua" | ApiLeaveStatus>("Semua");
-  const [form, setForm] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [cancel, setCancel] = useState<Leave | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<ApiInternLeave | null>(null);
   const listQuery = useInternLeaveList(filter);
+  const cancelMutation = useCancelLeave();
 
   useEffect(() => {
     if (search.open) setOpenId(String(search.open));
   }, [search.open]);
 
-  const leaves = (listQuery.data ?? []).map((leave) => toViewLeave(leave, ME.Intern));
-
-  const cancelLeave = () => {
-    if (!cancel) return;
-    leaveApi
-      .cancel(internToken(), cancel.id)
-      .then((res) => toast.success(res.message))
-      .catch((e: unknown) => {
-        // Mentor atau admin bisa sudah memproses sejak dialog konfirmasi dibuka.
-        toast.error(e instanceof ApiError ? e.message : "Izin tidak dapat dibatalkan. Coba lagi.");
-      })
-      .finally(() => {
-        setCancel(null);
-        void queryClient.invalidateQueries({ queryKey: LEAVES_KEY });
-      });
-  };
+  const leaves = listQuery.data?.leaves ?? [];
+  const quota = listQuery.data?.quota;
+  const exhausted = quota?.exhausted === true;
 
   return (
     <>
       <PageHeading
         title="Izin"
-        subtitle="Hanya Izin Sakit dan Izin Urgent. Intern tidak memiliki cuti."
+        subtitle="Hanya Izin Sakit dan Izin Urgent. Bukti berupa link Google Drive atau Google Docs."
         action={
-          <Button onClick={() => setForm(true)}>
+          <Button onClick={() => setFormOpen(true)} disabled={exhausted}>
             <Plus />
             Ajukan Izin
           </Button>
         }
       />
+      {exhausted && (
+        <p className="banner warn mb-4">
+          Kuota izin Anda sudah habis ({quota?.limit} kali). Silakan hubungi mentor.
+        </p>
+      )}
       <Panel
         title="Riwayat izin"
+        subtitle={quota ? `Sisa kuota izin: ${quota.remaining} dari ${quota.limit}` : undefined}
         action={
           <select
             className="role-select"
@@ -102,11 +104,11 @@ export function InternLeave() {
             value={filter}
             onChange={(e) => setFilter(e.target.value as typeof filter)}
           >
-            <option value="Semua">Status: Semua</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Disetujui</option>
-            <option value="rejected">Ditolak</option>
-            <option value="cancelled">Dibatalkan</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                Status: {option.label}
+              </option>
+            ))}
           </select>
         }
       >
@@ -121,7 +123,7 @@ export function InternLeave() {
           <Empty>Belum ada pengajuan izin.</Empty>
         ) : (
           <div className="table-wrap">
-            <table className="data-table">
+            <table className="data-table clickable">
               <thead>
                 <tr>
                   <th>Jenis</th>
@@ -133,24 +135,51 @@ export function InternLeave() {
                 </tr>
               </thead>
               <tbody>
-                {leaves.map((l) => (
-                  <tr key={l.id}>
-                    <td>{typeShort(l.type)}</td>
-                    <td>{formatRange(l.start, l.end)}</td>
-                    <td>{l.workingDays}</td>
+                {leaves.map((leave) => (
+                  <tr
+                    key={leave.id}
+                    onClick={() => setOpenId(String(leave.id))}
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === "Enter" && setOpenId(String(leave.id))}
+                  >
+                    <td>{labelOf(LEAVE_TYPE_LABEL, leave.type)}</td>
+                    <td>{formatRange(leave.start_date, leave.end_date)}</td>
+                    <td>{leave.working_days}</td>
                     <td>
-                      <Status status={l.status} />
+                      <Status status={labelOf(LEAVE_STATUS_LABEL, leave.status)} />
                     </td>
-                    <td>{l.by ? `${l.by}${l.byRole === "Admin" ? " (admin)" : ""}` : "-"}</td>
-                    <td className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => setOpenId(String(l.id))}>
-                        Lihat
-                      </Button>
-                      {(l.canCancel ?? canCancelLeave(l.status)) && (
-                        <Button size="sm" variant="outline" onClick={() => setCancel(l)}>
-                          Batalkan
+                    <td>
+                      {leave.decided_by
+                        ? `${leave.decided_by.name}${
+                            leave.decided_by.role === "admin" ? " (admin)" : ""
+                          }`
+                        : "-"}
+                    </td>
+                    <td>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenId(String(leave.id));
+                          }}
+                        >
+                          Lihat
                         </Button>
-                      )}
+                        {leave.can_cancel && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCancelTarget(leave);
+                            }}
+                          >
+                            Batalkan
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -159,19 +188,41 @@ export function InternLeave() {
           </div>
         )}
       </Panel>
-      <LeaveForm open={form} existing={leaves} onClose={() => setForm(false)} />
+      <LeaveForm
+        open={formOpen}
+        exhausted={exhausted}
+        quotaText={quota ? `${quota.remaining} dari ${quota.limit}` : undefined}
+        onClose={() => setFormOpen(false)}
+      />
       <LeaveDetail openId={openId} onClose={() => setOpenId(null)} />
       <Confirm
-        open={!!cancel}
+        open={cancelTarget !== null}
         title="Batalkan pengajuan izin?"
         confirmLabel="Ya, batalkan"
         cancelLabel="Kembali"
         destructive
-        onClose={() => setCancel(null)}
-        onConfirm={cancelLeave}
+        disabled={cancelMutation.isPending}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={() => {
+          if (!cancelTarget) return;
+          cancelMutation.mutate(cancelTarget.id, {
+            onSuccess: (result) => {
+              setCancelTarget(null);
+              toast.success(result.message);
+            },
+            onError: (err) => {
+              setCancelTarget(null);
+              // Mentor/admin bisa sudah memproses sejak dialog dibuka.
+              toast.error(errorText(err, "Izin tidak dapat dibatalkan. Coba lagi."));
+            },
+          });
+        }}
       >
-        {cancel &&
-          `${cancel.type} ${formatRange(cancel.start, cancel.end)} akan dibatalkan dan tidak diproses lagi.`}
+        {cancelTarget &&
+          `${labelOf(LEAVE_TYPE_LABEL, cancelTarget.type)} ${formatRange(
+            cancelTarget.start_date,
+            cancelTarget.end_date,
+          )} akan dibatalkan dan tidak diproses lagi.`}
       </Confirm>
     </>
   );
@@ -179,74 +230,69 @@ export function InternLeave() {
 
 function LeaveForm({
   open,
-  existing,
+  exhausted,
+  quotaText,
   onClose,
 }: {
   open: boolean;
-  /** Izin yang sudah ada, dipakai klien untuk menolak tumpang tindih sebelum kirim. */
-  existing: Leave[];
+  exhausted: boolean;
+  quotaText?: string | undefined;
   onClose: () => void;
 }) {
   const auth = useAuth();
-  const queryClient = useQueryClient();
+  const submit = useSubmitLeave();
   const [type, setType] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [reason, setReason] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [evidenceUrl, setEvidenceUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     setType("");
     setStart("");
     setEnd("");
     setReason("");
-    setFile(null);
-    setFileError(null);
+    setEvidenceUrl("");
     setError(null);
-    setBusy(false);
   }, [open]);
 
   const profile = auth.user?.intern_profile;
   const daysQuery = useLeaveWorkingDays(start, end, open);
 
-  const send = async () => {
-    const err = validateLeave(
-      { type, start, end, reason },
+  const send = () => {
+    if (type === "") {
+      setError("Pilih jenis izin.");
+      return;
+    }
+    if (start === "" || end === "") {
+      setError("Isi tanggal mulai dan selesai.");
+      return;
+    }
+    if (reason.trim() === "") {
+      setError("Alasan wajib diisi.");
+      return;
+    }
+    setError(null);
+    const url = evidenceUrl.trim();
+    submit.mutate(
       {
-        periodStart: profile?.start_date ?? "",
-        periodEnd: profile?.end_date ?? "9999-12-31",
-        // Libur dan hari kerja ikut diperiksa server dengan kalender terbaru.
-        holidays: [],
-        existing: existing.map((l) => ({ start: l.start, end: l.end, status: l.status })),
-      },
-    );
-    setError(err);
-    if (err) return;
-    setBusy(true);
-    try {
-      const result = await leaveApi.store(internToken(), {
         type: toApiLeaveType(type as LeaveType),
         start_date: start,
         end_date: end,
         reason: reason.trim(),
-        evidence: file,
-      });
-      toast.success(result.message);
-      await queryClient.invalidateQueries({ queryKey: LEAVES_KEY });
-      onClose();
-    } catch (e) {
-      // Pesan penolakan server (tumpang tindih, di luar periode, jenis file) tampil apa adanya.
-      setError(
-        e instanceof ApiError
-          ? e.message
-          : "Izin belum terkirim. Isian Anda tidak hilang, coba lagi.",
-      );
-    } finally {
-      setBusy(false);
-    }
+        ...(url === "" ? {} : { evidence_url: url }),
+      },
+      {
+        onSuccess: (result) => {
+          toast.success(result.message);
+          onClose();
+        },
+        onError: (err) =>
+          setError(errorText(err, "Izin belum terkirim. Isian Anda tidak hilang, coba lagi.")),
+      },
+    );
   };
 
   return (
@@ -254,13 +300,14 @@ function LeaveForm({
       <DialogContent>
         <DialogTitle>Ajukan Izin</DialogTitle>
         <DialogDescription>
-          Pengajuan dikirim ke mentor. Izin tidak dapat diubah setelah dikirim.
+          Pengajuan dikirim ke mentor. Satu pengajuan dihitung 1 kali dari kuota.
+          {quotaText ? ` Sisa kuota: ${quotaText}.` : ""}
         </DialogDescription>
         <form
           className="form-grid"
           onSubmit={(e) => {
             e.preventDefault();
-            void send();
+            send();
           }}
         >
           <fieldset className="form-field">
@@ -273,7 +320,10 @@ function LeaveForm({
                     name="type"
                     value={t}
                     checked={type === t}
-                    onChange={() => setType(t)}
+                    onChange={() => {
+                      setType(t);
+                      setError(null);
+                    }}
                   />
                   <span>{t}</span>
                 </label>
@@ -288,7 +338,10 @@ function LeaveForm({
                 value={start}
                 min={profile?.start_date}
                 max={profile?.end_date}
-                onChange={(e) => setStart(e.target.value)}
+                onChange={(e) => {
+                  setStart(e.target.value);
+                  setError(null);
+                }}
               />
             </label>
             <label className="form-field">
@@ -298,7 +351,10 @@ function LeaveForm({
                 value={end}
                 min={start || profile?.start_date}
                 max={profile?.end_date}
-                onChange={(e) => setEnd(e.target.value)}
+                onChange={(e) => {
+                  setEnd(e.target.value);
+                  setError(null);
+                }}
               />
             </label>
           </div>
@@ -321,40 +377,35 @@ function LeaveForm({
             <textarea
               className="!min-h-20"
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e) => {
+                setReason(e.target.value);
+                setError(null);
+              }}
             />
           </label>
           <label className="form-field">
-            Lampiran bukti (misalnya surat dokter)
+            Link bukti (opsional)
             <input
-              type="file"
-              aria-label="Lampiran bukti"
-              accept={DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+              type="text"
+              placeholder="https://drive.google.com/..."
+              value={evidenceUrl}
               onChange={(e) => {
-                const picked = e.target.files?.[0] ?? null;
-                const err = picked ? validateEvidenceFile(picked) : null;
-                setFileError(err);
-                // File yang ditolak tidak dipakai, agar tidak terkirim diam-diam.
-                setFile(err ? null : picked);
-                if (err) e.target.value = "";
+                setEvidenceUrl(e.target.value);
+                setError(null);
               }}
             />
             <small className="text-muted-foreground">
-              {DOCUMENT_EXTENSIONS.join(", ").toUpperCase()}. Maksimal {MAX_FILE_MB} MB.
+              Hanya link Google Drive atau Google Docs. Pastikan akses link &quot;Siapa saja yang
+              memiliki link dapat melihat&quot;.
             </small>
-            <FormError text={fileError} />
           </label>
-          <p className="banner muted">
-            Tanpa lampiran, izin hanya dapat diproses mentor. Admin hanya membantu bila ada surat
-            resmi atau bukti.
-          </p>
           <FormError text={error} />
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submit.isPending}>
               Batal
             </Button>
-            <Button type="submit" disabled={busy}>
-              {busy ? "Mengirim..." : "Kirim"}
+            <Button type="submit" disabled={submit.isPending || exhausted}>
+              {submit.isPending ? "Mengirim..." : "Kirim"}
             </Button>
           </DialogFooter>
         </form>
@@ -365,21 +416,20 @@ function LeaveForm({
 
 function LeaveDetail({ openId, onClose }: { openId: string | null; onClose: () => void }) {
   const query = useInternLeaveDetail(openId);
-  const leave = query.data ? toViewLeave(query.data, ME.Intern) : null;
-
-  const downloadEvidence = (id: number) => {
-    leaveApi.evidence(internToken(), id, `lampiran-izin-${id}.pdf`).catch((e: unknown) => {
-      toast.error(e instanceof ApiError ? e.message : "Lampiran tidak dapat diunduh. Coba lagi.");
-    });
-  };
+  const leave = query.data;
 
   return (
     <Dialog open={openId !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogTitle>
-          {leave ? `${leave.type} · ${formatRange(leave.start, leave.end)}` : "Detail izin"}
+          {leave
+            ? `${labelOf(LEAVE_TYPE_LABEL, leave.type)} · ${formatRange(
+                leave.start_date,
+                leave.end_date,
+              )}`
+            : "Detail izin"}
         </DialogTitle>
-        <DialogDescription>Status dan catatan pemroses.</DialogDescription>
+        <DialogDescription>Status, bukti, dan catatan pemroses.</DialogDescription>
         {query.isPending ? (
           <LoadingState />
         ) : query.isError ? (
@@ -390,33 +440,33 @@ function LeaveDetail({ openId, onClose }: { openId: string | null; onClose: () =
         ) : leave ? (
           <DetailList
             items={[
-              ["Status", <Status key="s" status={leave.status} />],
+              [
+                "Status",
+                <Status key="status" status={labelOf(LEAVE_STATUS_LABEL, leave.status)} />,
+              ],
               [
                 "Tanggal",
-                `${formatDate(leave.start)} - ${formatDate(leave.end)} (${leave.workingDays} hari kerja)`,
+                `${formatDate(leave.start_date)} - ${formatDate(leave.end_date)} (${
+                  leave.working_days
+                } hari kerja)`,
               ],
               ["Alasan", leave.reason],
-              [
-                "Lampiran",
-                leave.evidence ? (
-                  <Attachment
-                    key="a"
-                    name={leave.evidence}
-                    onDownload={() => downloadEvidence(leave.id)}
-                  />
-                ) : (
-                  "Tanpa bukti"
-                ),
-              ],
+              ["Bukti", <EvidenceLink key="evidence" url={leave.evidence_url} />],
               [
                 "Diajukan",
-                `${formatShortTime(leave.submitted)}${(leave.submittedLate ?? leaveSubmittedLate(leave.start, leave.submitted)) ? " · Diajukan setelah tanggal izin" : ""}`,
+                `${formatShortTime(leave.submitted_at)}${
+                  leave.submitted_late ? " · Diajukan setelah tanggal izin" : ""
+                }`,
               ],
               [
                 "Diproses oleh",
-                leave.by ? `${leave.by} (${leave.byRole === "Admin" ? "admin" : "mentor"})` : "-",
+                leave.decided_by
+                  ? `${leave.decided_by.name} (${
+                      leave.decided_by.role === "admin" ? "admin" : "mentor"
+                    })`
+                  : "-",
               ],
-              ["Catatan", leave.note ?? "-"],
+              ["Catatan", leave.decision_note ?? "-"],
             ]}
           />
         ) : null}

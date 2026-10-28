@@ -1,16 +1,18 @@
 # CLAUDE.md (frontend)
 
-Panduan untuk Claude Code saat bekerja di folder `frontend/`. Aturan prototipe yang sudah ada di `AGENTS.md` ikut dimuat di bawah, jangan disalin ulang ke sini.
+Panduan untuk Claude Code saat bekerja di folder `frontend/`. Batasan wajib ada di `AGENTS.md` dan ikut dimuat di bawah, jangan disalin ulang ke sini.
 
 @AGENTS.md
 
 ## Proyek
 
-Prototipe **Web Intern Management dan Attendance System** untuk InJourney Airports (capstone). Tiga role: **Intern, Mentor, Admin**. Saat ini berupa prototipe interaktif sisi klien dengan data contoh yang hidup selama sesi. Belum ada autentikasi, penyimpanan, unggah file, validasi lokasi, atau unduhan Excel yang sungguhan. Itu urusan tim backend (`backend/`, Laravel) dan tidak dikerjakan dari sini kecuali diminta.
+**Web Intern Management dan Attendance System** untuk InJourney Airports (capstone). Tiga role: **Intern, Mentor, Admin**.
+
+Frontend sudah diintegrasikan ke API Laravel (`backend/`) untuk Fase 0-6. Panduan integrasi per fitur, termasuk file yang diubah, dibuat, dan dihapus, ada di **`progress.md`**. Baca file itu sebelum mengerjakan fitur apa pun.
 
 ## Stack dan perintah
 
-TanStack Start (React 19, TanStack Router berbasis file), Vite, Tailwind CSS 4, shadcn/ui (Radix), lucide-react, sonner, react-hook-form dengan zod, date-fns, recharts. Test memakai Vitest dan Testing Library.
+TanStack Start (React 19, TanStack Router berbasis file), Vite, Tailwind CSS 4, shadcn/ui (Radix), lucide-react, sonner, react-hook-form dengan zod, date-fns, recharts, `@tanstack/react-query`, Leaflet. Real-time: `laravel-echo` + `pusher-js` (dipasang di Fase 5). Test memakai Vitest dan Testing Library.
 
 ```bash
 cd frontend
@@ -21,58 +23,93 @@ npm run lint       # eslint
 npm run build      # build produksi
 ```
 
-Jalankan `npm run test` dan `npm run lint` sebelum commit.
+Jalankan `npm run test`, `npm run lint`, dan `npm run build` sebelum commit.
+
+Backend lokal harus berjalan untuk menguji integrasi (`cd backend && php artisan dev`). Cara lengkap dan akun contoh ada di `progress.md` bagian 3.
+
+Variabel lingkungan ada di `.env.example`: `VITE_API_URL` dan `VITE_REVERB_*`.
 
 ## Struktur kode
 
-- `src/routes/*.tsx`: satu file per halaman. Bersama: index (Dashboard), task, izin, chat, profil. Intern: absensi. Mentor: intern-saya, kalender-izin, performa. Admin: absensi, users, koreksi, warning, pengumuman, laporan, pengaturan, lokasi-kantor, log. Akun: login, ganti-password. Halaman yang tidak sesuai role menampilkan "Anda tidak memiliki akses" (daftar izin ada di `components/internspace/shared/shell.tsx`). Parameter URL `tab`, `open`, `to` (`src/lib/search.ts`) dipakai untuk tautan langsung dari bell icon. `routeTree.gen.ts` dibuat otomatis, jangan diedit manual.
-- `src/components/internspace/`: dikelompokkan per role. `intern/`, `mentor/`, `admin/` berisi menu masing-masing role. `shared/` berisi yang dipakai lebih dari satu role: `model.tsx` (MockProvider, satu sumber data contoh, "hari ini" = Sen, 12 Okt 2026), `shell.tsx` (sidebar, navbar, tombol Simulasi), `ui.tsx` (badge status, tab, dialog konfirmasi, input file), `role-pages.tsx` (memilih halaman per role untuk `/`, `/absensi`, `/izin`), `tasks.tsx` (Kanban Intern dan Mentor), `leave-review.tsx` (proses izin Mentor dan Admin), chat, profil, login. Pemetaan lengkap menu ke file ada di `src/components/internspace/README.md`. Kode yang hanya dipakai satu role masuk folder role itu.
-- `src/lib/mock-rules.ts`: aturan PRD yang aman dipakai di browser. Test: `mock-rules.test.ts`, `admin-rules.test.ts`, `role-rules.test.ts`. `src/test/pages.test.tsx` merender semua halaman per role dan menguji alur utama.
+- `src/routes/*.tsx`: satu file per halaman. `routeTree.gen.ts` dibuat otomatis, jangan diedit manual. Daftar route per role dan file komponennya ada di `progress.md` bagian 4.3.
+- `src/components/internspace/`: dikelompokkan per role (`intern/`, `mentor/`, `admin/`), ditambah `shared/` untuk yang dipakai lebih dari satu role. Kode yang hanya dipakai satu role masuk folder role itu.
+  - `shared/shell.tsx`: sidebar, navbar, lonceng, daftar halaman yang boleh dibuka tiap role (`allowed`, `nav`).
+  - `shared/role-pages.tsx`: memilih komponen per role untuk route yang sama (`/`, `/absensi`, `/izin`, `/logbook`, `/koreksi`, `/presentasi`, `/penilaian`).
+- `src/lib/api.ts`: klien HTTP inti (`request`, `ApiError`, token, `downloadFile`).
+- `src/lib/endpoints/`: fungsi endpoint dan tipe respons per role.
+- `src/lib/auth.tsx`: sesi login (`useAuth()`), sumber role pengguna.
+- `src/lib/navigation.ts`: peta menu `key` dan `link_path` notifikasi ke route frontend.
+- `src/lib/labels.ts`: label Indonesia untuk nilai status dari API.
+- `src/lib/search.ts`: parameter URL `tab`, `open`, `to` (id pengguna), `date`.
+- `src/lib/utils.ts`: helper tanggal/format tampilan, inisial nama, serta validasi form sisi klien. Aturan bisnis tetap ada di server.
 - `src/components/ui/`: komponen shadcn. Ubah hanya bila perlu.
 - `src/styles.css`: gaya global dan identitas visual InJourney.
 
-## Aturan kerja
+## Aturan tampilan
 
-- Aturan PRD (siapa boleh apa, kapan tombol aktif, status otomatis) ditulis sebagai fungsi di `mock-rules.ts` beserta test, bukan di dalam komponen.
 - Teks UI berbahasa Indonesia. Format tanggal "Sen, 12 Okt 2026", waktu 24 jam.
-- Badge status selalu memakai teks, warna bukan satu-satunya penanda. Hadir hijau `#2E7D32`, Izin biru `#1565C0`, Tidak Hadir merah `#C62828`, Lupa Clock Out oranye `#EF6C00`, Libur abu-abu `#757575`, Pending kuning `#F9A825`, Disetujui hijau, Ditolak merah, Dibatalkan abu-abu.
-- Dialog konfirmasi menjelaskan dampak dalam kalimat biasa, tombol utama di kanan bawah, tombol berkata kerja jelas ("Nonaktifkan", bukan "OK"). Sediakan kondisi memuat, kosong, dan gagal.
-- Jangan menyentuh `backend/` dari pekerjaan frontend kecuali diminta.
+- Tanggal dari API berupa teks `YYYY-MM-DD`. Tampilkan dengan helper tanggal di `src/lib/utils.ts`, **bukan** `new Date("YYYY-MM-DD")` (bisa bergeser satu hari karena dibaca UTC).
+- Badge status selalu memakai teks, warna bukan satu-satunya penanda. Warna mengikuti `docs/design-intern.md` §17.1:
+
+| Status | Warna |
+|---|---|
+| Hadir, Disetujui | Hijau `#2E7D32` |
+| Terlambat | Merah gelap `#AD1457` |
+| Lupa Clock In | Oranye tua `#E65100` |
+| Izin | Biru `#1565C0` |
+| Tidak Hadir, Ditolak | Merah `#C62828` |
+| Libur, Dibatalkan, Draft | Abu-abu `#757575` |
+| Lupa Clock Out, Revisi | Oranye `#EF6C00` |
+| Menunggu, Menunggu Review, Menunggu Mentor, Menunggu Admin | Kuning `#F9A825` |
+| Dikoreksi | Abu-abu gelap |
+
+- Dialog konfirmasi menjelaskan dampak dalam kalimat biasa, tombol utama di kanan bawah (desktop) atau penuh lebar (ponsel), tombol berkata kerja jelas ("Nonaktifkan", bukan "OK").
+- Halaman intern dirancang mobile first. Di ponsel sidebar menjadi menu bawah.
+- Link bukti (Google Drive/Docs) dibuka di tab baru.
 
 ## Git dan sinkronisasi Lovable
 
 Repo ini tersambung dua arah ke Lovable (branch `main`).
+
 - `git pull` sebelum mengedit. Jika Lovable dan GitHub sama-sama punya commit baru, Lovable mendorong ke branch `lovable-sync`.
 - Jangan force push, rebase, atau amend commit yang sudah di-push. Itu menghapus riwayat project di Lovable.
-- Jangan memindahkan folder `frontend/` atau menghapus `frontend/package.json`. Preview Lovable diduga bermasalah sejak refactor ke subfolder (belum terbukti). Ubah struktur repo hanya setelah dikonfirmasi.
+- Jangan memindahkan folder `frontend/` atau menghapus `frontend/package.json`. Ubah struktur repo hanya setelah dikonfirmasi.
+- Jangan commit file `.env`.
 
-## Ringkasan keputusan produk (per 12 Oktober 2026)
+## Ringkasan keputusan produk (per 27 Oktober 2026)
 
-Dokumen desain lengkap per role ada di `docs/design-intern.md`, `docs/design-mentor.md`, dan `docs/design-admin.md` (path dari root repo; salin ke sana bila belum ada). Bila dokumen bertentangan dengan kode, dokumen menjadi acuan. Tanyakan bila ragu.
+Rincian lengkap ada di `docs/design-*.md` dan `backend/progress.md`. Ringkasan ini hanya untuk orientasi; jika berbeda, dokumen dan kode backend yang berlaku.
 
-**Kehadiran**
-- Sabtu dan Minggu libur. Admin mengatur hari libur lain dan jam kerja global (dengan tanggal efektif).
-- Status ditentukan otomatis dengan batas 23:59: Hadir, Izin, Tidak Hadir (tanpa clock in), Lupa Clock Out (clock in tanpa clock out). Hari berjalan tampil "Belum Clock In", belum Tidak Hadir.
-- Lokasi divalidasi saat clock in (radius clock in) dan clock out (radius clock out) terhadap kantor aktif yang dibuat admin di menu Lokasi Kantor. Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out. Besar radius ditentukan admin (harus lebih dari 0 meter, tanpa rentang tetap). Tanpa kantor aktif, intern tidak bisa clock in.
-- Selain lokasi, clock out hanya mensyaratkan Daily Report terkirim. Daily Report dapat diedit sampai clock out. Task dan Daily Report adalah dua hal berbeda.
+**Lokasi dan jadwal**
+- Dua tingkat: **Bandara** (lokasi magang, punya kota, jadwal mingguan per hari, dan jadwal khusus) dan **Titik Presensi** (punya titik peta dan radius clock in/out).
+- Intern terhubung ke bandara. Clock in/out boleh di titik aktif mana pun milik bandaranya. Server yang memeriksa radius.
+- Hari kerja dan jam kerja mengikuti jadwal bandara dan kalender libur. Tidak ada aturan "Sabtu-Minggu libur untuk semua".
+- Bandara, titik presensi, dan unit tidak dihapus, hanya dinonaktifkan.
 
-**Task**
-- Dibuat mentor untuk satu intern (tidak ada assign massal). Status: To Do, In Progress, In Review, Done. Task lewat tenggat diberi tanda Terlambat tetapi tetap bisa dikumpulkan.
-- Pengumpulan lewat link dan atau file. Pengumpulan ulang menimpa hasil lama, tanpa riwayat versi. Mentor Accept (Done) atau Revise (kembali ke In Progress, komentar wajib). Komentar berupa thread dua arah.
-- Kanban mendukung drag and drop. Intern: To Do ke In Progress boleh, In Progress ke To Do hanya jika belum pernah dikumpulkan, In Progress ke In Review membuka dialog Kumpulkan Hasil, kartu In Review dan Done terkunci. Mentor: hanya kartu In Review yang bisa diseret, ke Done (Accept) atau ke In Progress (Revise dengan komentar wajib). Perpindahan lain ditolak dan kartu kembali.
+**Presensi**
+- Status: Hadir, Terlambat (lewat jam masuk + toleransi), Lupa Clock In, Izin, Tidak Hadir, Libur. "Lupa Clock Out" dan "Dikoreksi" adalah tanda, bukan status.
+- Clock out hanya setelah jam pulang dan wajib mengisi logbook hari itu.
 
-**Izin dan koreksi**
-- Hanya Izin Sakit dan Izin Urgent, tidak ada cuti. Lampiran bukti opsional. Intern boleh membatalkan saat Pending. Mentor memproses lebih dulu. Admin hanya memproses yang masih Pending, dan hanya jika ada surat resmi atau bukti. Izin yang disetujui otomatis mengubah status absensi.
-- Koreksi absensi diajukan intern ke admin, yang memverifikasi lebih dulu. Admin hanya mengubah jam, status dihitung ulang. Catatan keputusan wajib. Keputusan yang sudah diproses tidak bisa dibuka ulang.
+**Logbook** (pengganti Task dan Daily Report)
+- Satu logbook per hari presensi, diisi saat clock out. Mentor menyetujui atau meminta revisi (komentar wajib). Mentor bisa menyetujui banyak sekaligus.
+
+**Koreksi presensi**
+- Intern mengajukan tanggal + alasan (tanpa jam, tanpa bukti). Mentor ACC atau tolak, lalu admin setujui atau tolak (catatan wajib). Hasil selalu Hadir dengan tanda Dikoreksi; jam diisi otomatis dari jadwal.
+
+**Izin**
+- Hanya Izin Sakit dan Izin Urgent. Bukti berupa link Google Drive/Docs. Kuota per masa magang (bawaan 3 kali), 1 pengajuan = 1 kali. Mentor memproses lebih dulu; admin hanya setelah lewat batas jam (bawaan 24 jam) dan wajib mencentang pemeriksaan bukti.
+
+**Akhir magang**
+- Intern mengirim link bukti presentasi akhir (terbuka H-7), admin setujui atau minta revisi.
+- Mentor mengisi nilai (9 indikator, bilangan bulat 0-100, 3 kategori) setelah presentasi disetujui dan semua logbook disetujui. Nilai akhir dan predikat dihitung server. Setelah submit terkunci permanen. Intern bisa melihat nilainya.
 
 **Lain-lain**
-- Login memakai email internal yang dibuat admin, tanpa Google OAuth. Tidak ada ganti password mandiri (hanya saat login pertama dan reset oleh admin).
-- Notifikasi hanya lewat bell icon di navbar, tanpa halaman notifikasi. Chat: semua bisa chat dengan semua, admin tidak bisa membaca chat orang lain.
-- Warning: catatan sederhana tanpa level, hanya terlihat admin. Pengumuman: admin memilih role penerima. Laporan: hanya admin, hanya Excel (.xlsx), jenisnya Rekap Absensi dan Rekap Task (Rekap Izin dihapus per 12 Okt 2026).
-- Mentor punya menu Performa Intern (rekap kehadiran dan KPI, bukan nilai). Tidak ada fitur penilaian intern. Admin tidak punya dashboard performa seluruh intern.
+- Akun dibuat admin, login email internal, tanpa Google OAuth. Password sementara ditampilkan sekali. Ganti password hanya saat login pertama dan setelah reset admin.
+- Profil: semua role hanya bisa mengubah nomor telepon. Tanpa foto; avatar dari inisial nama.
+- Identitas intern: unit, bandara, jenis institusi (universitas/sekolah), asal institusi, jurusan, NIM/NIS, periode magang.
+- Warning: catatan admin tanpa level, terlihat oleh intern dan mentornya (hanya baca), mengirim notifikasi.
+- Notifikasi lewat lonceng di navbar, real-time. Chat: semua bisa chat dengan semua, admin tidak bisa membaca chat orang lain.
+- Laporan admin: Excel (sheet Presensi, Izin, Logbook, Penilaian) dan PDF (Daftar Kehadiran per intern per bulan, Penilaian per intern).
+- Sesi berakhir setelah 30 menit tanpa aktivitas.
 
-**Sudah diputuskan (Draft 2)**: batas ukuran file 2 MB untuk hasil Task, lampiran izin, dan bukti koreksi. Validasi lokasi memakai radius kantor aktif.
-
-**Sudah diputuskan (13 Oktober 2026)**: jenis file hanya PDF, Word (.doc, .docx), Excel (.xls, .xlsx), dan PowerPoint (.ppt, .pptx); jenis lain lewat link. Intern boleh memilih kantor aktif mana pun untuk clock in dan clock out. Besar radius ditentukan admin, tanpa rentang tetap.
-
-**Masih terbuka**: penanganan GPS kurang akurat dan VPN. Jangan mengarang nilainya di kode. Tandai sebagai pengaturan yang nanti diisi tim backend.
+**Masih terbuka**: penanganan GPS kurang akurat dan VPN. Jangan mengarang nilainya di kode.

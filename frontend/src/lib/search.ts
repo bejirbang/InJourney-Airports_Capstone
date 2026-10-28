@@ -1,9 +1,28 @@
-// Parameter URL bersama untuk tautan langsung (misalnya dari bell icon ke detail Task).
-export type PageSearch = { tab?: string; open?: string; to?: string };
+// Parameter URL bersama untuk tautan langsung (misalnya dari lonceng notifikasi ke detail).
+// `to` berupa id pengguna, `date` berupa tanggal logbook (YYYY-MM-DD), `status` filter
+// riwayat presensi yang sudah dipilih dari rekap dashboard.
+export type PageSearch = {
+  tab?: string;
+  open?: string;
+  to?: string;
+  date?: string;
+  status?: string;
+  airport_id?: string;
+  /** Id pengumuman yang dibuka dari notifikasi. */
+  announcement?: string;
+};
 
 export const pageSearch = (search: Record<string, unknown>): PageSearch => {
   const out: PageSearch = {};
-  for (const key of ["tab", "open", "to"] as const) {
+  for (const key of [
+    "tab",
+    "open",
+    "to",
+    "date",
+    "status",
+    "airport_id",
+    "announcement",
+  ] as const) {
     const value = search[key];
     if (typeof value === "string" || typeof value === "number") out[key] = String(value);
   }
@@ -13,10 +32,13 @@ export const pageSearch = (search: Record<string, unknown>): PageSearch => {
 export type AppPath =
   | "/"
   | "/absensi"
-  | "/task"
+  | "/logbook"
   | "/izin"
+  | "/presentasi"
+  | "/catatan"
   | "/chat"
   | "/koreksi"
+  | "/penilaian"
   | "/intern-saya"
   | "/kalender-izin"
   | "/performa"

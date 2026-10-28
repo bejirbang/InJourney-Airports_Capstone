@@ -1,20 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TODAY, formatShort, isWorkingDay } from "@/lib/mock-rules";
-import { type Person, shortName, useMock } from "@/components/internspace/shared/model";
-import { Empty, Panel, Status } from "@/components/internspace/shared/ui";
-
-export function HolidayBanner() {
-  const m = useMock();
-  if (isWorkingDay(TODAY, m.holidayDates)) return null;
-  return (
-    <div className="banner info">
-      <CalendarOff size={16} />
-      Hari ini hari libur: {m.holidayName(TODAY) ?? "akhir pekan"}.
-    </div>
-  );
-}
+import { formatShort, shortName } from "@/lib/utils";
+import type { AdminTodayRow } from "@/lib/endpoints/admin";
+import { Empty, Panel } from "@/components/internspace/shared/ui";
 
 export function Metric({
   label,
@@ -33,19 +21,27 @@ export function Metric({
   );
 }
 
-export function AnnouncementList() {
-  const m = useMock();
-  const list = m.announcements.filter((a) => a.audience.includes(m.role)).slice(0, 3);
-  if (list.length === 0) return null;
+/** Satu pengumuman dari API; bentuknya sama dengan yang dipakai halaman intern. */
+export interface AnnouncementItem {
+  id: number;
+  title: string;
+  body: string;
+  author_name: string | null;
+  created_at: string | null;
+}
+
+/** Daftar pengumuman dari `GET /api/{role}/dashboard`. */
+export function AnnouncementList({ items }: { items: AnnouncementItem[] }) {
+  if (items.length === 0) return null;
   return (
     <Panel title="Pengumuman" subtitle="Dari admin untuk role Anda.">
-      {list.map((a) => (
+      {items.map((a) => (
         <div className="announcement" key={a.id}>
           <div>
             <h3>{a.title}</h3>
-            <p>{a.text}</p>
+            <p>{a.body}</p>
             <small>
-              {a.author} · {formatShort(a.date, true)}
+              {a.author_name ?? "-"} · {formatShort(a.created_at ?? "", true)}
             </small>
           </div>
         </div>
@@ -54,20 +50,66 @@ export function AnnouncementList() {
   );
 }
 
-export function TodayCounts({ interns }: { interns: Person[] }) {
-  const m = useMock();
-  const states = interns.map((p) => m.today(p.name).state);
-  const sudah = states.filter((s) => s === "Sudah Clock In" || s === "Sudah Clock Out").length;
+const attended = ["present", "late", "missed_clock_out"];
+
+export function TodayCounts({
+  interns,
+  clockedIn,
+  late,
+  onLeave,
+  notClockedIn,
+  rows,
+  onClick,
+}: {
+  interns: number;
+  clockedIn: number;
+  late: number;
+  onLeave: number;
+  notClockedIn: number;
+  rows: AdminTodayRow[];
+  onClick: (label: string, rows: AdminTodayRow[]) => void;
+}) {
+  const groups = [
+    {
+      label: `Sudah Presensi (${interns})`,
+      value: clockedIn,
+      tone: "teal",
+      rows: rows.filter((row) => attended.includes(row.status)),
+    },
+    {
+      label: "Terlambat",
+      value: late,
+      tone: "red",
+      rows: rows.filter((row) => row.status === "late"),
+    },
+    {
+      label: "Izin",
+      value: onLeave,
+      tone: "blue",
+      rows: rows.filter((row) => row.status === "leave"),
+    },
+    {
+      label: "Belum Clock In",
+      value: notClockedIn,
+      tone: "light",
+      rows: rows.filter((row) => row.status === "not_clocked_in"),
+    },
+  ];
+
   return (
     <>
-      <div className="recap-grid three">
-        <Metric label="Sudah Clock In" value={sudah} tone="teal" />
-        <Metric label="Izin" value={states.filter((s) => s === "Izin").length} tone="blue" />
-        <Metric
-          label="Belum Clock In"
-          value={states.filter((s) => s === "Belum Clock In").length}
-          tone="light"
-        />
+      <div className="recap-grid four">
+        {groups.map((group) => (
+          <button
+            type="button"
+            key={group.label}
+            className={`metric st-${group.tone}`}
+            onClick={() => onClick(group.label, group.rows)}
+          >
+            <span>{group.label}</span>
+            <strong>{group.value}</strong>
+          </button>
+        ))}
       </div>
       <p className="px-5 pb-4 text-[11px] text-muted-foreground">
         Status final ditetapkan sistem setelah 23:59.
@@ -114,7 +156,7 @@ export function ActionRow({
   what: string;
   meta: string;
   warn?: boolean;
-  to: "/task" | "/izin" | "/koreksi";
+  to: "/izin" | "/koreksi" | "/warning" | "/penilaian" | "/presentasi" | "/users";
   open: string;
 }) {
   return (

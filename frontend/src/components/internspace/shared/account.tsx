@@ -3,10 +3,9 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { validatePassword } from "@/lib/mock-rules";
-import { ApiError, toMockRole } from "@/lib/api";
+import { validatePassword } from "@/lib/utils";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useMock } from "@/components/internspace/shared/model";
 import airport from "@/assets/airport-banner.jpg";
 import icon from "@/assets/icon.png";
 
@@ -79,17 +78,9 @@ function PasswordField({
   );
 }
 
-const demoAccounts = [
-  { email: "admin@injourney.test", note: "Admin" },
-  { email: "mentor@injourney.test", note: "Mentor" },
-  { email: "intern@injourney.test", note: "Intern" },
-  { email: "intern.baru@injourney.test", note: "login pertama (wajib ganti password)" },
-];
-
 /** Login lewat API Laravel. Tanpa Google OAuth dan tanpa pemulihan mandiri. */
 export function LoginPage() {
   const auth = useAuth();
-  const m = useMock();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -97,9 +88,7 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   return (
     <AccountLayout>
-      <span className="account-eyebrow">
-        INTERN MANAGEMENT <span>PROTOTIPE</span>
-      </span>
+      <span className="account-eyebrow">INTERN MANAGEMENT</span>
       <h1>Masuk</h1>
       <p className="account-intro">Gunakan email internal dan password dari admin.</p>
       <form
@@ -117,13 +106,9 @@ export function LoginPage() {
             try {
               const user = await auth.login(value, password);
               setPassword("");
-              // Samakan role tampilan prototipe dengan role akun yang sebenarnya.
-              m.setRole(toMockRole[user.role]);
               if (user.must_change_password) {
-                m.setMustChangePassword(true);
                 await navigate({ to: "/ganti-password" });
               } else {
-                m.setMustChangePassword(false);
                 await navigate({ to: "/" });
               }
             } catch (err) {
@@ -168,22 +153,6 @@ export function LoginPage() {
         </Button>
         <p className="text-xs text-muted-foreground">Lupa password? Hubungi admin.</p>
       </form>
-      <details className="demo-box">
-        <summary>Akun contoh untuk mencoba</summary>
-        <p>
-          Password <code>password</code> untuk semua akun di bawah.
-        </p>
-        <ul>
-          {demoAccounts.map((a) => (
-            <li key={a.email}>
-              <button type="button" onClick={() => setEmail(a.email)}>
-                {a.email}
-              </button>{" "}
-              · {a.note}
-            </li>
-          ))}
-        </ul>
-      </details>
     </AccountLayout>
   );
 }
@@ -191,7 +160,6 @@ export function LoginPage() {
 /** Ganti password wajib saat login pertama dan setelah reset oleh admin. */
 export function ChangePasswordPage() {
   const auth = useAuth();
-  const m = useMock();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -220,7 +188,6 @@ export function ChangePasswordPage() {
               await auth.changePassword(password, confirmation);
               setPassword("");
               setConfirmation("");
-              m.setMustChangePassword(false);
               toast.success("Password tersimpan.");
               await navigate({ to: "/" });
             } catch (submitErr) {
