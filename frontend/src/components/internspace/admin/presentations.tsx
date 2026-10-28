@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PRESENTATION_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatDateTime } from "@/lib/mock-rules";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import type { AdminPresentationTab } from "@/lib/endpoints/admin";
 import { type PageSearch } from "@/lib/search";
 import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";

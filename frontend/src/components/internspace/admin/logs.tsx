@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/mock-rules";
+import { formatDateTime } from "@/lib/utils";
 import type { AdminAuditLogFilters } from "@/lib/endpoints/admin";
 import {
   useAdminAuditLogOptions,

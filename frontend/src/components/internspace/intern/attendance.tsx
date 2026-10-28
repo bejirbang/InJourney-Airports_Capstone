@@ -17,13 +17,7 @@ import {
   LOGBOOK_STATUS_LABEL,
   labelOf,
 } from "@/lib/labels";
-import {
-  TODAY,
-  distanceMeters,
-  formatDate,
-  formatDateLong,
-  locationMessage,
-} from "@/lib/mock-rules";
+import { TODAY, distanceMeters, formatDate, formatDateLong, locationMessage } from "@/lib/utils";
 import type {
   ApiAttendanceDay,
   ApiAttendanceFilter,

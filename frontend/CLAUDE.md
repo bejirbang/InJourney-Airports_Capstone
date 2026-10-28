@@ -8,7 +8,7 @@ Panduan untuk Claude Code saat bekerja di folder `frontend/`. Batasan wajib ada 
 
 **Web Intern Management dan Attendance System** untuk InJourney Airports (capstone). Tiga role: **Intern, Mentor, Admin**.
 
-Frontend sedang diintegrasikan dari prototipe ke API Laravel (`backend/`). Panduan integrasi per fitur, termasuk file yang diubah, dibuat, dan dihapus, ada di **`progress.md`**. Baca file itu sebelum mengerjakan fitur apa pun.
+Frontend sudah diintegrasikan ke API Laravel (`backend/`) untuk Fase 0-6. Panduan integrasi per fitur, termasuk file yang diubah, dibuat, dan dihapus, ada di **`progress.md`**. Baca file itu sebelum mengerjakan fitur apa pun.
 
 ## Stack dan perintah
 
@@ -35,21 +35,20 @@ Variabel lingkungan ada di `.env.example`: `VITE_API_URL` dan `VITE_REVERB_*`.
 - `src/components/internspace/`: dikelompokkan per role (`intern/`, `mentor/`, `admin/`), ditambah `shared/` untuk yang dipakai lebih dari satu role. Kode yang hanya dipakai satu role masuk folder role itu.
   - `shared/shell.tsx`: sidebar, navbar, lonceng, daftar halaman yang boleh dibuka tiap role (`allowed`, `nav`).
   - `shared/role-pages.tsx`: memilih komponen per role untuk route yang sama (`/`, `/absensi`, `/izin`, `/logbook`, `/koreksi`, `/presentasi`, `/penilaian`).
-  - `shared/model.tsx`: data contoh lama (`MockProvider`). **Dihapus bertahap**, jangan dipakai untuk fitur baru.
 - `src/lib/api.ts`: klien HTTP inti (`request`, `ApiError`, token, `downloadFile`).
 - `src/lib/endpoints/`: fungsi endpoint dan tipe respons per role.
 - `src/lib/auth.tsx`: sesi login (`useAuth()`), sumber role pengguna.
 - `src/lib/navigation.ts`: peta menu `key` dan `link_path` notifikasi ke route frontend.
 - `src/lib/labels.ts`: label Indonesia untuk nilai status dari API.
 - `src/lib/search.ts`: parameter URL `tab`, `open`, `to` (id pengguna), `date`.
-- `src/lib/mock-rules.ts`: aturan prototipe lama. **Dihapus bertahap**; aturan bisnis sekarang ada di server.
+- `src/lib/utils.ts`: helper tanggal/format tampilan, inisial nama, serta validasi form sisi klien. Aturan bisnis tetap ada di server.
 - `src/components/ui/`: komponen shadcn. Ubah hanya bila perlu.
 - `src/styles.css`: gaya global dan identitas visual InJourney.
 
 ## Aturan tampilan
 
 - Teks UI berbahasa Indonesia. Format tanggal "Sen, 12 Okt 2026", waktu 24 jam.
-- Tanggal dari API berupa teks `YYYY-MM-DD`. Tampilkan dengan `parseISO` dari `date-fns`, **bukan** `new Date("YYYY-MM-DD")` (bisa bergeser satu hari karena dibaca UTC).
+- Tanggal dari API berupa teks `YYYY-MM-DD`. Tampilkan dengan helper tanggal di `src/lib/utils.ts`, **bukan** `new Date("YYYY-MM-DD")` (bisa bergeser satu hari karena dibaca UTC).
 - Badge status selalu memakai teks, warna bukan satu-satunya penanda. Warna mengikuti `docs/design-intern.md` §17.1:
 
 | Status | Warna |

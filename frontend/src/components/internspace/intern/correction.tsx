@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { ATTENDANCE_STATUS_LABEL, CORRECTION_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { TODAY, addDays, formatShort, formatShortTime } from "@/lib/mock-rules";
+import { TODAY, addDays, formatShort, formatShortTime } from "@/lib/utils";
 import { type PageSearch } from "@/lib/search";
 import { useAttendanceDay } from "@/components/internspace/intern/attendance-data";
 import { useInternDashboard } from "@/components/internspace/intern/dashboard-data";

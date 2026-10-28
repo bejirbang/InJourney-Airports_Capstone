@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
-import { addDays, formatDateLong } from "@/lib/mock-rules";
+import { addDays, formatDateLong } from "@/lib/utils";
 import type { AdminPerson } from "@/lib/endpoints/admin";
 import { useExtendInternship } from "@/components/internspace/admin/dashboard-data";
 import { FormError } from "@/components/internspace/shared/ui";

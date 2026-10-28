@@ -36,7 +36,7 @@ import {
   formatRange,
   formatShort,
   formatShortTime,
-} from "@/lib/mock-rules";
+} from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import type {
   AdminAccountStatus,

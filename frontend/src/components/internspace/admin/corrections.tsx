@@ -8,7 +8,7 @@ import {
   MISSED_CLOCK_OUT_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatDate, formatDateTime, formatShort, formatShortTime } from "@/lib/mock-rules";
+import { formatDate, formatDateTime, formatShort, formatShortTime } from "@/lib/utils";
 import type { AdminCorrectionTab } from "@/lib/endpoints/admin";
 import { type PageSearch } from "@/lib/search";
 import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";

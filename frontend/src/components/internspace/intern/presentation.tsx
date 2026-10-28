@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { PRESENTATION_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatShortTime } from "@/lib/mock-rules";
+import { formatDate, formatShortTime } from "@/lib/utils";
 import {
   usePresentation,
   useSubmitPresentation,

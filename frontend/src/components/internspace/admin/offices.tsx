@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { RADIUS_MAX, RADIUS_MIN, formatCoord, validateOffice } from "@/lib/mock-rules";
+import { RADIUS_MAX, RADIUS_MIN, formatCoord, validateOffice } from "@/lib/utils";
 import type {
   AdminAirport,
   AdminOffice,

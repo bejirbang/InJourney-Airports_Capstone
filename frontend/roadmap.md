@@ -21,5 +21,5 @@ Panduan lengkap dan log progres per fitur ada di [`progress.md`](progress.md).
 - [x] Fase 3: Mentor (dashboard, intern saya, review logbook, koreksi, izin, kalender, performa, input nilai)
 - [x] Fase 4: Admin (dashboard, pengguna, presensi, koreksi, izin, presentasi, penilaian, warning, pengumuman, laporan, pengaturan, lokasi & jadwal, log)
 - [x] Fase 5: Lonceng, chat, real-time
-- [ ] Fase 6: Hapus Task, data contoh, dan tombol Simulasi
+- [x] Fase 6: Hapus Task, data contoh, dan tombol Simulasi
 - [ ] Pemeriksaan visual setiap halaman di browser (desktop dan lebar ponsel)

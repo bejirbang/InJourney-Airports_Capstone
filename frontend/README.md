@@ -8,7 +8,7 @@ Proyek ini juga tersambung ke [Lovable](https://lovable.dev/projects/3735cd30-9f
 
 ## Status
 
-Sedang diintegrasikan dari prototipe (data contoh) ke API. Lihat:
+Integrasi API Fase 0-6 selesai; data contoh dan `MockProvider` sudah dihapus. Uji live dua browser dan Reverb menunggu PostgreSQL/Reverb lokal. Lihat:
 
 | Dokumen | Isi |
 |---|---|

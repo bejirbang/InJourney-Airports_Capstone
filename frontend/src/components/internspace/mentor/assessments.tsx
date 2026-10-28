@@ -10,7 +10,7 @@ import {
   PRESENTATION_STATUS_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatDate, formatDateTime, formatPeriod } from "@/lib/mock-rules";
+import { formatDate, formatDateTime, formatPeriod } from "@/lib/utils";
 import type {
   MentorAssessmentDetail,
   MentorAssessmentIndicator,

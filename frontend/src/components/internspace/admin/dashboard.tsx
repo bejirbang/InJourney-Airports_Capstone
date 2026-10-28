@@ -17,7 +17,7 @@ import {
   LEAVE_TYPE_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatDate, formatDateLong, formatShort, formatShortTime } from "@/lib/mock-rules";
+import { formatDate, formatDateLong, formatShort, formatShortTime } from "@/lib/utils";
 import type {
   AdminActionBox,
   AdminEndingInternship,

@@ -1,21 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TODAY, formatShort, isWorkingDay } from "@/lib/mock-rules";
+import { formatShort, shortName } from "@/lib/utils";
 import type { AdminTodayRow } from "@/lib/endpoints/admin";
-import { shortName, useMock } from "@/components/internspace/shared/model";
 import { Empty, Panel } from "@/components/internspace/shared/ui";
-
-export function HolidayBanner() {
-  const m = useMock();
-  if (isWorkingDay(TODAY, m.holidayDates)) return null;
-  return (
-    <div className="banner info">
-      <CalendarOff size={16} />
-      Hari ini hari libur: {m.holidayName(TODAY) ?? "akhir pekan"}.
-    </div>
-  );
-}
 
 export function Metric({
   label,
@@ -43,28 +30,12 @@ export interface AnnouncementItem {
   created_at: string | null;
 }
 
-/**
- * Daftar pengumuman. Halaman intern mengirim `items` dari `GET /api/intern/dashboard`;
- * tanpa `items`, role lain masih memakai data contoh sampai fasenya tiba.
- */
-export function AnnouncementList({ items }: { items?: AnnouncementItem[] }) {
-  const m = useMock();
-  const list: AnnouncementItem[] =
-    items ??
-    m.announcements
-      .filter((a) => a.audience.includes(m.role))
-      .slice(0, 3)
-      .map((a) => ({
-        id: a.id,
-        title: a.title,
-        body: a.text,
-        author_name: a.author,
-        created_at: a.date,
-      }));
-  if (list.length === 0) return null;
+/** Daftar pengumuman dari `GET /api/{role}/dashboard`. */
+export function AnnouncementList({ items }: { items: AnnouncementItem[] }) {
+  if (items.length === 0) return null;
   return (
     <Panel title="Pengumuman" subtitle="Dari admin untuk role Anda.">
-      {list.map((a) => (
+      {items.map((a) => (
         <div className="announcement" key={a.id}>
           <div>
             <h3>{a.title}</h3>

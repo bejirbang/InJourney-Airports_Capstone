@@ -3,7 +3,7 @@ import { ArrowLeft, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/mock-rules";
+import { formatDateTime } from "@/lib/utils";
 import { type PageSearch } from "@/lib/search";
 import {
   useAdminWarningInterns,

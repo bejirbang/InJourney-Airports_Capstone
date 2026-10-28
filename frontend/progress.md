@@ -401,7 +401,7 @@ Field **yang sudah tidak ada**: `title`, `photo_url`, `intern_profile.mentor_id`
 
 | File | Aksi | Yang dilakukan |
 |---|---|---|
-| `shared/shell.tsx` | Ubah | Role diambil dari `useAuth().user.role` (pakai `toMockRole`), **bukan** dari `useMock()`. Badge menu dari `GET /api/{role}/menu` (`data[].key`, `badge`). Hapus menu Task. Tambah menu baru sesuai 4.3. Hapus tombol **Simulasi** (di Fase 6, setelah semua halaman tersambung) |
+| `shared/shell.tsx` | Ubah | Role diambil dari `useAuth().user.role` (pakai `toDisplayRole`), **bukan** dari data contoh. Badge menu dari `GET /api/{role}/menu` (`data[].key`, `badge`). Hapus menu Task. Tambah menu baru sesuai 4.3. Hapus tombol **Simulasi** (di Fase 6, setelah semua halaman tersambung) |
 | `shared/role-pages.tsx` | Ubah | Tambah pemilih komponen untuk `/logbook`, `/koreksi`, `/presentasi`, `/penilaian` |
 
 | Endpoint | Baca |
@@ -1274,8 +1274,8 @@ Kerjakan setelah Fase 1-5 selesai.
 | `frontend/CLAUDE.md` | Ubah: hapus keterangan "Dihapus bertahap" untuk `model.tsx` dan `mock-rules.ts` |
 
 **Selesai jika (Fase 6):**
-- [ ] `grep -r "useMock\|MockProvider\|taskApi\|daily-report\|photo_url" src` tidak menemukan apa pun
-- [ ] `npm run test`, `npm run lint`, `npm run build` lulus
+- [x] `grep -r "useMock\|MockProvider\|taskApi\|daily-report\|photo_url" src` tidak menemukan apa pun
+- [x] `npm run test` dan `npm run build` lulus; ESLint + Prettier untuk file yang berubah lulus. `npm run lint` seluruh repo masih gagal karena CRLF/Prettier lama di file yang tidak disentuh (bukan regresi Fase 6).
 
 ---
 
@@ -1400,7 +1400,7 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 5 | Koneksi WebSocket | 9.1 | | [x] 2026-10-28 |
 | 5 | Lonceng | 9.2 | | [x] 2026-10-28 |
 | 5 | Chat | 9.3 | | [x] 2026-10-28 |
-| 6 | Bersih-bersih | 10 | | [ ] |
+| 6 | Bersih-bersih | 10 | | [x] 2026-10-28 |
 
 Catatan Fase 2 (2026-10-27): `npx tsc --noEmit`, `npm run test` (141 tes), `npm run build`, serta ESLint + Prettier untuk file yang berubah lolos. Smoke test ke API langsung belum dijalankan ulang karena PostgreSQL lokal (port 5432) tidak aktif; kontrak field mengikuti kode backend dan diuji lewat stub. Tidak ada kebutuhan perubahan backend baru.
 
@@ -1409,3 +1409,5 @@ Catatan Fase 3 (2026-10-27): dashboard, Intern Saya (6 tab), review logbook, kor
 Catatan Fase 4 (2026-10-28): seluruh halaman admin memakai `adminApi` dan React Query; tidak ada lagi `useMock()` di folder `admin/`. Filter bandara global disimpan di parameter URL `airport_id`. Dashboard, pengguna (termasuk tambah intern dan password sementara sekali tampil), presensi, koreksi, izin, presentasi, penilaian read-only, warning, pengumuman, laporan Excel/PDF, pengaturan, lokasi & jadwal, serta log aktivitas mengikuti `can_*`/`action`/`state` dan pesan server. Logbook admin dipindah ke tab detail pengguna. Verifikasi: `npx tsc --noEmit`, `npm run test` (150 tes), `npm run build`, serta ESLint (0 error, 3 warning fast-refresh) dan Prettier untuk 38 file TS/TSX yang berubah lolos; `styles.css` hanya ditambah satu aturan agar diff tetap kecil. Smoke test langsung tetap tertunda karena PostgreSQL lokal tidak aktif; alur admin diuji lewat stub endpoint. Tidak ada kebutuhan perubahan backend baru.
 
 Catatan Fase 5 (2026-10-28): Echo + Reverb tersambung saat status `authed` dan diputus saat logout/401. Lonceng memakai cursor `GET /api/notifications`, klik menandai dibaca lalu membuka route dari `link_path` + `link_params`; notifikasi pengumuman membuka dialog detail `GET /api/announcements/{id}`. Chat dibuka dengan `?to=<id>`, memakai daftar percakapan/kontak, riwayat 30 pesan per halaman, kirim teks, tanda Dibaca, indikator mengetik lewat whisper, presence online, dan `can_send`. Event `.notification.sent`, `.notifications.read`, `.notifications.changed`, `.chat.message`, dan `.chat.read` memperbarui cache React Query tanpa polling. Verifikasi: `npx tsc --noEmit`, `npm run test` (157 tes), `npm run build`, ESLint (0 error, 1 warning fast-refresh lama), dan Prettier untuk file TS/TSX yang berubah lolos; `styles.css` hanya ditambah aturan indikator online. Smoke test dua browser dan Reverb langsung belum dijalankan karena PostgreSQL/Reverb lokal tidak aktif; alur real-time diuji lewat stub event. `npm audit` melaporkan 4 kerentanan (2 moderate dari Vitest, 2 high dari Vite/Zod); perbaikannya memerlukan upgrade di luar rentang versi saat ini sehingga belum dilakukan. Tidak ada kebutuhan perubahan backend baru.
+
+Catatan Fase 6 (2026-10-28): `MockProvider`, `shared/model.tsx`, `mock-rules.ts` beserta `mock-rules.test.ts`/`admin-rules.test.ts`/`role-rules.test.ts`, komponen input file, tombol Simulasi, dan data contoh login dihapus. File Task memang sudah tidak ada sejak fase awal. Helper tanggal/format, `initials`, `shortName`, `Role`, `LeaveType`, validasi password, serta helper lokasi kantor dipindah ke `src/lib/utils.ts`. Selector CSS Task/Kanban/Simulasi yang sudah tidak dipakai juga dihapus. `pages.test.tsx` memakai `AuthProvider` + stub `fetch` tanpa `MockProvider`; role halaman diambil dari sesi API. Verifikasi: acceptance grep kosong, `npx tsc --noEmit`, `npm run test` (99 tes), `npm run build`, serta ESLint (0 error, 1 warning fast-refresh lama) + Prettier untuk file TS/TSX yang berubah. `npm run lint` seluruh repo masih gagal karena 10.749 error CRLF/Prettier lama di file yang tidak disentuh, bukan regresi Fase 6. Smoke test live tetap tertunda karena PostgreSQL/Reverb lokal tidak aktif; `npm audit` masih melaporkan 4 kerentanan yang sama. Tidak ada kebutuhan perubahan backend baru.

@@ -2,13 +2,13 @@
 
 Sistem web untuk mengelola intern InJourney Airports: presensi berbasis lokasi, logbook harian, koreksi presensi, izin, presentasi akhir, penilaian, dan komunikasi antara intern, mentor, dan admin. Proyek ini adalah capstone design project.
 
-## Status per 25 Oktober 2026
+## Status per 28 Oktober 2026
 
 | Bagian | Status |
 | --- | --- |
 | Dokumen desain | Revisi dari wawancara mitra 22 Okt 2026 (design-intern Draft 3, design-mentor Draft 2, design-admin Draft 3) |
 | Backend (Laravel API) | Selesai mengikuti dokumen desain terbaru: presensi, logbook, koreksi dua tahap, izin dengan kuota, presentasi, penilaian, Lokasi & Jadwal, dashboard, laporan, notifikasi, chat. Murni API, sudah diuji (808 test) |
-| Frontend (TanStack Start) | Prototipe dengan data contoh, **masih berbasis desain lama** (Task, Daily Report, upload file). Belum tersambung ke API |
+| Frontend (TanStack Start) | Terintegrasi API untuk Fase 0-6: autentikasi, seluruh halaman per role, laporan, serta chat/notifikasi real-time. Data contoh dan `MockProvider` sudah dihapus. Uji live menunggu PostgreSQL/Reverb lokal |
 | Deployment | Belum. Host untuk API dan WebSocket belum dipilih |
 
 ## Dokumen penting
@@ -100,7 +100,7 @@ Browser (frontend TanStack Start, di Vercel)
 │   └── src/
 │       ├── routes/           Satu berkas per halaman
 │       ├── components/internspace/   Komponen halaman per role (intern, mentor, admin, shared)
-│       └── lib/mock-rules.ts Aturan bisnis prototipe (desain lama)
+│       └── lib/utils.ts      Helper tanggal/format, nama, dan validasi form sisi klien
 └── backend/                  REST API (Laravel)
     ├── progress.md           Progres, keputusan, dan catatan integrasi frontend
     ├── app/Services/         Aturan bisnis (presensi, logbook, koreksi, izin, penilaian, jadwal, dashboard, laporan)
@@ -174,9 +174,9 @@ npm install
 npm run dev
 ```
 
-Semua data di prototipe masih data contoh (`src/components/internspace/shared/model.tsx`), dengan tanggal tetap 12 Oktober 2026. Prototipe belum mengikuti dokumen desain terbaru, jadi perlu disesuaikan saat disambungkan ke API.
+Frontend memakai API Laravel; data contoh, `MockProvider`, dan `mock-rules.ts` sudah dihapus pada Fase 6. Status per fase dan catatan verifikasi ada di [`frontend/progress.md`](frontend/progress.md).
 
-## Menyambungkan frontend ke backend
+## Integrasi frontend ke backend
 
 Panduan lengkap ada di [`backend/progress.md`](backend/progress.md), bagian **"Catatan integrasi frontend setelah rombak"**. Ringkasnya:
 

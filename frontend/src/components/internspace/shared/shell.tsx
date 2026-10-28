@@ -10,7 +10,6 @@ import {
   Clock3,
   FileDown,
   FileClock,
-  FlaskConical,
   History,
   LayoutDashboard,
   LogOut,
@@ -42,19 +41,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Toaster } from "@/components/ui/sonner";
-import { TODAY, formatPeriod, formatShortTime, type Role } from "@/lib/mock-rules";
-import { toMockRole, type ApiRole } from "@/lib/api";
+import { TODAY, formatPeriod, formatShortTime, initials, type Role } from "@/lib/utils";
+import { toDisplayRole, type ApiRole } from "@/lib/api";
 import { menuLabel, menuRoute, notificationRoute } from "@/lib/navigation";
 import { pageSearch, type AppPath } from "@/lib/search";
 import { useMenu } from "@/components/internspace/shared/menu-data";
-import {
-  LOCATION_LABELS,
-  initials,
-  useMock,
-  type LocationSim,
-  type Scenario,
-} from "@/components/internspace/shared/model";
-import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
+import { LoadingState, NoAccess } from "@/components/internspace/shared/ui";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -178,22 +170,20 @@ const menuIcons: Record<string, LucideIcon> = {
 };
 
 export function Workspace({ children }: { children: ReactNode }) {
-  const m = useMock();
   const auth = useAuth();
   const path = useLocation().pathname;
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
-  const [dataState, setDataState] = useState<"normal" | "memuat" | "gagal">("normal");
 
-  // Kunci di ganti-password selama akun wajib ganti password (mock atau sesi API).
-  const needPasswordChange = m.mustChangePassword || auth.user?.must_change_password === true;
+  // Kunci di ganti-password selama akun wajib ganti password.
+  const needPasswordChange = auth.user?.must_change_password === true;
   useEffect(() => {
     if (needPasswordChange) void navigate({ to: "/ganti-password" });
   }, [needPasswordChange, navigate]);
 
-  // Role tampilan dari sesi API, bukan dari simulasi prototipe (progress.md 5.2).
+  // Role tampilan dari sesi API (progress.md 5.2).
   const apiRole: ApiRole | null = auth.user?.role ?? null;
-  const role: Role | null = apiRole ? toMockRole[apiRole] : null;
+  const role: Role | null = apiRole ? toDisplayRole[apiRole] : null;
 
   // Sidebar dari server (key + badge); label Indonesia dan ikon dari frontend.
   // Selama memuat atau bila gagal, tampilkan daftar statis tanpa badge agar navigasi tetap jalan.
@@ -216,11 +206,11 @@ export function Workspace({ children }: { children: ReactNode }) {
   const chat = useChatConversations("", apiRole !== null);
   const chatUnread = chat.data?.unread_total ?? 0;
 
-  // Periode magang di sidebar memakai data API bila ada, cadangan data prototipe.
+  // Periode magang di sidebar dari `intern_profile` pada sesi API.
   const internProfile = auth.user?.intern_profile;
-  const programStart = internProfile?.start_date ?? m.me.start;
-  const programEnd = internProfile?.end_date ?? m.me.end;
-  const programMentor = internProfile?.mentor.name ?? m.me.mentor;
+  const programStart = internProfile?.start_date;
+  const programEnd = internProfile?.end_date;
+  const programMentor = internProfile?.mentor.name ?? "-";
   const progress = (() => {
     if (!programStart || !programEnd) return 0;
     const total = Date.parse(programEnd) - Date.parse(programStart);
@@ -269,7 +259,7 @@ export function Workspace({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          {role === "Intern" && programStart && (
+          {role === "Intern" && programStart && programEnd && (
             <div className="program-card">
               <div className="flex items-center gap-2 font-semibold text-xs">
                 <Plane size={15} className="text-primary" /> Periode magang
@@ -307,7 +297,6 @@ export function Workspace({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="topbar-right">
-            <SimulationControl dataState={dataState} setDataState={setDataState} />
             <Button
               variant="ghost"
               size="icon"
@@ -322,18 +311,18 @@ export function Workspace({ children }: { children: ReactNode }) {
             <NotificationBell enabled={apiRole !== null} />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
-                <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
+                <span className="avatar">{initials(auth.user?.name ?? "Memuat")}</span>
                 <span className="profile-name">
-                  <strong className="text-[11px]">{auth.user?.name ?? m.me.name}</strong>
+                  <strong className="text-[11px]">{auth.user?.name ?? "Memuat"}</strong>
                   <small>{role ?? ""}</small>
                 </span>
                 <ChevronDown size={12} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>
-                  {auth.user?.name ?? m.me.name}
+                  {auth.user?.name ?? "Memuat"}
                   <small className="block font-normal text-muted-foreground">
-                    {auth.user?.email ?? m.me.email}
+                    {auth.user?.email ?? ""}
                   </small>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -347,7 +336,6 @@ export function Workspace({ children }: { children: ReactNode }) {
                   onClick={() => {
                     void (async () => {
                       await auth.logout();
-                      m.setMustChangePassword(false);
                       await navigate({ to: "/login" });
                     })();
                   }}
@@ -360,20 +348,10 @@ export function Workspace({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="content">
-          {!role ? (
-            <LoadingState />
-          ) : !canOpen ? (
-            <NoAccess />
-          ) : dataState === "memuat" ? (
-            <LoadingState />
-          ) : dataState === "gagal" ? (
-            <ErrorState onRetry={() => setDataState("normal")} />
-          ) : (
-            children
-          )}
+          {!role ? <LoadingState /> : !canOpen ? <NoAccess /> : children}
           <footer className="workspace-footer">
             <span>© 2026 InJourney Airports. All rights reserved.</span>
-            <span>Intern Management & Attendance System · Prototipe</span>
+            <span>Intern Management & Attendance System</span>
           </footer>
         </main>
       </div>
@@ -481,92 +459,6 @@ function NotificationBell({ enabled }: { enabled: boolean }) {
             </div>
           )}
         </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-const scenarioLabels: Record<Scenario, string> = {
-  kerja: "Hari kerja biasa",
-  libur: "Hari ini libur",
-  izin: "Intern punya izin disetujui hari ini",
-  luar: "Intern di luar periode magang",
-};
-
-/** Kontrol khusus prototipe: berganti role dan mencoba kondisi khusus di dokumen desain. */
-function SimulationControl({
-  dataState,
-  setDataState,
-}: {
-  dataState: "normal" | "memuat" | "gagal";
-  setDataState: (s: "normal" | "memuat" | "gagal") => void;
-}) {
-  const m = useMock();
-  const navigate = useNavigate();
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="sim-trigger">
-          <FlaskConical />
-          Simulasi<span className="sim-role">· {m.role}</span>
-          <ChevronDown size={12} />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 grid gap-3 text-xs">
-        <div>
-          <strong className="text-sm">Simulasi prototipe</strong>
-          <p className="text-muted-foreground mt-1">
-            Tidak ada di sistem sungguhan. Data hidup selama sesi.
-          </p>
-        </div>
-        <label className="form-field">
-          Lihat sebagai role
-          <select
-            value={m.role}
-            onChange={(e) => {
-              m.setRole(e.target.value as Role);
-              void navigate({ to: "/" });
-            }}
-          >
-            <option>Intern</option>
-            <option>Mentor</option>
-            <option>Admin</option>
-          </select>
-        </label>
-        <label className="form-field">
-          Kondisi hari ini (Sen, 12 Okt 2026)
-          <select value={m.scenario} onChange={(e) => m.setScenario(e.target.value as Scenario)}>
-            {Object.entries(scenarioLabels).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          Posisi intern saat clock in dan clock out
-          <select
-            value={m.locationSim}
-            onChange={(e) => m.setLocationSim(e.target.value as LocationSim)}
-          >
-            {Object.entries(LOCATION_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-field">
-          Kondisi layar
-          <select
-            value={dataState}
-            onChange={(e) => setDataState(e.target.value as typeof dataState)}
-          >
-            <option value="normal">Normal</option>
-            <option value="memuat">Memuat</option>
-            <option value="gagal">Gagal dimuat</option>
-          </select>
-        </label>
       </PopoverContent>
     </Popover>
   );

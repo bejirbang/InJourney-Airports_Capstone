@@ -18,7 +18,7 @@ import {
   MISSED_CLOCK_OUT_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { TODAY, formatDate, formatShort, formatShortTime } from "@/lib/mock-rules";
+import { TODAY, formatDate, formatShort, formatShortTime } from "@/lib/utils";
 import type { ApiLogbookAction, ApiLogbookListDay, ApiLogbookState } from "@/lib/endpoints/intern";
 import { type PageSearch } from "@/lib/search";
 import { useInternDashboard } from "@/components/internspace/intern/dashboard-data";

@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatDateTime } from "@/lib/mock-rules";
+import { formatDateTime } from "@/lib/utils";
 import type { AdminAnnouncement } from "@/lib/endpoints/admin";
 import {
   useAdminAnnouncements,

@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api";
-import { formatShortTime } from "@/lib/mock-rules";
+import { formatShortTime } from "@/lib/utils";
 import type { ApiAssessment, ApiAssessmentIndicator } from "@/lib/endpoints/intern";
 import { useAssessment, useWarnings } from "@/components/internspace/intern/notes-data";
 import {

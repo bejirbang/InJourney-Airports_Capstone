@@ -14,7 +14,6 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { MockProvider } from "@/components/internspace/shared/model";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { Workspace } from "@/components/internspace/shared/shell";
 
@@ -129,9 +128,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <AuthProvider>
-        <MockProvider>
-          <AuthGate />
-        </MockProvider>
+        <AuthGate />
       </AuthProvider>
     </QueryClientProvider>
   );

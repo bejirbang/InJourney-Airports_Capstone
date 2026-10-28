@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Lock, Paperclip, RotateCw } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,16 +8,7 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DOCUMENT_EXTENSIONS,
-  MAX_FILE_MB,
-  TODAY,
-  addMonths,
-  formatDateLong,
-  formatMonth,
-  validateEvidenceFile,
-} from "@/lib/mock-rules";
-import { initials } from "@/components/internspace/shared/model";
+import { TODAY, addMonths, formatDateLong, formatMonth, initials } from "@/lib/utils";
 
 export function PageHeading({
   title,
@@ -284,7 +275,7 @@ export function Confirm({
 
 /**
  * Nama file hasil beserta aksinya. File dari API tidak punya URL publik, jadi `onDownload`
- * mengambilnya lewat token; tanpa itu tombol Pratinjau/Unduh tampil sebagai prototipe.
+ * mengambilnya lewat token.
  */
 export function Attachment({
   name,
@@ -371,38 +362,10 @@ export function NoAccess() {
       <PageHeading title="Akses terbatas" />
       <Panel title="Anda tidak memiliki akses ke halaman ini.">
         <p className="detail-copy px-5 pb-5">
-          Menu ini tidak tersedia untuk role yang sedang dipilih. Gunakan menu di samping.
+          Menu ini tidak tersedia untuk role akun Anda. Gunakan menu di samping.
         </p>
       </Panel>
     </>
-  );
-}
-
-/**
- * Input file lampiran bukti (izin dan koreksi). Jenis file dibatasi PDF, Word, Excel, atau
- * PowerPoint, dan ukuran maksimal 2 MB (keputusan 13 Okt 2026). File yang ditolak tidak dipakai.
- */
-export function FileField({ label, onFile }: { label: string; onFile: (name: string) => void }) {
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <label className="form-field">
-      {label}
-      <input
-        type="file"
-        accept={DOCUMENT_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          const err = file ? validateEvidenceFile(file) : null;
-          setError(err);
-          if (err) e.target.value = "";
-          onFile(file && !err ? file.name : "");
-        }}
-      />
-      <small className="text-muted-foreground">
-        {DOCUMENT_EXTENSIONS.join(", ").toUpperCase()}. Maksimal {MAX_FILE_MB} MB.
-      </small>
-      <FormError text={error} />
-    </label>
   );
 }
 

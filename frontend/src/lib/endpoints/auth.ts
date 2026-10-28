@@ -2,7 +2,7 @@ import { request, setToken, unwrap, type ApiRole } from "@/lib/api";
 
 // Endpoint autentikasi (/api/auth/*). Tanpa unggah foto: avatar memakai inisial nama
 // (progress.md 4.1). Tipe user mengikuti UserResource backend (progress.md 5.1):
-// `unit` menggantikan `title`; `title`, `photo_url`, dan `intern_profile.mentor_id` sudah dihapus.
+// `unit` menggantikan `title`; `title`, foto profil, dan `intern_profile.mentor_id` sudah dihapus.
 
 /** Bentuk `GET /api/auth/me`, `POST /api/auth/login`, `PUT /api/auth/password`, dan `PUT /api/auth/profile`. */
 export interface ApiUser {

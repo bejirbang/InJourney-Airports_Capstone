@@ -10,7 +10,7 @@ import {
   LEAVE_TYPE_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatDate, formatRange } from "@/lib/mock-rules";
+import { formatDate, formatRange } from "@/lib/utils";
 import type {
   MentorDashboard as MentorDashboardData,
   MentorTodayRow,

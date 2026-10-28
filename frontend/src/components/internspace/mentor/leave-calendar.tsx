@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
-import { TODAY, formatMonth, formatRange } from "@/lib/mock-rules";
+import { TODAY, formatMonth, formatRange } from "@/lib/utils";
 import type { MentorLeaveCalendarDay, MentorLeaveCalendarEntry } from "@/lib/endpoints/mentor";
 import { useMentorLeaveCalendar } from "@/components/internspace/mentor/leave-calendar-data";
 import { useMentorInterns } from "@/components/internspace/mentor/interns-data";

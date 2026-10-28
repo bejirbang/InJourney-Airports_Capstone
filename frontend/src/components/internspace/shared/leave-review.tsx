@@ -12,7 +12,7 @@ import {
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatDateTime, formatRange } from "@/lib/mock-rules";
+import { formatDate, formatDateTime, formatRange } from "@/lib/utils";
 import type { ApiLeaveType } from "@/lib/endpoints/intern";
 import type { ReviewerLeave } from "@/lib/endpoints/mentor";
 import { type PageSearch } from "@/lib/search";

@@ -13,7 +13,7 @@ import {
   PRESENTATION_STATUS_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { TODAY, formatDate, formatDateTime, formatPeriod, formatRange } from "@/lib/mock-rules";
+import { TODAY, formatDate, formatDateTime, formatPeriod, formatRange } from "@/lib/utils";
 import type {
   MentorAssessmentDetail,
   MentorInternFilter,

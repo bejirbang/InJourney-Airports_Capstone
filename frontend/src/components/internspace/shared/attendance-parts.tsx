@@ -8,7 +8,7 @@ import {
   MISSED_CLOCK_OUT_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatDate } from "@/lib/mock-rules";
+import { formatDate } from "@/lib/utils";
 import type { ApiAttendanceDayDetail, ApiAttendanceRecap } from "@/lib/endpoints/intern";
 import {
   DetailList,

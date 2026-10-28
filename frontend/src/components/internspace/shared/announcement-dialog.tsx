@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { internToken } from "@/lib/api";
 import { announcementApi } from "@/lib/endpoints/shared";
-import { formatShort } from "@/lib/mock-rules";
+import { formatShort } from "@/lib/utils";
 import type { AppPath, PageSearch } from "@/lib/search";
 
 /**

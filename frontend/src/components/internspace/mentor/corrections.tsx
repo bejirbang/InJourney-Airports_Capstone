@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { ATTENDANCE_STATUS_LABEL, CORRECTION_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatDateTime } from "@/lib/mock-rules";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import type { MentorCorrectionTab } from "@/lib/endpoints/mentor";
 import { type PageSearch } from "@/lib/search";
 import { useMentorInterns } from "@/components/internspace/mentor/interns-data";

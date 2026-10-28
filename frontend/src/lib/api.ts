@@ -1,4 +1,4 @@
-import type { Role } from "@/lib/mock-rules";
+import type { Role } from "@/lib/utils";
 
 // Klien REST API Laravel untuk autentikasi (Sanctum mode token/Bearer).
 // Basis URL diambil dari VITE_API_URL, bawaan http://localhost:8000 (php artisan serve).
@@ -9,7 +9,7 @@ export type ApiRole = "intern" | "mentor" | "admin";
 // Tipe `ApiUser` ada di src/lib/endpoints/auth.ts (progress.md 5.1).
 
 /** Role API (huruf kecil) ke Role tampilan (huruf kapital). */
-export const toMockRole: Record<ApiRole, Role> = {
+export const toDisplayRole: Record<ApiRole, Role> = {
   intern: "Intern",
   mentor: "Mentor",
   admin: "Admin",

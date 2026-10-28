@@ -6,10 +6,9 @@ import {
   type ApiLeaveType,
   type LeaveListParams,
 } from "@/lib/endpoints/intern";
-import type { LeaveType } from "@/lib/mock-rules";
+import type { LeaveType } from "@/lib/utils";
 
 // Integrasi halaman Izin intern dengan backend (docs/design-intern.md Alur 11).
-// Data contoh di MockProvider hanya dipakai role Mentor dan Admin.
 
 /** Kunci dasar riwayat izin intern; invalidate atas ini menyegarkan daftar dan kuota. */
 export const LEAVES_KEY = ["intern", "leaves"] as const;

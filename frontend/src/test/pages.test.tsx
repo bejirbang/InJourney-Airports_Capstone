@@ -2,7 +2,7 @@ import { forwardRef, type ReactNode } from "react";
 import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Role } from "@/lib/mock-rules";
+import type { Role } from "@/lib/utils";
 import { UNAUTHORIZED_EVENT } from "@/lib/api";
 import type {
   MentorAssessmentDetail,
@@ -169,7 +169,6 @@ const realtime = vi.hoisted(() => {
 });
 vi.mock("@/lib/realtime", () => realtime);
 
-const { MockProvider } = await import("@/components/internspace/shared/model");
 const { AuthProvider, useAuth } = await import("@/lib/auth");
 const { Workspace } = await import("@/components/internspace/shared/shell");
 const {
@@ -1303,7 +1302,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 /** Path tanpa query, untuk mencocokkan endpoint di stub fetch. */
 const path0 = (url: string) => url.split("?")[0] ?? url;
 
-/** Role akun untuk stub `/api/auth/me`; disetel `show()` agar selari dengan MockProvider. */
+/** Role akun untuk stub `/api/auth/me`; disetel `show()`. */
 let authRole: Role = "Intern";
 
 /** Data intern contoh (bentuk `intern_profile` pada UserResource). */
@@ -2637,9 +2636,7 @@ const show = (role: Role, page: ReactNode, path = "/") => {
       }
     >
       <AuthProvider>
-        <MockProvider initialRole={role}>
-          <Workspace>{page}</Workspace>
-        </MockProvider>
+        <Workspace>{page}</Workspace>
       </AuthProvider>
     </QueryClientProvider>,
   );
@@ -2804,17 +2801,13 @@ describe("Setiap halaman dapat dirender", () => {
   it("halaman akun", () => {
     render(
       <AuthProvider>
-        <MockProvider>
-          <LoginPage />
-        </MockProvider>
+        <LoginPage />
       </AuthProvider>,
     );
     expect(screen.getByText("Lupa password? Hubungi admin.")).toBeInTheDocument();
     render(
       <AuthProvider>
-        <MockProvider>
-          <ChangePasswordPage />
-        </MockProvider>
+        <ChangePasswordPage />
       </AuthProvider>,
     );
     expect(screen.getByText("Simpan Password")).toBeInTheDocument();
@@ -2972,9 +2965,7 @@ describe("Login dan profil (Fase 1)", () => {
     async (email) => {
       render(
         <AuthProvider>
-          <MockProvider initialRole="Intern">
-            <LoginPage />
-          </MockProvider>
+          <LoginPage />
         </AuthProvider>,
       );
       fillLogin(email);
@@ -2985,9 +2976,7 @@ describe("Login dan profil (Fase 1)", () => {
   it("intern.baru@injourney.test diarahkan ke Ganti Password lebih dulu", async () => {
     render(
       <AuthProvider>
-        <MockProvider initialRole="Intern">
-          <LoginPage />
-        </MockProvider>
+        <LoginPage />
       </AuthProvider>,
     );
     fillLogin("intern.baru@injourney.test");

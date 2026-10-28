@@ -7,7 +7,7 @@ import {
   LEAVE_TYPE_LABEL,
   labelOf,
 } from "@/lib/labels";
-import { formatMonth, formatPeriod, formatShort } from "@/lib/mock-rules";
+import { formatMonth, formatPeriod, formatShort } from "@/lib/utils";
 import type { ApiPresentationBanner } from "@/lib/endpoints/intern";
 import { TodayCard } from "@/components/internspace/intern/attendance";
 import { useInternDashboard } from "@/components/internspace/intern/dashboard-data";

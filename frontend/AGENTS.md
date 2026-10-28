@@ -11,7 +11,7 @@
 
 ## Status proyek
 
-Aplikasi ini sedang diintegrasikan dari prototipe (data contoh) ke API Laravel di `backend/`. Panduan kerja per fitur ada di `progress.md` (folder ini). Ikuti urutan fasenya.
+Aplikasi ini sudah diintegrasikan ke API Laravel di `backend/` untuk Fase 0-6. Panduan kerja dan log verifikasi ada di `progress.md` (folder ini).
 
 ## Batasan wajib
 
@@ -26,7 +26,7 @@ Aplikasi ini sedang diintegrasikan dari prototipe (data contoh) ke API Laravel d
 4. **Tombol mengikuti flag dari server** (`can_*`, `action`, `state`). Jangan menulis aturan sendiri untuk menyalakan atau mematikan tombol.
 5. **Pesan `message` dari server ditampilkan apa adanya.**
 6. **Fitur yang sudah dihapus dan tidak boleh dibuat lagi:** Task/Kanban, Daily Report, upload file (bukti, foto profil), pengaturan jam kerja global, hapus bandara/titik presensi/unit.
-7. **Jangan menambah fitur baru di atas data contoh** (`MockProvider`, `mock-rules.ts`). Data contoh dihapus bertahap sesuai `progress.md` Fase 6.
+7. **Jangan menambah fitur baru di atas data contoh.** `MockProvider` dan `mock-rules.ts` sudah dihapus pada Fase 6; semua halaman memakai API dan React Query.
 8. **Jangan polling API** di latar belakang. Pembaruan real-time lewat WebSocket (Laravel Reverb).
 9. **Jangan mengarang nama endpoint atau field.** Jika tidak ada di `progress.md` atau kode backend, cek respons nyata atau tanyakan.
 10. **Jangan menyimpan token atau password sementara** selain token sesi di `localStorage` lewat `src/lib/api.ts`. Password sementara dari admin hanya ditampilkan sekali.

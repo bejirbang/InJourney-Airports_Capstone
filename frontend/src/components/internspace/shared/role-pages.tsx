@@ -15,31 +15,30 @@ import { MentorCorrections } from "@/components/internspace/mentor/corrections";
 import { MentorDashboard } from "@/components/internspace/mentor/dashboard";
 import { MentorLogbookReview } from "@/components/internspace/mentor/logbook-review";
 import { ReviewerLeave } from "@/components/internspace/shared/leave-review";
-import { useMock } from "@/components/internspace/shared/model";
-import { NoAccess, PageHeading, Panel } from "@/components/internspace/shared/ui";
+import { NoAccess, PageHeading } from "@/components/internspace/shared/ui";
 import { useAuth } from "@/lib/auth";
 
 export function Dashboard() {
-  const m = useMock();
   const auth = useAuth();
+  const role = auth.user?.role;
   return (
     <>
       <PageHeading title="Dashboard" />
       <section className="welcome-banner compact">
         <img src={airport} width={1600} height={608} alt="Terminal dan apron bandara" />
         <div className="welcome-copy">
-          <span className="eyebrow">INJOURNEY AIRPORTS · {m.role.toUpperCase()}</span>
-          <h2>Selamat datang, {(auth.user?.name ?? m.me.name).split(" ")[0]}</h2>
+          <span className="eyebrow">INJOURNEY AIRPORTS · {(role ?? "").toUpperCase()}</span>
+          <h2>Selamat datang, {auth.user?.name.split(" ")[0] ?? ""}</h2>
           <p>
-            {m.role === "Intern"
+            {role === "intern"
               ? "Cek status hari ini dan logbook yang perlu diisi."
               : "Berikut hal yang perlu ditindak hari ini."}
           </p>
         </div>
       </section>
-      {m.role === "Intern" ? (
+      {role === "intern" ? (
         <InternDashboard />
-      ) : m.role === "Mentor" ? (
+      ) : role === "mentor" ? (
         <MentorDashboard />
       ) : (
         <AdminDashboard />
@@ -49,79 +48,58 @@ export function Dashboard() {
 }
 
 export function AttendancePage() {
-  const m = useMock();
-  return m.role === "Admin" ? <AdminAttendance /> : <InternAttendance />;
+  return useAuth().user?.role === "admin" ? <AdminAttendance /> : <InternAttendance />;
 }
 
 export function LeavePage() {
-  const m = useMock();
-  return m.role === "Intern" ? <InternLeave /> : <ReviewerLeave />;
+  return useAuth().user?.role === "intern" ? <InternLeave /> : <ReviewerLeave />;
 }
 
-/** Isi sementara route baru; diganti komponen asli pada fase berikutnya (progress.md 5.2). */
-function PendingPage({ title }: { title: string }) {
-  return (
-    <>
-      <PageHeading title={title} />
-      <Panel title={title}>
-        <p className="px-5 pb-5 text-sm text-muted-foreground">
-          Bagian ini sedang disiapkan pada fase berikutnya.
-        </p>
-      </Panel>
-    </>
-  );
-}
-
-/** Fase 2 (intern) dan Fase 3 (mentor) mengisi halaman ini. */
 export function LogbookPage() {
-  const m = useMock();
-  return m.role === "Intern" ? (
+  const role = useAuth().user?.role;
+  return role === "intern" ? (
     <InternLogbook />
-  ) : m.role === "Mentor" ? (
+  ) : role === "mentor" ? (
     <MentorLogbookReview />
   ) : (
     <NoAccess />
   );
 }
 
-/** Fase 2 (intern) dan Fase 4 (admin) mengisi halaman ini. */
 export function PresentationPage() {
-  const m = useMock();
-  return m.role === "Intern" ? (
+  const role = useAuth().user?.role;
+  return role === "intern" ? (
     <InternPresentation />
-  ) : m.role === "Admin" ? (
+  ) : role === "admin" ? (
     <AdminPresentations />
   ) : (
-    <PendingPage title="Presentasi Akhir" />
+    <NoAccess />
   );
 }
 
-/** Fase 2 (intern) mengisi halaman ini. */
 export function NotesPage() {
-  const m = useMock();
-  return m.role === "Intern" ? <InternNotes /> : <PendingPage title="Catatan" />;
+  return useAuth().user?.role === "intern" ? <InternNotes /> : <NoAccess />;
 }
 
-/** Fase 3 (mentor, "Input Nilai") dan Fase 4 (admin, "Penilaian"). */
 export function AssessmentPage() {
-  const m = useMock();
-  return m.role === "Mentor" ? (
+  const role = useAuth().user?.role;
+  return role === "mentor" ? (
     <MentorAssessments />
-  ) : m.role === "Admin" ? (
+  ) : role === "admin" ? (
     <AdminAssessments />
   ) : (
-    <PendingPage title="Input Nilai" />
+    <NoAccess />
   );
 }
 
 /** Admin memakai admin/corrections; mentor memakai mentor/corrections. */
 export function CorrectionsPage() {
-  const m = useMock();
-  return m.role === "Admin" ? (
+  const role = useAuth().user?.role;
+  return role === "admin" ? (
     <AdminCorrections />
-  ) : m.role === "Mentor" ? (
+  ) : role === "mentor" ? (
     <MentorCorrections />
   ) : (
-    <PendingPage title="Koreksi Presensi" />
+    <NoAccess />
   );
 }

@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENT_STATUS_LABEL, PRESENTATION_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatDateTime } from "@/lib/mock-rules";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import type { AdminAssessmentFilter } from "@/lib/endpoints/admin";
 import { type PageSearch } from "@/lib/search";
 import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
-import { TODAY, addMonths, formatDate, formatMonth, formatPercent } from "@/lib/mock-rules";
+import { TODAY, addMonths, formatDate, formatMonth, formatPercent } from "@/lib/utils";
 import type { MentorPerformanceDates, MentorPerformanceIntern } from "@/lib/endpoints/mentor";
 import { useMentorPerformance } from "@/components/internspace/mentor/performance-data";
 import { useMentorInterns } from "@/components/internspace/mentor/interns-data";

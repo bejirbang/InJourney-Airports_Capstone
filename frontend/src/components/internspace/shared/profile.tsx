@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { formatPeriod } from "@/lib/mock-rules";
-import { ApiError, toMockRole } from "@/lib/api";
+import { formatPeriod } from "@/lib/utils";
+import { ApiError, toDisplayRole } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { initials } from "@/components/internspace/shared/model";
+import { initials } from "@/lib/utils";
 import {
   DetailList,
   FormError,
@@ -29,7 +29,7 @@ export function ProfilePage() {
 
   if (!user) return <LoadingState />;
 
-  const roleLabel = toMockRole[user.role];
+  const roleLabel = toDisplayRole[user.role];
   const profile = user.intern_profile;
 
   const save = (e: React.FormEvent) => {

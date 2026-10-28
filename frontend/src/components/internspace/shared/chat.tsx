@@ -2,9 +2,9 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Search, Send } from "lucide-react";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { toMockRole } from "@/lib/api";
+import { toDisplayRole } from "@/lib/api";
 import type { ApiChatMessage } from "@/lib/endpoints/shared";
-import { formatShortTime } from "@/lib/mock-rules";
+import { formatShortTime } from "@/lib/utils";
 import type { PageSearch } from "@/lib/search";
 import { useAuth } from "@/lib/auth";
 import {
@@ -19,7 +19,7 @@ import {
   useOnlineUsers,
   useSendChatMessage,
 } from "@/components/internspace/shared/chat-data";
-import { initials } from "@/components/internspace/shared/model";
+import { initials } from "@/lib/utils";
 import { Empty, PageHeading } from "@/components/internspace/shared/ui";
 import { onUserEvent } from "@/lib/realtime";
 import { useQueryClient } from "@tanstack/react-query";
@@ -207,7 +207,7 @@ export function ChatPage() {
               <span className="avatar">{initials(person.name)}</span>
               <span className="min-w-0 flex-1 text-left">
                 <strong className="truncate block">{person.name}</strong>
-                <small className="truncate block">{toMockRole[person.role]}</small>
+                <small className="truncate block">{toDisplayRole[person.role]}</small>
               </span>
             </button>
           ))}
@@ -243,7 +243,7 @@ export function ChatPage() {
                     />
                   </span>
                   <p className="mt-1 text-[10px] font-normal text-muted-foreground">
-                    {toMockRole[partner.role]}
+                    {toDisplayRole[partner.role]}
                     {partner.unit ? ` · ${partner.unit}` : ""}
                     {typing ? " · Mengetik..." : ""}
                   </p>

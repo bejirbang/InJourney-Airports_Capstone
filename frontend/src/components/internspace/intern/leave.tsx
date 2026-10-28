@@ -12,13 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { LEAVE_STATUS_LABEL, LEAVE_TYPE_LABEL, labelOf } from "@/lib/labels";
-import {
-  type LeaveType,
-  formatDate,
-  formatRange,
-  formatShortTime,
-  leaveTypes,
-} from "@/lib/mock-rules";
+import { type LeaveType, formatDate, formatRange, formatShortTime, leaveTypes } from "@/lib/utils";
 import type { ApiInternLeave, ApiLeaveStatus } from "@/lib/endpoints/intern";
 import { useAuth } from "@/lib/auth";
 import { type PageSearch } from "@/lib/search";

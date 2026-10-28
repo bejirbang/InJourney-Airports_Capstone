@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api";
 import { ATTENDANCE_STATUS_LABEL, LOGBOOK_STATUS_LABEL, labelOf } from "@/lib/labels";
-import { formatDate, formatDateTime, formatShortTime } from "@/lib/mock-rules";
+import { formatDate, formatDateTime, formatShortTime } from "@/lib/utils";
 import type { MentorLogbookDetail, MentorLogbookTab } from "@/lib/endpoints/mentor";
 import { type PageSearch } from "@/lib/search";
 import { useMentorInterns } from "@/components/internspace/mentor/interns-data";
