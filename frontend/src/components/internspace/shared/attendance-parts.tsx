@@ -10,7 +10,6 @@ import {
 } from "@/lib/labels";
 import { formatDate } from "@/lib/mock-rules";
 import type { ApiAttendanceDayDetail, ApiAttendanceRecap } from "@/lib/endpoints/intern";
-import { type Row, recap } from "@/components/internspace/shared/model";
 import {
   DetailList,
   ErrorState,
@@ -19,69 +18,7 @@ import {
   Tag,
 } from "@/components/internspace/shared/ui";
 
-// Bagian presensi bersama. `RecapStrip`/`DayDetail` masih dipakai halaman mentor dan admin
-// (data contoh) sampai Fase 3-4; versi `Api*` dipakai halaman intern yang sudah memakai API.
-
-export function RecapStrip({ r }: { r: ReturnType<typeof recap> }) {
-  return (
-    <div className="recap-strip">
-      <span>
-        Hadir <strong>{r.hadir}</strong>
-      </span>
-      <span>
-        Izin <strong>{r.izin}</strong>
-      </span>
-      <span>
-        Tidak Hadir <strong>{r.tidakHadir}</strong>
-      </span>
-      <span>
-        Lupa Clock Out <strong>{r.lupa}</strong>
-      </span>
-      <span>
-        Hari kerja <strong>{r.hariKerja}</strong>
-      </span>
-    </div>
-  );
-}
-
-export function DayDetail({
-  row,
-  onClose,
-  name,
-}: {
-  row: Row | null;
-  onClose: () => void;
-  name?: string | undefined;
-}) {
-  return (
-    <Dialog open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogTitle>
-          {name ? `${name} · ` : ""}
-          {row && formatDate(row.date)}
-        </DialogTitle>
-        <DialogDescription>Detail presensi dan Daily Report. Hanya baca.</DialogDescription>
-        {row && (
-          <DetailList
-            items={[
-              ["Clock in", row.clockIn || "-"],
-              ["Clock out", row.clockOut || "-"],
-              [
-                "Status",
-                <span key="s" className="flex gap-2">
-                  <Status status={row.status} />
-                  {row.corrected && <Tag>Dikoreksi admin</Tag>}
-                </span>,
-              ],
-              ["Daily Report", row.report?.work ?? "Belum ada laporan"],
-              ["Kendala atau catatan", row.report?.notes || "-"],
-            ]}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
+// Bagian presensi bersama. Semua data berasal dari respons API.
 
 /** Rekap bulanan dari `GET /api/intern/attendance` (angka dihitung server). */
 export function ApiRecapStrip({ recap: r }: { recap: ApiAttendanceRecap }) {

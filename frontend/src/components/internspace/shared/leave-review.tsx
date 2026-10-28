@@ -16,6 +16,7 @@ import { formatDate, formatDateTime, formatRange } from "@/lib/mock-rules";
 import type { ApiLeaveType } from "@/lib/endpoints/intern";
 import type { ReviewerLeave } from "@/lib/endpoints/mentor";
 import { type PageSearch } from "@/lib/search";
+import { AirportFilter, useAirportFilter } from "@/components/internspace/admin/airport-filter";
 import {
   useApproveLeave,
   useRejectLeave,
@@ -61,7 +62,12 @@ function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
   const [tab, setTab] = useState<Tab>(search.tab === "all" ? "all" : "pending");
   const [type, setType] = useState<"" | ApiLeaveType>("");
   const [internId, setInternId] = useState("");
+  const [quotaExhausted, setQuotaExhausted] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
+  const airportId =
+    search.airport_id !== undefined && /^\d+$/.test(search.airport_id)
+      ? Number(search.airport_id)
+      : null;
 
   useEffect(() => {
     if (search.tab === "all" || search.tab === "pending") setTab(search.tab);
@@ -78,6 +84,8 @@ function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
     tab,
     ...(type === "" ? {} : { type }),
     ...(internId === "" ? {} : { intern_id: Number(internId) }),
+    ...(isAdmin && airportId !== null ? { airport_id: airportId } : {}),
+    ...(isAdmin && quotaExhausted ? { quota_exhausted: true } : {}),
   };
   const list = useReviewerLeaves(role, params);
   const internOptions = isAdmin ? (list.data?.interns ?? []) : mentorInterns;
@@ -106,6 +114,7 @@ function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
           ]}
         />
         <div className="toolbar-filters">
+          {isAdmin && <AdminLeaveAirportFilter />}
           <select
             className="role-select"
             aria-label="Filter jenis"
@@ -129,6 +138,16 @@ function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
               </option>
             ))}
           </select>
+          {isAdmin && (
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={quotaExhausted}
+                onChange={(event) => setQuotaExhausted(event.target.checked)}
+              />
+              Kuota habis
+            </label>
+          )}
         </div>
       </div>
 
@@ -224,6 +243,18 @@ function ReviewerLeaveContent({ role }: { role: ReviewerRole }) {
         onClose={() => setOpenId(null)}
       />
     </>
+  );
+}
+
+function AdminLeaveAirportFilter() {
+  const filter = useAirportFilter();
+  return (
+    <AirportFilter
+      value={filter.airportId}
+      onChange={filter.setAirport}
+      airports={filter.airports}
+      disabled={filter.airportsLoading}
+    />
   );
 }
 

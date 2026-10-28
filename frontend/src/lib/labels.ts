@@ -72,6 +72,20 @@ export const INSTITUTION_TYPE_LABEL: Record<string, string> = {
   sekolah: "Sekolah",
 };
 
+/** Status akun dari `AccountAccess::status`. */
+export const ACCOUNT_STATUS_LABEL: Record<string, string> = {
+  active: "Aktif",
+  not_started: "Belum dimulai",
+  inactive: "Nonaktif",
+};
+
+/** Status jadwal khusus bandara. */
+export const SPECIAL_SCHEDULE_STATE_LABEL: Record<string, string> = {
+  upcoming: "Akan datang",
+  running: "Berjalan",
+  finished: "Selesai",
+};
+
 /** `day_of_week` standar ISO (1 = Senin ... 7 = Minggu). */
 export const WEEKDAY_LABEL: Record<number, string> = {
   1: "Senin",

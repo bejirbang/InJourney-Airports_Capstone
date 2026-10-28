@@ -3,6 +3,7 @@ import { act, configure, fireEvent, render, screen, waitFor, within } from "@tes
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Role } from "@/lib/mock-rules";
+import { UNAUTHORIZED_EVENT } from "@/lib/api";
 import type {
   MentorAssessmentDetail,
   MentorAssessmentRow,
@@ -24,6 +25,13 @@ import type {
   ReviewerLeaveList,
 } from "@/lib/endpoints/mentor";
 import type { ApiAttendanceDayDetail } from "@/lib/endpoints/intern";
+import type {
+  ApiAnnouncement,
+  ApiChatConversation,
+  ApiChatMessage,
+  ApiChatPerson,
+  ApiNotificationItem,
+} from "@/lib/endpoints/shared";
 
 // Suite ini menjalankan 150+ render penuh; beri waktu tunggu DOM lebih longgar
 // agar pengujian tidak gagal karena beban paralel Vitest, bukan karena UI.
@@ -53,6 +61,11 @@ vi.mock("@tanstack/react-router", () => ({
     return Promise.resolve();
   },
   useLocation: () => ({ pathname: router.pathname }),
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) => select({ location: { pathname: router.pathname } }),
 }));
 
 // Leaflet butuh SVG renderer yang tidak ada di jsdom, jadi peta absensi di-stub.
@@ -103,8 +116,61 @@ vi.mock("leaflet", () => {
   return { default: L, ...L };
 });
 
+// Realtime tiruan: event WebSocket disuntikkan lewat `emit`, bukan koneksi Echo asli.
+const realtime = vi.hoisted(() => {
+  const listeners = new Map<string, Set<(payload: unknown) => void>>();
+  const presence = new Set<(users: { id: number; name: string }[]) => void>();
+  let online: { id: number; name: string }[] = [];
+  let typingHandler: ((userId: number) => void) | null = null;
+
+  return {
+    connectEcho: vi.fn(async () => undefined),
+    disconnectEcho: vi.fn(),
+    isRealtimeEnabled: () => true,
+    onUserEvent: (event: string, handler: (payload: unknown) => void) => {
+      const set = listeners.get(event) ?? new Set<(payload: unknown) => void>();
+      set.add(handler);
+      listeners.set(event, set);
+      return () => {
+        set.delete(handler);
+        if (set.size === 0) listeners.delete(event);
+      };
+    },
+    onPresence: (handler: (users: { id: number; name: string }[]) => void) => {
+      presence.add(handler);
+      handler(online);
+      return () => presence.delete(handler);
+    },
+    getOnlineUsers: () => online,
+    subscribeChatWhisper: vi.fn(
+      (_meId: number, _partnerId: number, handler: (userId: number) => void) => {
+        typingHandler = handler;
+        return () => {
+          typingHandler = null;
+        };
+      },
+    ),
+    sendChatWhisper: vi.fn(),
+    emit: (event: string, payload: unknown) => {
+      for (const handler of listeners.get(event) ?? []) handler(payload);
+    },
+    setOnline: (users: { id: number; name: string }[]) => {
+      online = users;
+      for (const handler of presence) handler(online);
+    },
+    emitTyping: (userId: number) => typingHandler?.(userId),
+    reset: () => {
+      listeners.clear();
+      presence.clear();
+      online = [];
+      typingHandler = null;
+    },
+  };
+});
+vi.mock("@/lib/realtime", () => realtime);
+
 const { MockProvider } = await import("@/components/internspace/shared/model");
-const { AuthProvider } = await import("@/lib/auth");
+const { AuthProvider, useAuth } = await import("@/lib/auth");
 const { Workspace } = await import("@/components/internspace/shared/shell");
 const {
   Dashboard,
@@ -357,6 +423,7 @@ type AirportMock = {
   is_active: boolean;
   active_offices: number;
   active_interns: number;
+  weekly_schedule: WeeklySetMock | null;
 };
 
 const BANDARA_CGK: AirportMock = {
@@ -366,6 +433,24 @@ const BANDARA_CGK: AirportMock = {
   is_active: true,
   active_offices: 1,
   active_interns: 3,
+  weekly_schedule: null,
+};
+
+type AdminUserMock = {
+  id: number;
+  name: string;
+  email: string;
+  role: "intern" | "mentor" | "admin";
+  unit: { id: number; name: string } | null;
+  status: "active" | "not_started" | "inactive";
+  mentor: { id: number; name: string } | null;
+  airport: { id: number; name: string } | null;
+  institution_type: "universitas" | "sekolah" | null;
+  university: string | null;
+  major: string | null;
+  student_number: string | null;
+  start_date: string | null;
+  end_date: string | null;
 };
 
 /** Satu kantor aktif + satu nonaktif: dasar uji peringatan kantor aktif terakhir. */
@@ -908,6 +993,32 @@ const mentorDefault = (): MentorMockState => {
   };
 };
 
+const CHAT_PARTNER: ApiChatPerson = {
+  id: 2,
+  name: "Sari Wijaya",
+  role: "mentor",
+  unit: "Operasional",
+  can_send: true,
+};
+
+const CHAT_MESSAGE: ApiChatMessage = {
+  id: 1,
+  sender_id: 2,
+  receiver_id: 1,
+  body: "Halo, apa kabar?",
+  read_at: null,
+  created_at: "2026-10-12T09:00:00+07:00",
+};
+
+const NOTIFICATION_UNREAD: ApiNotificationItem = {
+  id: 1,
+  text: "Logbook 8 Okt perlu direvisi.",
+  link_path: "/logbook",
+  link_params: { date: "2026-10-08" },
+  read_at: null,
+  created_at: "2026-10-12T08:00:00+07:00",
+};
+
 const apiState = {
   today: {} as TodayMock,
   offices: [] as OfficeMock[],
@@ -980,6 +1091,18 @@ const apiState = {
   leaveListError: false,
   adminOffices: [] as AdminOfficeMock[],
   adminAirports: [] as AirportMock[],
+  adminDashboard: {} as Record<string, unknown>,
+  adminUsers: [] as AdminUserMock[],
+  adminAnnouncements: [] as Record<string, unknown>[],
+  adminWarnings: [] as Record<string, unknown>[],
+  adminAuditLogs: [] as Record<string, unknown>[],
+  adminUnits: [] as Record<string, unknown>[],
+  adminSettings: {
+    late_tolerance_minutes: 15,
+    leave_quota: 3,
+    end_reminder_days: 7,
+    leave_escalation_hours: 24,
+  },
   weeklySets: [] as WeeklySetMock[],
   holidays: [] as HolidayMock[],
   holidaySeq: 1,
@@ -987,6 +1110,15 @@ const apiState = {
   profileBody: null as Record<string, unknown> | null,
   /** Menu contoh yang menggantikan GET /api/{role}/menu (uji sumber menu sidebar). */
   menuOverride: null as { key: string; path: string; badge: number | null }[] | null,
+  /** Notifikasi dan chat Fase 5; setiap tes mengubah salinan baru lewat resetApi(). */
+  notifications: [] as ApiNotificationItem[],
+  notificationReads: [] as number[],
+  chatConversations: [] as ApiChatConversation[],
+  chatContacts: [] as ApiChatPerson[],
+  chatMessages: [] as ApiChatMessage[],
+  chatReads: [] as number[],
+  chatSent: [] as string[],
+  announcementDetail: null as ApiAnnouncement | null,
   /** Data mentor Fase 3; setiap tes mengubah salinan baru lewat resetApi(). */
   mentor: mentorDefault(),
 };
@@ -1066,6 +1198,66 @@ const resetApi = () => {
   apiState.leaveListError = false;
   apiState.adminOffices = [ADMIN_KANTOR_T3, ADMIN_KANTOR_T1].map(clone);
   apiState.adminAirports = [BANDARA_CGK].map(clone);
+  apiState.adminDashboard = {
+    date: "2026-10-12",
+    airport_id: null,
+    holiday: null,
+    has_active_office: true,
+    today: {
+      interns: 3,
+      clocked_in: 2,
+      late: 0,
+      on_leave: 1,
+      not_clocked_in: 0,
+      rows: [],
+    },
+    yesterday: null,
+    pending_corrections: { total: 0, items: [] },
+    overdue_leaves: { total: 0, items: [] },
+    pending_presentations: { total: 0, items: [] },
+    ending_internships: {
+      total: 1,
+      items: [
+        {
+          intern: { id: 4, name: "Rizky Pratama", short_name: "Rizky" },
+          end_date: "2026-10-19",
+          ends_in_days: 7,
+          mentor: { id: 2, name: "Budi Santoso" },
+        },
+      ],
+    },
+    quota_exhausted: { total: 0, items: [] },
+    new_assessments: { total: 0, items: [] },
+    campuses: [],
+  };
+  apiState.adminUsers = [
+    {
+      id: 4,
+      name: "Rizky Pratama",
+      email: "intern@injourney.test",
+      role: "intern",
+      unit: { id: 1, name: "Operasional" },
+      status: "active",
+      mentor: { id: 2, name: "Budi Santoso" },
+      airport: { id: BANDARA_CGK.id, name: BANDARA_CGK.name },
+      institution_type: "universitas",
+      university: "Telkom University",
+      major: "Sistem Informasi",
+      student_number: "2023001",
+      start_date: "2026-07-01",
+      end_date: "2026-10-19",
+    },
+  ];
+  apiState.adminAnnouncements = [];
+  apiState.adminWarnings = [];
+  apiState.adminAuditLogs = [];
+  apiState.adminUnits = [{ id: 1, name: "Operasional", is_active: true, user_count: 3 }];
+  apiState.adminSettings = {
+    late_tolerance_minutes: 15,
+    leave_quota: 3,
+    end_reminder_days: 7,
+    leave_escalation_hours: 24,
+  };
   // Bandara sudah punya jadwal mingguan berlaku (contoh: Sabtu-Minggu libur).
   apiState.weeklySets = [
     {
@@ -1085,6 +1277,23 @@ const resetApi = () => {
   apiState.holidaySeq = 2;
   apiState.profileBody = null;
   apiState.menuOverride = null;
+  apiState.notifications = [clone(NOTIFICATION_UNREAD)];
+  apiState.notificationReads = [];
+  apiState.chatConversations = [
+    { partner: clone(CHAT_PARTNER), last_message: clone(CHAT_MESSAGE), unread_count: 1 },
+  ];
+  apiState.chatContacts = [clone(CHAT_PARTNER)];
+  apiState.chatMessages = [clone(CHAT_MESSAGE)];
+  apiState.chatReads = [];
+  apiState.chatSent = [];
+  apiState.announcementDetail = {
+    id: 1,
+    title: "WFA besok",
+    body: "Besok WFA, presensi tetap wajib.",
+    author_name: "Admin Sinta",
+    created_at: "2026-10-10T09:00:00+07:00",
+    updated_at: "2026-10-10T09:00:00+07:00",
+  };
   apiState.mentor = mentorDefault();
 };
 
@@ -1207,6 +1416,132 @@ const installFetch = () => {
       if (menuMatch) {
         const items = apiState.menuOverride ?? MENU_MOCK[menuMatch[1] ?? ""] ?? [];
         return jsonResponse({ data: items.map(clone) });
+      }
+
+      // ---- Lonceng, chat, dan detail pengumuman (Fase 5) ----
+      if (method === "GET" && path0(url).endsWith("/api/notifications")) {
+        const cursor = new URL(url).searchParams.get("cursor");
+        const start = cursor ? Number(cursor) : 0;
+        const items = apiState.notifications.slice(start, start + 20);
+        const next = start + 20 < apiState.notifications.length ? String(start + 20) : null;
+        return jsonResponse({
+          data: clone(items),
+          meta: {
+            next_cursor: next,
+            unread_count: apiState.notifications.filter((item) => item.read_at === null).length,
+          },
+        });
+      }
+
+      const notificationRead = /\/api\/notifications\/(\d+)\/read$/.exec(path0(url));
+      if (method === "POST" && notificationRead) {
+        const id = Number(notificationRead[1]);
+        const found = apiState.notifications.find((item) => item.id === id);
+        if (!found) return jsonResponse({ message: "Notifikasi tidak ditemukan." }, 404);
+        found.read_at = found.read_at ?? "2026-10-12T10:00:00+07:00";
+        apiState.notificationReads.push(id);
+        return jsonResponse({
+          data: clone(found),
+          meta: {
+            unread_count: apiState.notifications.filter((item) => item.read_at === null).length,
+          },
+        });
+      }
+
+      if (method === "POST" && path0(url).endsWith("/api/notifications/read-all")) {
+        for (const item of apiState.notifications) {
+          item.read_at = item.read_at ?? "2026-10-12T10:00:00+07:00";
+        }
+        return jsonResponse({ meta: { unread_count: 0 } });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/chats")) {
+        const q = (new URL(url).searchParams.get("q") ?? "").toLowerCase();
+        const conversations = apiState.chatConversations.filter((item) =>
+          item.partner.name.toLowerCase().includes(q),
+        );
+        return jsonResponse({
+          data: clone(conversations),
+          meta: {
+            unread_total: conversations.reduce((total, item) => total + item.unread_count, 0),
+          },
+        });
+      }
+
+      if (method === "GET" && path0(url).endsWith("/api/chats/contacts")) {
+        const q = (new URL(url).searchParams.get("q") ?? "").toLowerCase();
+        return jsonResponse({
+          data: clone(apiState.chatContacts.filter((item) => item.name.toLowerCase().includes(q))),
+        });
+      }
+
+      const chatMessages = /\/api\/chats\/(\d+)\/messages$/.exec(path0(url));
+      if (chatMessages) {
+        const partnerId = Number(chatMessages[1]);
+        const partner = apiState.chatContacts.find((item) => item.id === partnerId);
+        if (!partner) return jsonResponse({ message: "Pengguna tidak ditemukan." }, 404);
+
+        if (method === "GET") {
+          const items = apiState.chatMessages.filter(
+            (item) =>
+              (item.sender_id === 1 && item.receiver_id === partnerId) ||
+              (item.sender_id === partnerId && item.receiver_id === 1),
+          );
+          return jsonResponse({
+            data: clone(items),
+            meta: { partner: clone(partner), has_more: false },
+          });
+        }
+
+        if (method === "POST") {
+          const body = JSON.parse(String(init?.body ?? "{}")) as { body?: string };
+          apiState.chatSent.push(String(body.body ?? ""));
+          const message: ApiChatMessage = {
+            id: Math.max(0, ...apiState.chatMessages.map((item) => item.id)) + 1,
+            sender_id: 1,
+            receiver_id: partnerId,
+            body: String(body.body ?? ""),
+            read_at: null,
+            created_at: "2026-10-12T10:00:00+07:00",
+          };
+          apiState.chatMessages.push(message);
+          const conversation = apiState.chatConversations.find(
+            (item) => item.partner.id === partnerId,
+          );
+          if (conversation) conversation.last_message = clone(message);
+          return jsonResponse({ data: clone(message) }, 201);
+        }
+      }
+
+      const chatRead = /\/api\/chats\/(\d+)\/read$/.exec(path0(url));
+      if (method === "POST" && chatRead) {
+        const partnerId = Number(chatRead[1]);
+        apiState.chatReads.push(partnerId);
+        for (const item of apiState.chatMessages) {
+          if (item.sender_id === partnerId && item.receiver_id === 1) {
+            item.read_at = item.read_at ?? "2026-10-12T10:00:00+07:00";
+          }
+        }
+        const conversation = apiState.chatConversations.find(
+          (item) => item.partner.id === partnerId,
+        );
+        if (conversation) conversation.unread_count = 0;
+        return jsonResponse({
+          meta: {
+            unread_total: apiState.chatConversations.reduce(
+              (total, item) => total + item.unread_count,
+              0,
+            ),
+          },
+        });
+      }
+
+      const announcementDetail = /\/api\/announcements\/(\d+)$/.exec(path0(url));
+      if (method === "GET" && announcementDetail) {
+        const id = Number(announcementDetail[1]);
+        if (apiState.announcementDetail?.id !== id)
+          return jsonResponse({ message: "Pengumuman tidak ditemukan." }, 404);
+        return jsonResponse({ data: clone(apiState.announcementDetail) });
       }
 
       // ---- Data mentor (Fase 3) ----
@@ -1956,12 +2291,143 @@ const installFetch = () => {
         return jsonResponse({ message: "Pengajuan izin dibatalkan.", data: clone(leave) });
       }
 
+      // ---- Admin (Fase 4): dashboard dan daftar lintas fitur ----
+      if (method === "GET" && path0(url).endsWith("/api/admin/dashboard")) {
+        return jsonResponse({ data: clone(apiState.adminDashboard) });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/users/mentors")) {
+        return jsonResponse({
+          data: [
+            {
+              id: 2,
+              name: "Budi Santoso",
+              unit: { id: 1, name: "Operasional" },
+            },
+          ],
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/users")) {
+        return jsonResponse({
+          data: clone(apiState.adminUsers),
+          meta: {
+            current_page: 1,
+            last_page: 1,
+            per_page: 20,
+            total: apiState.adminUsers.length,
+          },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/attendance/daily")) {
+        return jsonResponse({
+          data: {
+            date: new URL(url).searchParams.get("date") ?? "2026-10-12",
+            counts: {},
+            interns: [],
+          },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/attendance")) {
+        return jsonResponse({
+          data: {
+            month: new URL(url).searchParams.get("month") ?? "2026-10",
+            selectable_months: null,
+            interns: [],
+          },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/corrections")) {
+        return jsonResponse({
+          data: [],
+          meta: { pending_admin: 0, pending_mentor: 0, interns: [] },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/presentations")) {
+        return jsonResponse({
+          data: [],
+          meta: { pending: 0, revision: 0, approved: 0, not_submitted: 0 },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/assessments")) {
+        return jsonResponse({
+          data: [],
+          meta: { ready: 0, blocked: 0, draft: 0, submitted: 0 },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/warnings")) {
+        return jsonResponse({ data: clone(apiState.adminWarnings) });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/announcements")) {
+        return jsonResponse({ data: clone(apiState.adminAnnouncements) });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/settings")) {
+        return jsonResponse({ data: clone(apiState.adminSettings) });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/units")) {
+        return jsonResponse({ data: clone(apiState.adminUnits) });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/reports/options")) {
+        return jsonResponse({
+          data: {
+            interns: apiState.adminUsers
+              .filter((user) => user.role === "intern")
+              .map((user) => ({ id: user.id, name: user.name, email: user.email })),
+            mentors: [{ id: 2, name: "Budi Santoso", is_active: true }],
+            airports: apiState.adminAirports.map((airport) => ({
+              id: airport.id,
+              name: airport.name,
+              is_active: airport.is_active,
+            })),
+            sheets: {
+              attendance: "Rekap Presensi",
+              leave: "Rekap Izin",
+              logbook: "Rekap Logbook",
+              assessment: "Rekap Penilaian",
+            },
+          },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/audit-logs/options")) {
+        return jsonResponse({
+          data: { admins: [{ id: 1, name: "Admin Sinta" }], actions: ["login", "update"] },
+        });
+      }
+      if (method === "GET" && path0(url).endsWith("/api/admin/audit-logs")) {
+        return jsonResponse({
+          data: clone(apiState.adminAuditLogs),
+          meta: {
+            current_page: 1,
+            last_page: 1,
+            per_page: 20,
+            total: apiState.adminAuditLogs.length,
+          },
+        });
+      }
+
       // ---- Lokasi kantor admin (API) ----
       if (path.endsWith("/api/admin/airports"))
         return jsonResponse({
-          data: apiState.adminAirports.map(clone),
+          data: apiState.adminAirports.map((airport) => ({
+            ...clone(airport),
+            weekly_schedule: airport.weekly_schedule ?? clone(apiState.weeklySets[0] ?? null),
+          })),
           meta: { active_count: apiState.adminAirports.filter((a) => a.is_active).length },
         });
+      const airportDetail = /\/api\/admin\/airports\/(\d+)$/.exec(path);
+      if (airportDetail && method === "GET") {
+        const airport = apiState.adminAirports.find((a) => a.id === Number(airportDetail[1]));
+        if (!airport) return jsonResponse({ message: "Bandara tidak ditemukan." }, 404);
+        return jsonResponse({
+          data: {
+            ...clone(airport),
+            weekly_schedule: airport.weekly_schedule ?? clone(apiState.weeklySets[0] ?? null),
+            offices: clone(
+              apiState.adminOffices.filter((office) => office.airport_id === airport.id),
+            ),
+            upcoming_weekly_schedules: [],
+            special_schedules: [],
+          },
+        });
+      }
       if (path.endsWith("/api/admin/offices")) {
         const activeCount = () => apiState.adminOffices.filter((o) => o.is_active).length;
         if (method === "POST") {
@@ -1993,9 +2459,14 @@ const installFetch = () => {
             201,
           );
         }
+        const airportId = new URL(url).searchParams.get("airport_id");
+        const rows =
+          airportId === null
+            ? apiState.adminOffices
+            : apiState.adminOffices.filter((office) => office.airport_id === Number(airportId));
         return jsonResponse({
-          data: apiState.adminOffices.map(clone),
-          meta: { active_count: activeCount() },
+          data: rows.map(clone),
+          meta: { active_count: rows.filter((o) => o.is_active).length },
         });
       }
       const officeToggle = /\/api\/admin\/offices\/(\d+)\/(activate|deactivate)$/.exec(path);
@@ -2174,10 +2645,26 @@ const show = (role: Role, page: ReactNode, path = "/") => {
   );
 };
 
+/** Tombol uji untuk memanggil logout dari dalam AuthProvider. */
+function LogoutProbe() {
+  const auth = useAuth();
+  return (
+    <button type="button" onClick={() => void auth.logout()}>
+      Keluar uji
+    </button>
+  );
+}
+
 beforeEach(() => {
   resetApi();
+  realtime.reset();
+  realtime.connectEcho.mockClear();
+  realtime.disconnectEcho.mockClear();
+  realtime.sendChatWhisper.mockClear();
+  realtime.subscribeChatWhisper.mockClear();
   authRole = "Intern";
   router.navigations = [];
+  router.search = {};
   geoBehavior = "ok";
   geoPosition = { lat: KANTOR_T3.latitude, lng: KANTOR_T3.longitude };
   localStorage.setItem("internspace_token", "token-uji");
@@ -2285,7 +2772,7 @@ describe("Setiap halaman dapat dirender", () => {
     ["Intern", "/izin", <LeavePage key="l" />, "Riwayat izin"],
     ["Intern", "/presentasi", <PresentationPage key="pr" />, "Presentasi akhir"],
     ["Intern", "/catatan", <NotesPage key="nt" />, "Catatan dari Admin"],
-    ["Intern", "/chat", <ChatPage key="c" />, "Budi Santoso"],
+    ["Intern", "/chat", <ChatPage key="c" />, "Sari Wijaya"],
     ["Intern", "/profil", <ProfilePage key="p" />, "Data akun"],
     ["Mentor", "/", <Dashboard key="d" />, /Izin menunggu/],
     ["Mentor", "/intern-saya", <MyInternsPage key="i" />, "Rizky Pratama"],
@@ -2295,29 +2782,19 @@ describe("Setiap halaman dapat dirender", () => {
     ["Mentor", "/kalender-izin", <LeaveCalendarPage key="k" />, "Izin Disetujui"],
     ["Mentor", "/performa", <PerformancePage key="p" />, "KPI per intern"],
     ["Mentor", "/penilaian", <AssessmentPage key="pm" />, "Daftar intern"],
-    ["Admin", "/", <Dashboard key="d" />, /Magang berakhir dalam 7 hari/],
+    ["Admin", "/", <Dashboard key="d" />, /Magang berakhir 7 hari/],
     ["Admin", "/absensi", <AttendancePage key="a" />, "Rekap Bulanan"],
     ["Admin", "/users", <admin.UsersPage key="u" />, "Daftar pengguna"],
-    ["Admin", "/koreksi", <admin.CorrectionsPage key="k" />, "Permintaan koreksi"],
+    ["Admin", "/koreksi", <admin.CorrectionsPage key="k" />, "Koreksi Presensi"],
     ["Admin", "/izin", <LeavePage key="l" />, "Menunggu keputusan"],
-    [
-      "Admin",
-      "/presentasi",
-      <PresentationPage key="pr2" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
-    [
-      "Admin",
-      "/penilaian",
-      <AssessmentPage key="pa" />,
-      "Bagian ini sedang disiapkan pada fase berikutnya.",
-    ],
-    ["Admin", "/warning", <admin.WarningsPage key="w" />, "Hanya terlihat oleh admin"],
+    ["Admin", "/presentasi", <PresentationPage key="pr2" />, "Presentasi Akhir"],
+    ["Admin", "/penilaian", <AssessmentPage key="pa" />, "Penilaian"],
+    ["Admin", "/warning", <admin.WarningsPage key="w" />, "Warning"],
     ["Admin", "/pengumuman", <admin.AnnouncementsPage key="p" />, "Daftar pengumuman"],
-    ["Admin", "/laporan", <admin.ReportsPage key="r" />, "Buat laporan"],
-    ["Admin", "/pengaturan", <admin.SettingsPage key="s" />, "Riwayat jam kerja"],
-    ["Admin", "/log", <admin.LogsPage key="g" />, "Waktu"],
-    ["Admin", "/lokasi-kantor", <OfficesPage key="o" />, "Kantor Pusat Terminal 3"],
+    ["Admin", "/laporan", <admin.ReportsPage key="r" />, "Laporan"],
+    ["Admin", "/pengaturan", <admin.SettingsPage key="s" />, "Pengaturan"],
+    ["Admin", "/log", <admin.LogsPage key="g" />, "Log Aktivitas"],
+    ["Admin", "/lokasi-kantor", <OfficesPage key="o" />, "Daftar bandara"],
   ];
   // Sebagian halaman memuat data lewat API, jadi hasil dicek setelah render selesai.
   it.each(pages)("%s %s", async (role, path, page, text) => {
@@ -2980,6 +3457,7 @@ describe("Logbook, koreksi, presentasi, dan catatan intern (Fase 2)", () => {
 
 describe("Lokasi Kantor", () => {
   it("menonaktifkan kantor aktif terakhir memberi peringatan dan menampilkan banner", async () => {
+    router.search = { open: String(BANDARA_CGK.id) };
     show("Admin", <OfficesPage />, "/lokasi-kantor");
     fireEvent.keyDown(
       await screen.findByRole("button", { name: "Aksi untuk Kantor Pusat Terminal 3" }),
@@ -2996,6 +3474,7 @@ describe("Lokasi Kantor", () => {
   });
 
   it("menambah kantor baru dikirim ke server lengkap dengan bandara pemilik", async () => {
+    router.search = { open: String(BANDARA_CGK.id) };
     show("Admin", <OfficesPage />, "/lokasi-kantor");
     fireEvent.click(await screen.findByRole("button", { name: "Tambah Kantor" }));
     fireEvent.change(screen.getByLabelText(/Nama kantor/), {
@@ -3020,6 +3499,7 @@ describe("Lokasi Kantor", () => {
   });
 
   it("kantor yang diaktifkan kembali langsung bisa dipakai intern", async () => {
+    router.search = { open: String(BANDARA_CGK.id) };
     show("Admin", <OfficesPage />, "/lokasi-kantor");
     fireEvent.keyDown(
       await screen.findByRole("button", { name: "Aksi untuk Kantor Cabang Terminal 1" }),
@@ -3213,5 +3693,117 @@ describe("Lokasi absensi di kartu Hari Ini", () => {
       within(select).getByRole("option", { name: "Kantor Pusat Terminal 3" }),
     ).toBeInTheDocument();
     expect(within(select).getByRole("option", { name: "Kantor Terminal 2" })).toBeInTheDocument();
+  });
+});
+
+describe("Lonceng, chat, dan real-time (Fase 5)", () => {
+  it("Lonceng memakai unread_count server; klik menandai dibaca dan membuka link_params", async () => {
+    show("Intern", <Dashboard />, "/");
+    const bell = await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" });
+    fireEvent.click(bell);
+
+    expect(await screen.findByText("Logbook 8 Okt perlu direvisi.")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Logbook 8 Okt perlu direvisi."));
+
+    await waitFor(() => expect(apiState.notificationReads).toEqual([1]));
+    await waitFor(() => expect(router.navigations.at(-1)?.to).toBe("/logbook"));
+    expect(router.navigations.at(-1)).toMatchObject({ search: { date: "2026-10-08" } });
+  });
+
+  it("Notifikasi real-time menambah isi lonceng tanpa memuat ulang halaman", async () => {
+    show("Intern", <Dashboard />, "/");
+    await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" });
+
+    act(() => {
+      realtime.emit("notification.sent", {
+        notification: {
+          id: 2,
+          text: "Pengumuman baru dari admin.",
+          link_path: "/",
+          link_params: { announcement: 1 },
+          read_at: null,
+          created_at: "2026-10-12T09:30:00+07:00",
+        },
+        unread_count: 2,
+      });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: "Notifikasi, 2 belum dibaca" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Notifikasi, 2 belum dibaca" }));
+    expect(await screen.findByText("Pengumuman baru dari admin.")).toBeInTheDocument();
+  });
+
+  it("Chat membuka percakapan dari ?to, menandai dibaca, dan mengirim pesan", async () => {
+    router.search = { to: "2" };
+    show("Intern", <ChatPage />, "/chat");
+
+    expect((await screen.findAllByText("Halo, apa kabar?")).length).toBeGreaterThan(1);
+    await waitFor(() => expect(apiState.chatReads).toContain(2));
+
+    fireEvent.change(screen.getByLabelText("Tulis pesan"), {
+      target: { value: "Baik, terima kasih." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kirim pesan" }));
+
+    expect((await screen.findAllByText("Baik, terima kasih.")).length).toBeGreaterThan(1);
+    expect(apiState.chatSent).toEqual(["Baik, terima kasih."]);
+    expect(screen.getByLabelText("Tulis pesan")).toHaveValue("");
+  });
+
+  it("Pesan chat real-time masuk ke percakapan aktif dan indikator online mengikuti presence", async () => {
+    router.search = { to: "2" };
+    show("Intern", <ChatPage />, "/chat");
+    await screen.findAllByText("Halo, apa kabar?");
+
+    act(() => {
+      realtime.setOnline([{ id: 2, name: "Sari Wijaya" }]);
+      realtime.emit("chat.message", {
+        message: {
+          id: 2,
+          sender_id: 2,
+          receiver_id: 1,
+          body: "Pesan real-time masuk.",
+          read_at: null,
+          created_at: "2026-10-12T10:05:00+07:00",
+        },
+        sender: { id: 2, name: "Sari Wijaya" },
+      });
+    });
+
+    expect(await screen.findByText("Pesan real-time masuk.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Online")).toBeInTheDocument();
+  });
+
+  it("Detail pengumuman dari notifikasi dibuka lewat GET /api/announcements/{id}", async () => {
+    router.search = { announcement: "1" };
+    show("Intern", <Dashboard />, "/");
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("WFA besok")).toBeInTheDocument();
+    expect(within(dialog).getByText("Besok WFA, presensi tetap wajib.")).toBeInTheDocument();
+  });
+
+  it("Logout memutus koneksi realtime", async () => {
+    show("Intern", <LogoutProbe />, "/");
+    await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" });
+    realtime.disconnectEcho.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Keluar uji" }));
+
+    await waitFor(() => expect(realtime.disconnectEcho).toHaveBeenCalled());
+  });
+
+  it("401 memutus koneksi realtime", async () => {
+    show("Intern", <Dashboard />, "/");
+    await screen.findByRole("button", { name: "Notifikasi, 1 belum dibaca" });
+    realtime.disconnectEcho.mockClear();
+
+    act(() => {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    });
+
+    await waitFor(() => expect(realtime.disconnectEcho).toHaveBeenCalled());
   });
 });

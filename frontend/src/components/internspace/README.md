@@ -68,7 +68,10 @@ Komponen bersama admin yang baru: `admin/airport-filter.tsx` (filter bandara glo
 | `role-pages.tsx` | Pemilih komponen per role untuk route yang sama: `/`, `/absensi`, `/izin`, `/logbook`, `/koreksi`, `/presentasi`, `/penilaian` | Ada |
 | `leave-review.tsx` | Daftar dan keputusan izin untuk Mentor dan Admin | Ada |
 | `dashboard-parts.tsx`, `attendance-parts.tsx` | Potongan tampilan yang dipakai beberapa dashboard dan halaman presensi | Ada |
-| `chat.tsx`, `profile.tsx` | Chat dan Profil, semua role | Ada |
+| `chat.tsx`, `chat-data.ts` | Chat semua role dan hook percakapan, pesan, presence, mengetik, tanda Dibaca | Ada |
+| `notifications-data.ts` | Hook lonceng: daftar cursor, tandai dibaca, pembaruan cache dari event real-time | Ada |
+| `announcement-dialog.tsx` | Dialog detail pengumuman yang dibuka dari notifikasi | Ada |
+| `profile.tsx` | Profil, semua role | Ada |
 | `account.tsx` | Login dan Ganti Password | Ada |
 | `ui.tsx` | Komponen kecil: badge status, tab, dialog konfirmasi, tabel sederhana | Ada |
 | `model.tsx` | `MockProvider`, data contoh lama | Dihapus |

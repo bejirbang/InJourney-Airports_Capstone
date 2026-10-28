@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { CalendarOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TODAY, formatShort, isWorkingDay } from "@/lib/mock-rules";
-import { type Person, shortName, useMock } from "@/components/internspace/shared/model";
-import { Empty, Panel, Status } from "@/components/internspace/shared/ui";
+import type { AdminTodayRow } from "@/lib/endpoints/admin";
+import { shortName, useMock } from "@/components/internspace/shared/model";
+import { Empty, Panel } from "@/components/internspace/shared/ui";
 
 export function HolidayBanner() {
   const m = useMock();
@@ -78,20 +79,66 @@ export function AnnouncementList({ items }: { items?: AnnouncementItem[] }) {
   );
 }
 
-export function TodayCounts({ interns }: { interns: Person[] }) {
-  const m = useMock();
-  const states = interns.map((p) => m.today(p.name).state);
-  const sudah = states.filter((s) => s === "Sudah Clock In" || s === "Sudah Clock Out").length;
+const attended = ["present", "late", "missed_clock_out"];
+
+export function TodayCounts({
+  interns,
+  clockedIn,
+  late,
+  onLeave,
+  notClockedIn,
+  rows,
+  onClick,
+}: {
+  interns: number;
+  clockedIn: number;
+  late: number;
+  onLeave: number;
+  notClockedIn: number;
+  rows: AdminTodayRow[];
+  onClick: (label: string, rows: AdminTodayRow[]) => void;
+}) {
+  const groups = [
+    {
+      label: `Sudah Presensi (${interns})`,
+      value: clockedIn,
+      tone: "teal",
+      rows: rows.filter((row) => attended.includes(row.status)),
+    },
+    {
+      label: "Terlambat",
+      value: late,
+      tone: "red",
+      rows: rows.filter((row) => row.status === "late"),
+    },
+    {
+      label: "Izin",
+      value: onLeave,
+      tone: "blue",
+      rows: rows.filter((row) => row.status === "leave"),
+    },
+    {
+      label: "Belum Clock In",
+      value: notClockedIn,
+      tone: "light",
+      rows: rows.filter((row) => row.status === "not_clocked_in"),
+    },
+  ];
+
   return (
     <>
-      <div className="recap-grid three">
-        <Metric label="Sudah Clock In" value={sudah} tone="teal" />
-        <Metric label="Izin" value={states.filter((s) => s === "Izin").length} tone="blue" />
-        <Metric
-          label="Belum Clock In"
-          value={states.filter((s) => s === "Belum Clock In").length}
-          tone="light"
-        />
+      <div className="recap-grid four">
+        {groups.map((group) => (
+          <button
+            type="button"
+            key={group.label}
+            className={`metric st-${group.tone}`}
+            onClick={() => onClick(group.label, group.rows)}
+          >
+            <span>{group.label}</span>
+            <strong>{group.value}</strong>
+          </button>
+        ))}
       </div>
       <p className="px-5 pb-4 text-[11px] text-muted-foreground">
         Status final ditetapkan sistem setelah 23:59.
@@ -138,7 +185,7 @@ export function ActionRow({
   what: string;
   meta: string;
   warn?: boolean;
-  to: "/izin" | "/koreksi";
+  to: "/izin" | "/koreksi" | "/warning" | "/penilaian" | "/presentasi" | "/users";
   open: string;
 }) {
   return (

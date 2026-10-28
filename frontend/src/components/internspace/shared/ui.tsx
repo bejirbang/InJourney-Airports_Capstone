@@ -334,14 +334,19 @@ export function Locked({ text }: { text: string }) {
 export function ErrorState({
   onRetry,
   message,
+  error,
 }: {
   onRetry: () => void;
   /** Pesan dari server (ApiError) bila tersedia; kalau tidak, tampil pesan bawaan. */
   message?: string | undefined;
+  /** Alternatif ringkas: objek galat React Query. */
+  error?: unknown;
 }) {
+  const text =
+    message || (error instanceof Error && error.message !== "" ? error.message : undefined);
   return (
     <div className="state-box" role="alert">
-      <p>{message || "Data gagal dimuat."}</p>
+      <p>{text || "Data gagal dimuat."}</p>
       <Button variant="outline" onClick={onRetry}>
         <RotateCw />
         Coba lagi

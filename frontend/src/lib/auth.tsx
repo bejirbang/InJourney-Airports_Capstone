@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { ApiError, UNAUTHORIZED_EVENT, clearToken, getToken } from "@/lib/api";
 import { authApi, type ApiUser } from "@/lib/endpoints/auth";
+import { connectEcho, disconnectEcho } from "@/lib/realtime";
 
 // Status sesi autentikasi terhadap backend Laravel.
 export type AuthStatus = "loading" | "guest" | "authed";
@@ -52,6 +53,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onExpired);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onExpired);
   }, [refresh]);
+
+  // WebSocket hanya hidup selama sesi authed; logout/401 langsung memutusnya.
+  useEffect(() => {
+    if (status !== "authed" || !user) {
+      disconnectEcho();
+      return;
+    }
+    const token = getToken();
+    if (token) void connectEcho(token, user.id).catch(() => undefined);
+  }, [status, user]);
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await authApi.login(email, password);

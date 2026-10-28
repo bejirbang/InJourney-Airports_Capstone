@@ -44,18 +44,24 @@ import {
 import { Toaster } from "@/components/ui/sonner";
 import { TODAY, formatPeriod, formatShortTime, type Role } from "@/lib/mock-rules";
 import { toMockRole, type ApiRole } from "@/lib/api";
-import { menuLabel, menuRoute } from "@/lib/navigation";
-import type { AppPath } from "@/lib/search";
+import { menuLabel, menuRoute, notificationRoute } from "@/lib/navigation";
+import { pageSearch, type AppPath } from "@/lib/search";
 import { useMenu } from "@/components/internspace/shared/menu-data";
 import {
   LOCATION_LABELS,
   initials,
-  unreadChats,
   useMock,
   type LocationSim,
   type Scenario,
 } from "@/components/internspace/shared/model";
 import { ErrorState, LoadingState, NoAccess } from "@/components/internspace/shared/ui";
+import {
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+  useNotifications,
+} from "@/components/internspace/shared/notifications-data";
+import { useChatConversations } from "@/components/internspace/shared/chat-data";
+import { AnnouncementNotificationDialog } from "@/components/internspace/shared/announcement-dialog";
 import { useAuth } from "@/lib/auth";
 import icon from "@/assets/icon.png";
 
@@ -207,7 +213,8 @@ export function Workspace({ children }: { children: ReactNode }) {
   })();
 
   const canOpen = role !== null && allowed[role].includes(path as AppPath);
-  const chatUnread = unreadChats(m.chats, m.me.name, m.chatRead);
+  const chat = useChatConversations("", apiRole !== null);
+  const chatUnread = chat.data?.unread_total ?? 0;
 
   // Periode magang di sidebar memakai data API bila ada, cadangan data prototipe.
   const internProfile = auth.user?.intern_profile;
@@ -312,7 +319,7 @@ export function Workspace({ children }: { children: ReactNode }) {
                 {chatUnread > 0 && <span className="icon-count">{chatUnread}</span>}
               </Link>
             </Button>
-            <NotificationBell role={role} />
+            <NotificationBell enabled={apiRole !== null} />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
                 <span className="avatar">{initials(auth.user?.name ?? m.me.name)}</span>
@@ -381,17 +388,19 @@ export function Workspace({ children }: { children: ReactNode }) {
         </nav>
       )}
       <Toaster position="top-center" richColors closeButton />
+      <AnnouncementNotificationDialog />
     </div>
   );
 }
 
-function NotificationBell({ role }: { role: Role | null }) {
-  const m = useMock();
+function NotificationBell({ enabled }: { enabled: boolean }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const mine = role ? m.notices.filter((n) => n.role === role) : [];
-  const sorted = [...mine].sort((a, b) => b.at.localeCompare(a.at));
-  const unread = sorted.filter((n) => !n.read).length;
+  const notifications = useNotifications(enabled);
+  const markRead = useMarkNotificationRead();
+  const markAll = useMarkAllNotificationsRead();
+  const unread = notifications.unreadCount;
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -408,34 +417,69 @@ function NotificationBell({ role }: { role: Role | null }) {
       <PopoverContent align="end" className="notification-popup">
         <h3>
           Notifikasi
-          {unread > 0 && role && (
+          {unread > 0 && (
             <Button
               variant="link"
               size="sm"
               className="h-auto p-0"
-              onClick={() => m.markAllRead(role)}
+              disabled={markAll.isPending}
+              onClick={() => markAll.mutate()}
             >
               Tandai semua dibaca
             </Button>
           )}
         </h3>
         <div className="max-h-[360px] overflow-y-auto">
-          {sorted.length === 0 && <p className="empty">Belum ada notifikasi.</p>}
-          {sorted.map((n) => (
+          {notifications.isLoading && <p className="empty">Memuat notifikasi...</p>}
+          {notifications.isError && (
+            <p className="empty">
+              {notifications.error instanceof Error
+                ? notifications.error.message
+                : "Notifikasi gagal dimuat."}
+            </p>
+          )}
+          {!notifications.isLoading &&
+            !notifications.isError &&
+            notifications.items.length === 0 && <p className="empty">Belum ada notifikasi.</p>}
+          {notifications.items.map((notification) => (
             <button
-              key={n.id}
+              key={notification.id}
               type="button"
-              className={`notification-item ${n.read ? "" : "unread"}`}
+              className={`notification-item ${notification.read_at === null ? "unread" : ""}`}
               onClick={() => {
-                m.markRead(n.id);
                 setOpen(false);
-                void navigate({ to: n.to, search: (n.search ?? {}) as never });
+                void (async () => {
+                  try {
+                    await markRead.mutateAsync(notification.id);
+                  } catch {
+                    // Tetap buka tujuan walau penandaan baca gagal.
+                  }
+                  const route = notificationRoute(notification.link_path);
+                  const search = pageSearch(notification.link_params ?? {});
+                  void navigate({
+                    to: (route ?? "/") as AppPath,
+                    search: search as never,
+                  });
+                })();
               }}
             >
-              <strong>{n.text}</strong>
-              <small>{formatShortTime(n.at)}</small>
+              <strong>{notification.text}</strong>
+              <small>{formatShortTime(notification.created_at ?? "")}</small>
             </button>
           ))}
+          {notifications.hasNextPage && (
+            <div className="p-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={notifications.isFetchingNextPage}
+                onClick={() => void notifications.fetchNextPage()}
+              >
+                {notifications.isFetchingNextPage ? "Memuat..." : "Muat lebih banyak"}
+              </Button>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>

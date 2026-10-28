@@ -1,7 +1,9 @@
 import airport from "@/assets/airport-banner.jpg";
 import { AdminAttendance } from "@/components/internspace/admin/attendance";
+import { AdminAssessments } from "@/components/internspace/admin/assessments";
 import { AdminDashboard } from "@/components/internspace/admin/dashboard";
 import { CorrectionsPage as AdminCorrections } from "@/components/internspace/admin/corrections";
+import { AdminPresentations } from "@/components/internspace/admin/presentations";
 import { InternAttendance } from "@/components/internspace/intern/attendance";
 import { InternDashboard } from "@/components/internspace/intern/dashboard";
 import { InternLeave } from "@/components/internspace/intern/leave";
@@ -14,7 +16,7 @@ import { MentorDashboard } from "@/components/internspace/mentor/dashboard";
 import { MentorLogbookReview } from "@/components/internspace/mentor/logbook-review";
 import { ReviewerLeave } from "@/components/internspace/shared/leave-review";
 import { useMock } from "@/components/internspace/shared/model";
-import { PageHeading, Panel } from "@/components/internspace/shared/ui";
+import { NoAccess, PageHeading, Panel } from "@/components/internspace/shared/ui";
 import { useAuth } from "@/lib/auth";
 
 export function Dashboard() {
@@ -78,14 +80,20 @@ export function LogbookPage() {
   ) : m.role === "Mentor" ? (
     <MentorLogbookReview />
   ) : (
-    <PendingPage title="Logbook" />
+    <NoAccess />
   );
 }
 
 /** Fase 2 (intern) dan Fase 4 (admin) mengisi halaman ini. */
 export function PresentationPage() {
   const m = useMock();
-  return m.role === "Intern" ? <InternPresentation /> : <PendingPage title="Presentasi Akhir" />;
+  return m.role === "Intern" ? (
+    <InternPresentation />
+  ) : m.role === "Admin" ? (
+    <AdminPresentations />
+  ) : (
+    <PendingPage title="Presentasi Akhir" />
+  );
 }
 
 /** Fase 2 (intern) mengisi halaman ini. */
@@ -99,8 +107,10 @@ export function AssessmentPage() {
   const m = useMock();
   return m.role === "Mentor" ? (
     <MentorAssessments />
+  ) : m.role === "Admin" ? (
+    <AdminAssessments />
   ) : (
-    <PendingPage title={m.role === "Intern" ? "Input Nilai" : "Penilaian"} />
+    <PendingPage title="Input Nilai" />
   );
 }
 

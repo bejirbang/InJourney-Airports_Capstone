@@ -20,19 +20,30 @@ export class ApiError extends Error {
   fields: Record<string, string[]> | undefined;
   /** Alasan penolakan aturan bisnis (422), misalnya `outside_radius` atau `logbook_missing`. */
   reason: string | undefined;
+  /** Isi tambahan dari bodi penolakan, misalnya `affected` saat konfirmasi libur lampau. */
+  details: Record<string, unknown> | undefined;
 
-  constructor(message: string, status: number, fields?: Record<string, string[]>, reason?: string) {
+  constructor(
+    message: string,
+    status: number,
+    fields?: Record<string, string[]>,
+    reason?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.fields = fields;
     this.reason = reason;
+    this.details = details;
   }
 }
 
-const API_URL = (
+export const apiBaseUrl = (
   (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:8000"
 ).replace(/\/+$/, "");
+
+const API_URL = apiBaseUrl;
 
 const TOKEN_KEY = "internspace_token";
 
@@ -81,6 +92,7 @@ function pickMessage(body: unknown, status: number): string {
 function errorDetails(data: unknown): {
   fields?: Record<string, string[]>;
   reason?: string;
+  details?: Record<string, unknown>;
 } {
   if (!data || typeof data !== "object") return {};
   const body = data as { errors?: unknown; reason?: unknown };
@@ -89,6 +101,7 @@ function errorDetails(data: unknown): {
       ? { fields: body.errors as Record<string, string[]> }
       : {}),
     ...(typeof body.reason === "string" ? { reason: body.reason } : {}),
+    details: body as Record<string, unknown>,
   };
 }
 
@@ -120,12 +133,18 @@ export async function request<T>(
   }
 
   if (!response.ok) {
-    const { fields, reason } = errorDetails(data);
+    const { fields, reason, details } = errorDetails(data);
     if (response.status === 401 && token && typeof window !== "undefined") {
       clearToken();
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
-    throw new ApiError(pickMessage(data, response.status), response.status, fields, reason);
+    throw new ApiError(
+      pickMessage(data, response.status),
+      response.status,
+      fields,
+      reason,
+      details,
+    );
   }
 
   return data as T;
@@ -192,12 +211,18 @@ export async function downloadFile(
     } catch {
       data = null;
     }
-    const { fields, reason } = errorDetails(data);
+    const { fields, reason, details } = errorDetails(data);
     if (response.status === 401 && token && typeof window !== "undefined") {
       clearToken();
       window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
     }
-    throw new ApiError(pickMessage(data, response.status), response.status, fields, reason);
+    throw new ApiError(
+      pickMessage(data, response.status),
+      response.status,
+      fields,
+      reason,
+      details,
+    );
   }
 
   const name = downloadName(response.headers.get("Content-Disposition")) ?? fallbackName;

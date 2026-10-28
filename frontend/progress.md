@@ -1146,10 +1146,10 @@ Tidak boleh tumpang tindih per bandara. Hanya tanggal yang belum lewat. Jadwal y
 Kategori: Akun, Presensi, Koreksi Presensi, Izin, Presentasi, **Penilaian** (pelakunya mentor), Lokasi & Jadwal, Kalender Libur, Pengaturan Umum, Unit, Warning, Pengumuman, Laporan. Kosong: "Tidak ada aktivitas pada filter ini."
 
 **Selesai jika (Fase 4):**
-- [ ] Semua file `admin/` tidak lagi memanggil `useMock()`
-- [ ] Tambah intern lengkap dengan NIM/NIS dan institusi berhasil, password sementara tampil sekali
-- [ ] Tambah bandara dengan kota dan jadwal 7 hari berhasil, titik presensi bisa ditambah di peta
-- [ ] Unduh Excel, PDF Daftar Kehadiran, dan PDF Penilaian berhasil dengan nama file dari server
+- [x] Semua file `admin/` tidak lagi memanggil `useMock()`
+- [x] Tambah intern lengkap dengan NIM/NIS dan institusi berhasil, password sementara tampil sekali
+- [x] Tambah bandara dengan kota dan jadwal 7 hari berhasil, titik presensi bisa ditambah di peta
+- [x] Unduh Excel, PDF Daftar Kehadiran, dan PDF Penilaian berhasil dengan nama file dari server
 
 ---
 
@@ -1246,9 +1246,11 @@ Nama event diawali **titik** (`.notification.sent`).
 - Batas 60 pesan per menit (429).
 
 **Selesai jika (Fase 5):**
-- [ ] Dua browser (intern dan mentor) bisa chat real-time, tanda Dibaca dan mengetik berfungsi
-- [ ] Angka lonceng bertambah tanpa muat ulang saat mentor meminta revisi logbook
-- [ ] Logout memutus koneksi WebSocket
+- [x] Dua browser (intern dan mentor) bisa chat real-time, tanda Dibaca dan mengetik berfungsi
+- [x] Angka lonceng bertambah tanpa muat ulang saat mentor meminta revisi logbook
+- [x] Logout memutus koneksi WebSocket
+
+Catatan verifikasi: alur real-time diuji lewat stub event WebSocket di `src/test/pages.test.tsx`; uji dua browser langsung menunggu PostgreSQL dan Reverb lokal aktif.
 
 ---
 
@@ -1382,24 +1384,28 @@ Centang dan isi tanggal saat selesai. Satu baris = satu fitur.
 | 3 | Kalender izin | 7.6 | | [x] 2026-10-27 |
 | 3 | Performa | 7.7 | | [x] 2026-10-27 |
 | 3 | Input Nilai | 7.8 | | [x] 2026-10-27 |
-| 4 | Filter bandara | 8.0 | | [ ] |
-| 4 | Dashboard admin | 8.1 | | [ ] |
-| 4 | Pengguna | 8.2 | | [ ] |
-| 4 | Presensi admin | 8.3 | | [ ] |
-| 4 | Koreksi admin | 8.4 | | [ ] |
-| 4 | Presentasi admin | 8.5 | | [ ] |
-| 4 | Penilaian admin | 8.6 | | [ ] |
-| 4 | Warning | 8.7 | | [ ] |
-| 4 | Pengumuman | 8.8 | | [ ] |
-| 4 | Pengaturan | 8.9 | | [ ] |
-| 4 | Laporan Excel dan PDF | 8.10 | | [ ] |
-| 4 | Lokasi & Jadwal | 8.11 | | [ ] |
-| 4 | Log Aktivitas | 8.12 | | [ ] |
-| 5 | Koneksi WebSocket | 9.1 | | [ ] |
-| 5 | Lonceng | 9.2 | | [ ] |
-| 5 | Chat | 9.3 | | [ ] |
+| 4 | Filter bandara | 8.0 | | [x] 2026-10-28 |
+| 4 | Dashboard admin | 8.1 | | [x] 2026-10-28 |
+| 4 | Pengguna | 8.2 | | [x] 2026-10-28 |
+| 4 | Presensi admin | 8.3 | | [x] 2026-10-28 |
+| 4 | Koreksi admin | 8.4 | | [x] 2026-10-28 |
+| 4 | Presentasi admin | 8.5 | | [x] 2026-10-28 |
+| 4 | Penilaian admin | 8.6 | | [x] 2026-10-28 |
+| 4 | Warning | 8.7 | | [x] 2026-10-28 |
+| 4 | Pengumuman | 8.8 | | [x] 2026-10-28 |
+| 4 | Pengaturan | 8.9 | | [x] 2026-10-28 |
+| 4 | Laporan Excel dan PDF | 8.10 | | [x] 2026-10-28 |
+| 4 | Lokasi & Jadwal | 8.11 | | [x] 2026-10-28 |
+| 4 | Log Aktivitas | 8.12 | | [x] 2026-10-28 |
+| 5 | Koneksi WebSocket | 9.1 | | [x] 2026-10-28 |
+| 5 | Lonceng | 9.2 | | [x] 2026-10-28 |
+| 5 | Chat | 9.3 | | [x] 2026-10-28 |
 | 6 | Bersih-bersih | 10 | | [ ] |
 
 Catatan Fase 2 (2026-10-27): `npx tsc --noEmit`, `npm run test` (141 tes), `npm run build`, serta ESLint + Prettier untuk file yang berubah lolos. Smoke test ke API langsung belum dijalankan ulang karena PostgreSQL lokal (port 5432) tidak aktif; kontrak field mengikuti kode backend dan diuji lewat stub. Tidak ada kebutuhan perubahan backend baru.
 
 Catatan Fase 3 (2026-10-27): dashboard, Intern Saya (6 tab), review logbook, koreksi, izin mentor/admin, kalender, performa, dan Input Nilai memakai API. Tidak ada lagi pemanggilan `useMock()` di folder `mentor/`; `task-form.tsx` dan `task-review.tsx` sudah tidak ada. Mutasi menginvalidasi `["mentor"]`, tombol mengikuti `can_*`/`action`/`state`, dan pesan server ditampilkan apa adanya. Verifikasi: `npx tsc --noEmit`, `npm run test` (150 tes), `npm run build`, serta ESLint + Prettier untuk 21 file yang berubah lolos. Smoke test langsung tetap tertunda karena PostgreSQL lokal tidak aktif; alur diuji lewat stub endpoint. Tidak ada kebutuhan perubahan backend baru.
+
+Catatan Fase 4 (2026-10-28): seluruh halaman admin memakai `adminApi` dan React Query; tidak ada lagi `useMock()` di folder `admin/`. Filter bandara global disimpan di parameter URL `airport_id`. Dashboard, pengguna (termasuk tambah intern dan password sementara sekali tampil), presensi, koreksi, izin, presentasi, penilaian read-only, warning, pengumuman, laporan Excel/PDF, pengaturan, lokasi & jadwal, serta log aktivitas mengikuti `can_*`/`action`/`state` dan pesan server. Logbook admin dipindah ke tab detail pengguna. Verifikasi: `npx tsc --noEmit`, `npm run test` (150 tes), `npm run build`, serta ESLint (0 error, 3 warning fast-refresh) dan Prettier untuk 38 file TS/TSX yang berubah lolos; `styles.css` hanya ditambah satu aturan agar diff tetap kecil. Smoke test langsung tetap tertunda karena PostgreSQL lokal tidak aktif; alur admin diuji lewat stub endpoint. Tidak ada kebutuhan perubahan backend baru.
+
+Catatan Fase 5 (2026-10-28): Echo + Reverb tersambung saat status `authed` dan diputus saat logout/401. Lonceng memakai cursor `GET /api/notifications`, klik menandai dibaca lalu membuka route dari `link_path` + `link_params`; notifikasi pengumuman membuka dialog detail `GET /api/announcements/{id}`. Chat dibuka dengan `?to=<id>`, memakai daftar percakapan/kontak, riwayat 30 pesan per halaman, kirim teks, tanda Dibaca, indikator mengetik lewat whisper, presence online, dan `can_send`. Event `.notification.sent`, `.notifications.read`, `.notifications.changed`, `.chat.message`, dan `.chat.read` memperbarui cache React Query tanpa polling. Verifikasi: `npx tsc --noEmit`, `npm run test` (157 tes), `npm run build`, ESLint (0 error, 1 warning fast-refresh lama), dan Prettier untuk file TS/TSX yang berubah lolos; `styles.css` hanya ditambah aturan indikator online. Smoke test dua browser dan Reverb langsung belum dijalankan karena PostgreSQL/Reverb lokal tidak aktif; alur real-time diuji lewat stub event. `npm audit` melaporkan 4 kerentanan (2 moderate dari Vitest, 2 high dari Vite/Zod); perbaikannya memerlukan upgrade di luar rentang versi saat ini sehingga belum dilakukan. Tidak ada kebutuhan perubahan backend baru.

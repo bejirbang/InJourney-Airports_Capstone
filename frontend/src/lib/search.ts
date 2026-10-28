@@ -7,11 +7,22 @@ export type PageSearch = {
   to?: string;
   date?: string;
   status?: string;
+  airport_id?: string;
+  /** Id pengumuman yang dibuka dari notifikasi. */
+  announcement?: string;
 };
 
 export const pageSearch = (search: Record<string, unknown>): PageSearch => {
   const out: PageSearch = {};
-  for (const key of ["tab", "open", "to", "date", "status"] as const) {
+  for (const key of [
+    "tab",
+    "open",
+    "to",
+    "date",
+    "status",
+    "airport_id",
+    "announcement",
+  ] as const) {
     const value = search[key];
     if (typeof value === "string" || typeof value === "number") out[key] = String(value);
   }
