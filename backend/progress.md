@@ -1217,6 +1217,10 @@ Keputusan atas perbedaan kecil antara kode dan dokumen/prototipe (18 Okt 2026). 
 Perubahan yang muncul dari keputusan di atas atau dari integrasi dicatat di sini dulu, lalu dikerjakan pada pengembangan berikutnya setelah tim frontend menyambungkan API. Jangan langsung mengubah kode.
 
 - [x] ~~Tiga butir lama tentang Task, KPI Lupa Clock Out, dan `submission.file`.~~ Gugur karena Task dihapus dan KPI diganti (25 Okt 2026).
+- [x] **Daftar chat error `SQLSTATE[42803]` di PostgreSQL** (1 Nov 2026). `Chats::conversations` memakai `CASE WHEN sender_id = ?` di SELECT dan GROUP BY dengan dua binding; PostgreSQL menganggapnya ekspresi berbeda. Kini GROUP BY memakai alias `partner_id`. Test memakai SQLite sehingga tidak tertangkap; seluruh suite sudah dijalankan juga di PostgreSQL (815 lolos). Sebelum rilis, jalankan test di PostgreSQL sesekali (`DB_CONNECTION=pgsql ... php vendor/bin/pest`).
+- [x] **Middleware `role` dijalankan sebelum route model binding** (1 Nov 2026). Sebelumnya role yang salah mendapat 404 untuk ID yang tidak ada dan 403 untuk ID yang ada, jadi ID bisa ditebak. Kini selalu 403 (`prependToPriorityList` di `bootstrap/app.php`).
+- [ ] **Untuk tim FE: chat harus refresh dan status online tidak tampil** (1 Nov 2026). Backend sudah diuji end-to-end (Reverb + queue + dua klien pusher-js): `chat.message`, `chat.read`, `notification.sent`, dan presence `online` sampai tanpa refresh. Penyebab di FE: `frontend/.env` tidak ada, jadi `VITE_REVERB_APP_KEY` kosong dan `connectEcho` berhenti di awal (`isRealtimeEnabled()` false) tanpa pesan. Salin `.env.example` ke `.env`, isi `VITE_REVERB_APP_KEY` dengan `REVERB_APP_KEY` backend, lalu restart Vite. Saran tampilan: titik Offline memakai `var(--border)` sehingga hampir tidak terlihat, dan status online hanya ada di header percakapan; pertimbangkan teks "Online"/"Offline" dan titik di daftar percakapan. Saran lain: beri peringatan di console saat key Reverb kosong.
+- [x] **Pencarian email admin tidak peka huruf besar** (1 Nov 2026). `LOWER(email) LIKE`, karena `LIKE` di PostgreSQL peka huruf besar dan akun dari `app:create-admin`/seeder belum tentu huruf kecil.
 
 ## Perlu diputuskan
 
