@@ -2,13 +2,13 @@
 
 Sistem web untuk mengelola intern InJourney Airports: presensi berbasis lokasi, logbook harian, koreksi presensi, izin, presentasi akhir, penilaian, dan komunikasi antara intern, mentor, dan admin. Proyek ini adalah capstone design project.
 
-## Status per 28 Oktober 2026
+## Status per 1 November 2026
 
 | Bagian | Status |
 | --- | --- |
 | Dokumen desain | Revisi dari wawancara mitra 22 Okt 2026 (design-intern Draft 3, design-mentor Draft 2, design-admin Draft 3) |
-| Backend (Laravel API) | Selesai mengikuti dokumen desain terbaru: presensi, logbook, koreksi dua tahap, izin dengan kuota, presentasi, penilaian, Lokasi & Jadwal, dashboard, laporan, notifikasi, chat. Murni API, sudah diuji (808 test) |
-| Frontend (TanStack Start) | Terintegrasi API untuk Fase 0-6: autentikasi, seluruh halaman per role, laporan, serta chat/notifikasi real-time. Data contoh dan `MockProvider` sudah dihapus. Uji live menunggu PostgreSQL/Reverb lokal |
+| Backend (Laravel API) | Selesai mengikuti dokumen desain terbaru: presensi, logbook, koreksi dua tahap, izin dengan kuota, presentasi, penilaian, Lokasi & Jadwal, dashboard, laporan, notifikasi, chat. Murni API, 815 test lolos di SQLite dan PostgreSQL |
+| Frontend (TanStack Start) | Terintegrasi API untuk Fase 0-6: autentikasi, seluruh halaman per role, laporan, serta chat/notifikasi real-time. Uji live bersama backend sudah dilakukan 1 Nov 2026; sisa bug tampilan ada di [`frontend/progress.md`](frontend/progress.md) bagian 15 |
 | Deployment | Belum. Host untuk API dan WebSocket belum dipilih |
 
 ## Dokumen penting
@@ -23,7 +23,9 @@ Mulai dari tabel ini untuk mencari apa pun.
 | Lonceng notifikasi, chat, WebSocket | [`backend/progress.md`](backend/progress.md), bagian "Catatan integrasi frontend: Lonceng dan Chat" | Channel, event, dan cara frontend berlangganan |
 | Keputusan pemilik repo dan hal terbuka | [`backend/progress.md`](backend/progress.md), bagian "Keputusan review", "Keputusan pemilik repo", "Perlu diputuskan", "Masih terbuka" | |
 | Skema database (ERD, arti tiap kolom) | `backend/backend_architecture_ERD.md` | **Tidak masuk git** (di-ignore). Minta ke pemilik repo bila dibutuhkan. Ringkasan tabel ada di bagian [Backend](#backend) |
-| Panduan dan status frontend | [`frontend/README.md`](frontend/README.md), [`frontend/roadmap.md`](frontend/roadmap.md), [`frontend/src/components/internspace/README.md`](frontend/src/components/internspace/README.md) | Pemetaan menu ke file per role |
+| **Menjalankan backend + frontend bersama** | Bagian [Menjalankan lokal](#menjalankan-lokal-backend--frontend) di bawah; rincian dan pemecahan masalah di [`frontend/progress.md`](frontend/progress.md) bagian 16 | |
+| Bug tampilan frontend yang belum diperbaiki | [`frontend/progress.md`](frontend/progress.md) bagian 15 | Hasil audit browser semua role, desktop dan mobile |
+| Panduan dan status frontend | [`frontend/README.md`](frontend/README.md), [`frontend/AGENTS.md`](frontend/AGENTS.md), [`frontend/roadmap.md`](frontend/roadmap.md), [`frontend/src/components/internspace/README.md`](frontend/src/components/internspace/README.md) | Pemetaan menu ke file per role |
 | Panduan asisten AI | [`frontend/CLAUDE.md`](frontend/CLAUDE.md); `backend/CLAUDE.md` (lokal, tidak masuk git) | |
 | PRD | PDF di luar repo | Kebutuhan sistem tingkat overview |
 
@@ -112,24 +114,70 @@ Browser (frontend TanStack Start, di Vercel)
     └── tests/Feature/        Test Pest per role
 ```
 
-## Backend
+## Menjalankan lokal (backend + frontend)
 
-### Menjalankan (development)
+Butuh PHP 8.3+ dengan ekstensi `pdo_pgsql` dan `zip`, Composer, PostgreSQL (port 5432; di Laragon nyalakan PostgreSQL dari menunya), Node.js, dan npm. Jalankan backend dan frontend di dua terminal.
 
-Butuh PHP 8.3+ dengan ekstensi `pdo_pgsql` dan `zip`, Composer, dan PostgreSQL.
+### 1. Backend (terminal 1)
 
 ```bash
 cd backend
 composer install
-cp .env.example .env              # isi koneksi PostgreSQL (DB_*) dan REVERB_*
+cp .env.example .env
 php artisan key:generate
-php artisan migrate:fresh --seed  # data contoh: 4 unit, 2 bandara + titik presensi, akun, indikator penilaian
-php artisan dev                   # server API, Reverb (WebSocket), dan queue worker sekaligus
-php artisan schedule:work         # pengingat terjadwal (terminal terpisah)
-php artisan test --parallel       # test
 ```
 
-Akun contoh dari seeder, semuanya dengan password `password`:
+Isi `backend/.env`:
+
+| Kunci | Nilai |
+| --- | --- |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Koneksi PostgreSQL lokal. Buat databasenya dulu, misalnya `createdb -U postgres capstone_injourney` |
+| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | Bebas, asal terisi. Nilai acak: `php -r "echo bin2hex(random_bytes(10));"` |
+| `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` | Biarkan `localhost`, `8080`, `http` |
+
+```bash
+php artisan migrate:fresh --seed  # data contoh: 4 unit, 2 bandara + titik presensi, akun, indikator penilaian
+php artisan dev                   # API :8000, Reverb (WebSocket) :8080, dan queue worker sekaligus
+php artisan schedule:work         # opsional, terminal terpisah: pengingat terjadwal
+```
+
+Queue worker wajib hidup karena event chat dan notifikasi dikirim lewat queue. `php artisan dev` sudah menjalankannya; `php artisan serve` saja tidak cukup.
+
+### 2. Frontend (terminal 2)
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+```
+
+Isi `frontend/.env`:
+
+| Kunci | Nilai |
+| --- | --- |
+| `VITE_API_URL` | `http://localhost:8000` (tanpa `/api`) |
+| `VITE_REVERB_APP_KEY` | **Sama persis** dengan `REVERB_APP_KEY` di `backend/.env` |
+| `VITE_REVERB_HOST`, `VITE_REVERB_PORT`, `VITE_REVERB_SCHEME` | Sama dengan `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` di backend |
+
+```bash
+npm run dev -- --port 5173
+```
+
+Buka `http://localhost:5173` dan masuk dengan salah satu akun contoh di bawah.
+
+### Penting agar keduanya tersambung
+
+- **Selalu tentukan port frontend.** Konfigurasi Lovable memakai port 8080 secara bawaan, sama dengan Reverb. Jika frontend menyala lebih dulu, Reverb gagal memakai 8080 dan real-time mati; jika backend lebih dulu, Vite pindah diam-diam ke port lain.
+- **`VITE_REVERB_APP_KEY` kosong atau berbeda** membuat real-time mati tanpa pesan error: chat harus di-refresh, lonceng tidak bertambah, status online tidak tampil. Cek di DevTools > Network > WS: harus ada koneksi ke `ws://localhost:8080`.
+- Vite hanya membaca `.env` saat start; restart `npm run dev` setelah mengubahnya.
+- `SQLSTATE[08006]` di log backend berarti PostgreSQL belum dinyalakan.
+- CORS backend di development mengizinkan `localhost` port apa pun, jadi tidak perlu mengubah `FRONTEND_URL` untuk lokal.
+
+Tabel pemecahan masalah lengkap ada di [`frontend/progress.md`](frontend/progress.md) bagian 16.
+
+### Akun contoh
+
+Semua akun dari seeder memakai password `password`:
 
 | Email | Role | Catatan |
 | --- | --- | --- |
@@ -141,6 +189,8 @@ Akun contoh dari seeder, semuanya dengan password `password`:
 Admin pertama di production dibuat dengan `php artisan app:create-admin {email} {nama}`; password sementara tampil sekali di terminal.
 
 Selama belum ada database production, perubahan skema ditulis langsung di migration yang ada lalu dijalankan ulang dengan `migrate:fresh --seed`. Setelah production ada, hanya boleh migration baru dengan `migrate --force`.
+
+## Backend
 
 ### Tabel
 
@@ -166,15 +216,19 @@ Status presensi, sisa kuota izin, status aktif intern, rekap, KPI, dan syarat pe
 | `app:remind-presentations` | 07:00 | Intern diingatkan presentasi akhir sejak H-7 |
 | `app:prune-idle-tokens` | 02:00 | Hapus token login yang sudah kedaluwarsa |
 
-## Frontend
+### Test
 
 ```bash
-cd frontend
-npm install
-npm run dev
+# dari root repo
+(cd backend && php artisan test --parallel)   # 815 test (SQLite in-memory)
+(cd frontend && npm run test)                 # Vitest
 ```
 
-Frontend memakai API Laravel; data contoh, `MockProvider`, dan `mock-rules.ts` sudah dihapus pada Fase 6. Status per fase dan catatan verifikasi ada di [`frontend/progress.md`](frontend/progress.md).
+Test backend memakai SQLite, yang lebih longgar dari PostgreSQL (bug chat `SQLSTATE[42803]` lolos di SQLite). Sebelum rilis, jalankan juga terhadap PostgreSQL: `DB_CONNECTION=pgsql DB_DATABASE=<db_test> php vendor/bin/pest`.
+
+## Frontend
+
+Cara menjalankan ada di [Menjalankan lokal](#menjalankan-lokal-backend--frontend). Frontend memakai API Laravel; data contoh, `MockProvider`, dan `mock-rules.ts` sudah dihapus pada Fase 6. Status per fase, catatan verifikasi, dan bug tampilan yang tersisa ada di [`frontend/progress.md`](frontend/progress.md).
 
 ## Integrasi frontend ke backend
 
@@ -184,7 +238,7 @@ Panduan lengkap ada di [`backend/progress.md`](backend/progress.md), bagian **"C
 2. **401** berarti sesi berakhir (termasuk setelah 30 menit tanpa aktivitas): putuskan koneksi WebSocket, kembali ke login. Jangan polling API di latar belakang.
 3. **422** berisi `{message, reason}` untuk penolakan aturan atau `{message, errors}` untuk error isian. Tampilkan `message` apa adanya; teksnya sudah sesuai dokumen desain.
 4. **Menu dan angka badge** dari `GET /api/{intern|mentor|admin}/menu`.
-5. **WebSocket** lewat Reverb: channel privat `users.{id}`, otorisasi di `POST /api/broadcasting/auth` dengan Bearer token yang sama.
+5. **WebSocket** lewat Reverb: channel privat `users.{id}`, presence `online`, otorisasi di `POST /api/broadcasting/auth` dengan Bearer token yang sama. Frontend butuh `VITE_REVERB_APP_KEY` yang sama dengan `REVERB_APP_KEY` backend.
 6. **Filter bandara admin** dikirim sebagai `airport_id`; pilihan bandara dari `GET /api/admin/airports`.
 7. **Export Excel dan PDF** diambil lewat `fetch` lalu disimpan sebagai blob; nama file dari header `Content-Disposition`.
 8. **CORS**: development otomatis mengizinkan `localhost` port apa pun. Production mengisi `FRONTEND_URL` dengan domain Vercel.
