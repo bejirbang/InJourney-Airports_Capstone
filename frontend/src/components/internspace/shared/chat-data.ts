@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { internToken } from "@/lib/api";
 import {
   chatApi,
+  type ApiChatConversationList,
   type ApiChatMessage,
   type ApiChatMessagesPage,
   type ApiChatPerson,
@@ -36,8 +37,7 @@ type MessagePages = InfiniteData<ApiChatMessagesPage, number | undefined>;
 
 /** Daftar percakapan + total belum dibaca untuk ikon chat di header. */
 export function useChatConversations(q = "", enabled = true) {
-  const queryClient = useQueryClient();
-  const query = useQuery({
+  return useQuery({
     queryKey: chatConversationsKey(q),
     queryFn: () => chatApi.conversations(internToken(), q || undefined),
     enabled,
@@ -45,20 +45,100 @@ export function useChatConversations(q = "", enabled = true) {
     staleTime: 15_000,
     refetchOnWindowFocus: false,
   });
+}
+
+/**
+ * Perbarui cache daftar percakapan dari event WebSocket. Dipakai satu tempat saja
+ * (shell) agar pesan yang sama tidak dihitung dua kali.
+ */
+export function applyChatMessageToConversations(
+  queryClient: QueryClient,
+  meId: number,
+  message: ApiChatMessage,
+) {
+  const incoming = message.receiver_id === meId;
+  const partnerId = incoming ? message.sender_id : message.receiver_id;
+
+  queryClient.setQueriesData<ApiChatConversationList>(
+    { queryKey: [...CHATS_KEY, "conversations"] },
+    (old) => {
+      if (!old) return old;
+
+      let found = false;
+      let already = false;
+      const conversations = old.conversations.map((item) => {
+        if (item.partner.id !== partnerId) return item;
+        found = true;
+        already = item.last_message.id === message.id;
+        if (already) return item;
+        return {
+          ...item,
+          last_message: message,
+          unread_count: incoming ? item.unread_count + 1 : item.unread_count,
+        };
+      });
+
+      if (!found) {
+        return {
+          ...old,
+          unread_total: incoming ? old.unread_total + 1 : old.unread_total,
+        };
+      }
+
+      return {
+        ...old,
+        conversations,
+        unread_total: incoming && !already ? old.unread_total + 1 : old.unread_total,
+      };
+    },
+  );
+}
+
+/** Langganan event chat untuk badge header dan daftar percakapan. */
+export function useChatRealtime(meId: number | null) {
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    const refresh = () => {
+    if (meId === null) return;
+
+    const offMessage = onUserEvent("chat.message", (payload) => {
+      const { message } = payload as { message: ApiChatMessage };
+      applyChatMessageToConversations(queryClient, meId, message);
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
-    };
-    const offMessage = onUserEvent("chat.message", refresh);
-    const offRead = onUserEvent("chat.read", refresh);
+    });
+
+    const offRead = onUserEvent("chat.read", (payload) => {
+      const event = payload as {
+        reader_id: number;
+        partner_id: number;
+      };
+      if (event.reader_id === meId) {
+        queryClient.setQueriesData<ApiChatConversationList>(
+          { queryKey: [...CHATS_KEY, "conversations"] },
+          (old) => {
+            if (!old) return old;
+            let removed = 0;
+            const conversations = old.conversations.map((item) => {
+              if (item.partner.id !== event.partner_id) return item;
+              removed = item.unread_count;
+              return { ...item, unread_count: 0 };
+            });
+            return {
+              ...old,
+              conversations,
+              unread_total: Math.max(0, old.unread_total - removed),
+            };
+          },
+        );
+      }
+      void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
+    });
+
     return () => {
       offMessage();
       offRead();
     };
-  }, [queryClient]);
-
-  return query;
+  }, [meId, queryClient]);
 }
 
 /** Kontak yang boleh dihubungi, ditampilkan di bawah percakapan. */
@@ -150,7 +230,13 @@ export function useSendChatMessage() {
     mutationFn: ({ partnerId, body }: { partnerId: number; body: string }) =>
       chatApi.send(internToken(), partnerId, body),
     onSuccess: (message, variables) => {
-      appendChatMessage(queryClient, variables.partnerId, message);
+      const key = chatMessagesKey(variables.partnerId);
+      if (queryClient.getQueryData(key)) {
+        appendChatMessage(queryClient, variables.partnerId, message);
+      } else {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+      applyChatMessageToConversations(queryClient, message.sender_id, message);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
@@ -163,7 +249,20 @@ export function useMarkChatRead() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (partnerId: number) => chatApi.read(internToken(), partnerId),
-    onSuccess: () => {
+    onSuccess: (unreadTotal, partnerId) => {
+      queryClient.setQueriesData<ApiChatConversationList>(
+        { queryKey: [...CHATS_KEY, "conversations"] },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            unread_total: unreadTotal,
+            conversations: old.conversations.map((item) =>
+              item.partner.id === partnerId ? { ...item, unread_count: 0 } : item,
+            ),
+          };
+        },
+      );
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
     },
   });

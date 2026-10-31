@@ -325,6 +325,17 @@ img.avatar { object-fit: cover; }
 @media (max-width: 760px) { .welcome-banner::after { background: linear-gradient(90deg, oklch(0.97 0.022 190 / 99%) 0%, oklch(0.97 0.022 190 / 94%) 58%, oklch(0.97 0.022 190 / 55%) 100%); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
+@media (max-width: 760px) {
+  .chat-layout { height: 70vh; height: min(620px, 70svh); min-height: 420px; grid-template-rows: 64px 1fr; }
+  .role-intern .chat-layout { height: 65vh; height: min(620px, 65svh); min-height: 380px; }
+  .chat-contacts { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; gap: 4px; }
+  .chat-contact { flex: 0 0 auto; width: auto; max-width: 150px; }
+  .chat-contact strong { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-header { padding: 14px 16px; }
+  .chat-messages { padding: 16px; }
+  .chat-compose { padding: 12px; }
+}
+
 .account-page { position: relative; isolation: isolate; min-height: 100svh; background: var(--card); }
 .account-photo, .account-wash { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
 .account-photo { object-fit: cover; object-position: 65% center; }

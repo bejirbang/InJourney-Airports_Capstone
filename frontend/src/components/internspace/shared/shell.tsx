@@ -52,7 +52,7 @@ import {
   useMarkNotificationRead,
   useNotifications,
 } from "@/components/internspace/shared/notifications-data";
-import { useChatConversations } from "@/components/internspace/shared/chat-data";
+import { useChatConversations, useChatRealtime } from "@/components/internspace/shared/chat-data";
 import { AnnouncementNotificationDialog } from "@/components/internspace/shared/announcement-dialog";
 import { useAuth } from "@/lib/auth";
 import icon from "@/assets/icon.png";
@@ -205,6 +205,7 @@ export function Workspace({ children }: { children: ReactNode }) {
   const canOpen = role !== null && allowed[role].includes(path as AppPath);
   const chat = useChatConversations("", apiRole !== null);
   const chatUnread = chat.data?.unread_total ?? 0;
+  useChatRealtime(auth.user?.id ?? null);
 
   // Periode magang di sidebar dari `intern_profile` pada sesi API.
   const internProfile = auth.user?.intern_profile;

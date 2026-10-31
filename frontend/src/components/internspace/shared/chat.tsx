@@ -8,9 +8,9 @@ import { formatShortTime } from "@/lib/utils";
 import type { PageSearch } from "@/lib/search";
 import { useAuth } from "@/lib/auth";
 import {
-  CHATS_KEY,
   appendChatMessage,
   applyChatRead,
+  chatMessagesKey,
   useChatContacts,
   useChatConversations,
   useChatMessages,
@@ -81,8 +81,14 @@ export function ChatPage() {
         (incoming.sender_id === meId && incoming.receiver_id === activeId) ||
         (incoming.sender_id === activeId && incoming.receiver_id === meId);
 
-      if (belongs) appendChatMessage(queryClient, activeId, incoming);
-      void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
+      if (belongs) {
+        const key = chatMessagesKey(activeId);
+        if (queryClient.getQueryData(key)) {
+          appendChatMessage(queryClient, activeId, incoming);
+        } else {
+          void queryClient.invalidateQueries({ queryKey: key });
+        }
+      }
     });
 
     const offRead = onUserEvent("chat.read", (payload) => {
