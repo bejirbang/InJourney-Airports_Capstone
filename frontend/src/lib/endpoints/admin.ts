@@ -169,6 +169,7 @@ export interface AdminUserFilters {
   role?: AdminRole | "";
   status?: AdminAccountStatus | "all";
   page?: number;
+  airport_id?: number;
 }
 
 export interface AdminMentorOption extends AdminRef {

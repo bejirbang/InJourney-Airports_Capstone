@@ -1346,6 +1346,7 @@ Tulis di sini jika menemukan kebutuhan yang belum disediakan backend. Jangan men
 | 2 | Data contoh intern yang magangnya hampir berakhir untuk menguji presentasi dan penilaian | Fase 2-3 | Terbuka |
 | 3 | Chat `GET /api/{role}/chats` gagal di PostgreSQL: `Chats::conversations()` memakai `selectRaw(CASE ... ? ...)` dan `groupByRaw` dengan binding terpisah sehingga muncul `SQLSTATE[42803]` (`chat_messages.sender_id must appear in GROUP BY`). Perbaiki query (mis. `groupByRaw('1')` atau subquery) dan jangan kirim pesan SQL mentah ke klien. | 2026-11-01 | Terbuka, perlu perbaikan backend |
 | 4 | Laporan Excel gagal dengan `Class "OpenSpout\Writer\XLSX\Writer" not found`. `composer.json`/`composer.lock` sudah memuat `openspout/openspout` ^5.12, tetapi folder `vendor/openspout` belum ada. Jalankan `composer install` di `backend/` (butuh ekstensi PHP `zip`) lalu `php artisan optimize:clear`. | 2026-11-01 | Terbuka, masalah instalasi dependency backend |
+| 5 | Filter bandara di menu **Pengguna** belum berfungsi karena `GET /api/admin/users` belum menerima `airport_id`: `UserIndexRequest` belum memvalidasi, `UserController@index` belum meneruskan, dan `AdminUsers::list` belum memfilter. Frontend sudah mengirim `airport_id`; backend perlu menambahkan validasi + filter (mis. `whereHas('internProfile', fn ($q) => $q->where('airport_id', ...))`) dan test. | 2026-11-01 | Terbuka, perlu perbaikan backend |
 
 Hal yang masih terbuka di sisi produk (tidak menghalangi integrasi):
 

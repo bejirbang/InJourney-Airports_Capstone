@@ -126,6 +126,7 @@ export function UsersPage() {
     role,
     status,
     page,
+    ...(filter.airportId === null ? {} : { airport_id: filter.airportId }),
   });
   const openId =
     search.open !== undefined && /^\d+$/.test(search.open) ? Number(search.open) : null;
@@ -239,7 +240,10 @@ export function UsersPage() {
       <div className="toolbar">
         <AirportFilter
           value={filter.airportId}
-          onChange={filter.setAirport}
+          onChange={(airportId) => {
+            filter.setAirport(airportId);
+            setPage(1);
+          }}
           airports={filter.airports}
           disabled={filter.airportsLoading}
         />
