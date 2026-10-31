@@ -8,6 +8,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -26,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'password.changed' => EnsurePasswordIsChanged::class,
             'role' => EnsureUserHasRole::class,
         ]);
+
+        // Cek role sebelum route model binding, supaya role yang salah selalu 403 dan tidak bisa menebak ID yang ada (404).
+        $middleware->prependToPriorityList(SubstituteBindings::class, EnsureUserHasRole::class);
 
         // Aplikasi hanya API, tanpa halaman login untuk redirect; cukup balas 401.
         $middleware->redirectGuestsTo(fn () => null);
