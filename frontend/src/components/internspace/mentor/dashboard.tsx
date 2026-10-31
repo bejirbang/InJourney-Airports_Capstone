@@ -144,7 +144,7 @@ function TodayPanel({ data }: { data: MentorDashboardData }) {
         <Empty>Tidak ada intern dengan status ini hari ini.</Empty>
       ) : (
         <div className="table-wrap">
-          <table>
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Intern</th>

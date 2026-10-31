@@ -341,7 +341,7 @@ function AssessmentForm({ id, onBack }: { id: string; onBack: () => void }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {indicators.map((indicator, index) => (
+                      {indicators.map((indicator) => (
                         <tr key={indicator.id}>
                           <td>
                             <strong>{indicator.name}</strong>
@@ -354,7 +354,9 @@ function AssessmentForm({ id, onBack }: { id: string; onBack: () => void }) {
                           <td>
                             <input
                               aria-label={`Nilai ${indicator.name}`}
+                              className="w-20 rounded-md border border-border bg-card px-2 py-1 text-center outline-none focus:border-primary"
                               type="number"
+                              inputMode="numeric"
                               min={0}
                               max={100}
                               step={1}
@@ -365,7 +367,6 @@ function AssessmentForm({ id, onBack }: { id: string; onBack: () => void }) {
                                   [indicator.id]: event.target.value,
                                 }))
                               }
-                              placeholder={String(index + 1)}
                             />
                           </td>
                         </tr>
