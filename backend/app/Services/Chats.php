@@ -28,12 +28,12 @@ class Chats
      */
     public function conversations(User $me, ?string $search, CarbonInterface $now): array
     {
-        $partnerSql = 'CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END';
-
+        // PostgreSQL menganggap CASE dengan parameter terpisah ($1 di SELECT, $2 di GROUP BY) sebagai ekspresi berbeda,
+        // jadi kelompokkan lewat alias kolom keluaran.
         $latest = ChatMessage::query()
-            ->selectRaw("{$partnerSql} AS partner_id, MAX(id) AS last_id", [$me->id])
+            ->selectRaw('CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END AS partner_id, MAX(id) AS last_id', [$me->id])
             ->where(fn (Builder $q) => $q->where('sender_id', $me->id)->orWhere('receiver_id', $me->id))
-            ->groupByRaw($partnerSql, [$me->id])
+            ->groupBy('partner_id')
             ->get()
             ->mapWithKeys(fn (ChatMessage $row): array => [(int) $row->getAttribute('partner_id') => (int) $row->getAttribute('last_id')]);
 

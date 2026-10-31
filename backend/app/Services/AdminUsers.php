@@ -40,7 +40,7 @@ class AdminUsers
             ->with(['unit:id,name', 'internProfile.mentor:id,name', 'internProfile.airport:id,name'])
             ->when($filters['q'] ?? null, function (Builder $q, string $search): void {
                 $needle = '%'.mb_strtolower($search).'%';
-                $q->where(fn (Builder $q) => $q->whereRaw('LOWER(name) LIKE ?', [$needle])->orWhere('email', 'like', $needle));
+                $q->where(fn (Builder $q) => $q->whereRaw('LOWER(name) LIKE ?', [$needle])->orWhereRaw('LOWER(email) LIKE ?', [$needle]));
             })
             ->when($filters['role'] ?? null, fn (Builder $q, string $role) => $q->where('role', $role))
             ->when(
