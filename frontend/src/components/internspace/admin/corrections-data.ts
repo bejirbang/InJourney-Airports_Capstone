@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { internToken } from "@/lib/api";
 import { adminApi, type AdminCorrectionTab } from "@/lib/endpoints/admin";
 import { ADMIN_KEY } from "@/components/internspace/admin/locations-data";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 export function useAdminCorrections({
   tab,
@@ -50,6 +51,9 @@ export function useDecideCorrection() {
       decision === "approve"
         ? adminApi.corrections.approve(internToken(), id, note)
         : adminApi.corrections.reject(internToken(), id, note),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_KEY }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ADMIN_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }

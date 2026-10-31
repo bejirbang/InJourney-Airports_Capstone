@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { internToken } from "@/lib/api";
 import { mentorApi, type MentorCorrectionTab } from "@/lib/endpoints/mentor";
 import { MENTOR_KEY } from "@/components/internspace/mentor/dashboard-data";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 // Koreksi presensi dari sisi mentor (design-mentor.md Alur 5): daftar, detail, ACC, Tolak.
 
@@ -34,7 +35,10 @@ export function useApproveCorrection() {
   return useMutation({
     mutationFn: ({ id, note }: { id: number; note: string | null }) =>
       mentorApi.approveCorrection(internToken(), id, note),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }
 
@@ -43,6 +47,9 @@ export function useRejectCorrection() {
   return useMutation({
     mutationFn: ({ id, note }: { id: number; note: string }) =>
       mentorApi.rejectCorrection(internToken(), id, note),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }

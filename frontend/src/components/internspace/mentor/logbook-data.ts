@@ -6,6 +6,7 @@ import {
   type MentorLogbookTab,
 } from "@/lib/endpoints/mentor";
 import { MENTOR_KEY } from "@/components/internspace/mentor/dashboard-data";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 // Review logbook mentor (design-mentor.md Alur 4): daftar, detail, setujui, minta revisi,
 // dan setujui massal. Jumlah tab berasal dari `meta` respons daftar.
@@ -40,7 +41,10 @@ export function useApproveLogbook() {
   return useMutation({
     mutationFn: ({ id, comment }: { id: number; comment: string | null }) =>
       mentorApi.approveLogbook(internToken(), id, comment),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }
 
@@ -50,7 +54,10 @@ export function useReviseLogbook() {
   return useMutation({
     mutationFn: ({ id, comment }: { id: number; comment: string }) =>
       mentorApi.reviseLogbook(internToken(), id, comment),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }
 
@@ -59,6 +66,9 @@ export function useApproveLogbooks() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (ids: number[]) => mentorApi.approveLogbooks(internToken(), ids),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }

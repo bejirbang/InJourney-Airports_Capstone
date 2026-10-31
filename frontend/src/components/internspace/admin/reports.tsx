@@ -167,7 +167,7 @@ export function ReportsPage() {
                 <span className="search-field">
                   <Search size={15} className="text-muted-foreground" />
                   <input
-                    className="!w-full"
+                    className="!w-full !border-0 !bg-transparent !p-0"
                     aria-label="Cari intern untuk laporan"
                     placeholder="Kosong = semua intern"
                     value={internSearch}

@@ -12,6 +12,7 @@ import {
   type ApiNotificationPage,
 } from "@/lib/endpoints/shared";
 import { onUserEvent } from "@/lib/realtime";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 // Lonceng notifikasi (progress.md 9.2). Daftar memakai cursor dari server;
 // event WebSocket memperbarui cache tanpa polling.
@@ -82,6 +83,8 @@ export function useNotifications(enabled = true) {
           ],
         };
       });
+      // Notifikasi baru bisa berarti antrean tindakan bertambah/berubah.
+      void invalidateMenu(queryClient);
     });
 
     const offRead = onUserEvent("notifications.read", (payload) => {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { internToken } from "@/lib/api";
 import { attendanceApi, type LogbookFilter } from "@/lib/endpoints/intern";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 // Logbook intern (design-intern.md Alur 4 dan Alur 8): daftar per bulan, detail, simpan/kirim.
 
@@ -38,6 +39,9 @@ export function useSaveLogbook() {
         work: input.work,
         notes: input.notes,
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["intern"] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["intern"] });
+      void invalidateMenu(queryClient);
+    },
   });
 }

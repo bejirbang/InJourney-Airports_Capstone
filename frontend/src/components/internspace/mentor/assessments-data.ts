@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { internToken } from "@/lib/api";
 import { mentorApi, type MentorAssessmentInput } from "@/lib/endpoints/mentor";
 import { MENTOR_KEY } from "@/components/internspace/mentor/dashboard-data";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 // Input nilai mentor (design-mentor.md Alur 9): daftar, detail, simpan draft, dan submit.
 
@@ -37,7 +38,10 @@ export function useSaveAssessment() {
     onSuccess: (result, { internId }) => {
       queryClient.setQueryData([...ASSESSMENTS_KEY, "detail", String(internId)], result.data);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }
 
@@ -49,6 +53,9 @@ export function useSubmitAssessment() {
     onSuccess: (result, { internId }) => {
       queryClient.setQueryData([...ASSESSMENTS_KEY, "detail", String(internId)], result.data);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: MENTOR_KEY }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }

@@ -154,6 +154,31 @@ describe("downloadFile", () => {
   });
 });
 
+describe("pesan error internal", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("tidak menampilkan SQL mentah dari respons 500", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: false,
+            status: 500,
+            json: async () => ({
+              message:
+                'SQLSTATE[42803]: Grouping error: 7 ERROR: column "chat_messages.sender_id" must appear in the GROUP BY clause',
+            }),
+          }) as Response,
+      ),
+    );
+
+    await expect(request("/api/intern/chats", { token: "token-tes" })).rejects.toThrow(
+      "Terjadi kesalahan pada server. Coba lagi nanti.",
+    );
+  });
+});
+
 describe("sesi berakhir (401)", () => {
   const jsonResponse = (body: unknown, status = 200) =>
     ({ ok: status >= 200 && status < 300, status, json: async () => body }) as Response;

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { internToken } from "@/lib/api";
 import { adminApi, type AdminPresentationTab } from "@/lib/endpoints/admin";
 import { ADMIN_KEY } from "@/components/internspace/admin/locations-data";
+import { invalidateMenu } from "@/components/internspace/shared/menu-data";
 
 export function useAdminPresentations(tab: AdminPresentationTab, airportId: number | null) {
   return useQuery({
@@ -37,6 +38,9 @@ export function useDecidePresentation() {
       decision === "approve"
         ? adminApi.presentations.approve(internToken(), id)
         : adminApi.presentations.revise(internToken(), id, note ?? ""),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ADMIN_KEY }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ADMIN_KEY });
+      void invalidateMenu(queryClient);
+    },
   });
 }

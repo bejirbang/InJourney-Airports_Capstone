@@ -72,10 +72,18 @@ export const internToken = (): string => {
   return token;
 };
 
+/** Pesan error internal (SQL/stack trace) tidak boleh tampil ke pengguna. */
+const INTERNAL_ERROR = /SQLSTATE\[|SQL:\s*(select|insert|update|delete)|syntax error at or near/i;
+
 function pickMessage(body: unknown, status: number): string {
   if (body && typeof body === "object") {
     const data = body as { message?: unknown; errors?: unknown };
-    if (typeof data.message === "string" && data.message) return data.message;
+    if (typeof data.message === "string" && data.message) {
+      if (status >= 500 && INTERNAL_ERROR.test(data.message)) {
+        return "Terjadi kesalahan pada server. Coba lagi nanti.";
+      }
+      return data.message;
+    }
     if (data.errors && typeof data.errors === "object") {
       for (const value of Object.values(data.errors as Record<string, unknown>)) {
         if (Array.isArray(value) && typeof value[0] === "string") return value[0];
