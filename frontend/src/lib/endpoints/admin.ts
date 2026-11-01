@@ -876,7 +876,10 @@ export const adminApi = {
     },
 
     show(token: string, id: number): Promise<AdminCorrection> {
-      return request<AdminCorrection>(`/api/admin/corrections/${id}`, tokenOnly(token));
+      return request<{ data: AdminCorrection }>(
+        `/api/admin/corrections/${id}`,
+        tokenOnly(token),
+      ).then(unwrap<AdminCorrection>);
     },
 
     approve(

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, downloadFile, request, setToken, UNAUTHORIZED_EVENT } from "@/lib/api";
+import { adminApi } from "@/lib/endpoints/admin";
 import {
   ATTENDANCE_STATUS_LABEL,
   CORRECTION_STATUS_LABEL,
@@ -176,6 +177,50 @@ describe("pesan error internal", () => {
     await expect(request("/api/intern/chats", { token: "token-tes" })).rejects.toThrow(
       "Terjadi kesalahan pada server. Coba lagi nanti.",
     );
+  });
+});
+
+describe("detail koreksi admin", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("membuka pembungkus data dari resource detail koreksi", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                id: 7,
+                intern: { id: 2, name: "Intern Satu", short_name: "IS" },
+                date: "2026-10-12",
+                recorded_status: "missed_clock_in",
+                recorded_missed_clock_out: false,
+                reason: "Lupa clock in",
+                status: "pending_admin",
+                submitted_at: "2026-10-12T08:00:00+07:00",
+                mentor: { id: 3, name: "Mentor Satu" },
+                mentor_note: "Sudah dicek",
+                mentor_decided_at: "2026-10-12T09:00:00+07:00",
+                admin: null,
+                admin_note: null,
+                admin_decided_at: null,
+                can_decide: true,
+                recorded: { clock_in_at: null, clock_out_at: "17:00:00" },
+                result: { clock_in_at: "08:00:00", clock_out_at: "17:00:00" },
+              },
+            }),
+          }) as Response,
+      ),
+    );
+
+    const result = await adminApi.corrections.show("token-tes", 7);
+
+    expect(result.intern?.name).toBe("Intern Satu");
+    expect(result.can_decide).toBe(true);
+    expect(result.result?.clock_in_at).toBe("08:00:00");
   });
 });
 
