@@ -13,6 +13,39 @@
 
 Aplikasi ini sudah diintegrasikan ke API Laravel di `backend/` untuk Fase 0-6. Panduan kerja dan log verifikasi ada di `progress.md` (folder ini).
 
+## Menjalankan dan menyambungkan ke backend
+
+Rincian lengkap dan tabel pemecahan masalah ada di `progress.md` bagian 16.
+
+1. **Backend** (terminal 1). PostgreSQL harus sudah hidup.
+
+   ```bash
+   cd backend
+   composer install
+   cp .env.example .env && php artisan key:generate
+   # isi DB_* dan REVERB_APP_ID / REVERB_APP_KEY / REVERB_APP_SECRET (nilai acak bebas)
+   php artisan migrate:fresh --seed
+   php artisan dev        # API :8000, Reverb :8080, queue worker
+   ```
+
+2. **Frontend** (terminal 2).
+
+   ```bash
+   cd frontend
+   npm install
+   cp .env.example .env   # VITE_REVERB_APP_KEY = REVERB_APP_KEY di backend/.env
+   npm run dev -- --port 5173
+   ```
+
+3. Buka `http://localhost:5173`, masuk dengan `intern@injourney.test`, `mentor@injourney.test`, atau `admin@injourney.test` (password `password`).
+
+Yang sering membuat integrasi terlihat rusak:
+
+- **`VITE_REVERB_APP_KEY` kosong atau beda dengan backend**: real-time mati tanpa error (chat perlu refresh, lonceng diam, status online tidak tampil).
+- **Port tidak ditentukan**: konfigurasi Lovable memakai 8080, sama dengan Reverb. Selalu jalankan `npm run dev -- --port 5173`.
+- **Queue worker mati** (misalnya hanya `php artisan serve`): event chat dan notifikasi tidak terkirim.
+- `.env` hanya dibaca saat Vite start; restart setelah mengubahnya.
+
 ## Batasan wajib
 
 1. **Sumber kebenaran**, urut dari yang paling kuat:

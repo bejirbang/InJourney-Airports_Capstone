@@ -1344,8 +1344,8 @@ Tulis di sini jika menemukan kebutuhan yang belum disediakan backend. Jangan men
 |---|---|---|---|
 | 1 | `report_region_name` ("Kantor Regional I" di PDF) belum bisa diubah dari Pengaturan Umum | Fase 4 | Terbuka, belum diminta dokumen |
 | 2 | Data contoh intern yang magangnya hampir berakhir untuk menguji presentasi dan penilaian | Fase 2-3 | Terbuka |
-| 3 | Chat `GET /api/{role}/chats` gagal di PostgreSQL: `Chats::conversations()` memakai `selectRaw(CASE ... ? ...)` dan `groupByRaw` dengan binding terpisah sehingga muncul `SQLSTATE[42803]` (`chat_messages.sender_id must appear in GROUP BY`). Perbaiki query (mis. `groupByRaw('1')` atau subquery) dan jangan kirim pesan SQL mentah ke klien. | 2026-11-01 | Terbuka, perlu perbaikan backend |
-| 4 | Laporan Excel gagal dengan `Class "OpenSpout\Writer\XLSX\Writer" not found`. `composer.json`/`composer.lock` sudah memuat `openspout/openspout` ^5.12, tetapi folder `vendor/openspout` belum ada. Jalankan `composer install` di `backend/` (butuh ekstensi PHP `zip`) lalu `php artisan optimize:clear`. | 2026-11-01 | Terbuka, masalah instalasi dependency backend |
+| 3 | Chat `GET /api/{role}/chats` gagal di PostgreSQL: `Chats::conversations()` memakai `selectRaw(CASE ... ? ...)` dan `groupByRaw` dengan binding terpisah sehingga muncul `SQLSTATE[42803]` (`chat_messages.sender_id must appear in GROUP BY`). Perbaiki query (mis. `groupByRaw('1')` atau subquery) dan jangan kirim pesan SQL mentah ke klien. | 2026-11-01 | **Selesai 2026-11-01**: GROUP BY memakai alias `partner_id`; seluruh test backend lolos di PostgreSQL |
+| 4 | Laporan Excel gagal dengan `Class "OpenSpout\Writer\XLSX\Writer" not found`. `composer.json`/`composer.lock` sudah memuat `openspout/openspout` ^5.12, tetapi folder `vendor/openspout` belum ada. Jalankan `composer install` di `backend/` (butuh ekstensi PHP `zip`) lalu `php artisan optimize:clear`. | 2026-11-01 | **Selesai 2026-11-01** di mesin pemilik repo (`vendor/openspout` ada, ekstensi `zip` aktif). Setiap developer tetap wajib `composer install` (lihat bagian 16) |
 | 5 | Filter bandara di menu **Pengguna** belum berfungsi karena `GET /api/admin/users` belum menerima `airport_id`: `UserIndexRequest` belum memvalidasi, `UserController@index` belum meneruskan, dan `AdminUsers::list` belum memfilter. Frontend sudah mengirim `airport_id`; backend perlu menambahkan validasi + filter (mis. `whereHas('internProfile', fn ($q) => $q->where('airport_id', ...))`) dan test. | 2026-11-01 | Terbuka, perlu perbaikan backend |
 
 Hal yang masih terbuka di sisi produk (tidak menghalangi integrasi):
@@ -1413,3 +1413,108 @@ Catatan Fase 4 (2026-10-28): seluruh halaman admin memakai `adminApi` dan React 
 Catatan Fase 5 (2026-10-28): Echo + Reverb tersambung saat status `authed` dan diputus saat logout/401. Lonceng memakai cursor `GET /api/notifications`, klik menandai dibaca lalu membuka route dari `link_path` + `link_params`; notifikasi pengumuman membuka dialog detail `GET /api/announcements/{id}`. Chat dibuka dengan `?to=<id>`, memakai daftar percakapan/kontak, riwayat 30 pesan per halaman, kirim teks, tanda Dibaca, indikator mengetik lewat whisper, presence online, dan `can_send`. Event `.notification.sent`, `.notifications.read`, `.notifications.changed`, `.chat.message`, dan `.chat.read` memperbarui cache React Query tanpa polling. Verifikasi: `npx tsc --noEmit`, `npm run test` (157 tes), `npm run build`, ESLint (0 error, 1 warning fast-refresh lama), dan Prettier untuk file TS/TSX yang berubah lolos; `styles.css` hanya ditambah aturan indikator online. Smoke test dua browser dan Reverb langsung belum dijalankan karena PostgreSQL/Reverb lokal tidak aktif; alur real-time diuji lewat stub event. `npm audit` melaporkan 4 kerentanan (2 moderate dari Vitest, 2 high dari Vite/Zod); perbaikannya memerlukan upgrade di luar rentang versi saat ini sehingga belum dilakukan. Tidak ada kebutuhan perubahan backend baru.
 
 Catatan Fase 6 (2026-10-28): `MockProvider`, `shared/model.tsx`, `mock-rules.ts` beserta `mock-rules.test.ts`/`admin-rules.test.ts`/`role-rules.test.ts`, komponen input file, tombol Simulasi, dan data contoh login dihapus. File Task memang sudah tidak ada sejak fase awal. Helper tanggal/format, `initials`, `shortName`, `Role`, `LeaveType`, validasi password, serta helper lokasi kantor dipindah ke `src/lib/utils.ts`. Selector CSS Task/Kanban/Simulasi yang sudah tidak dipakai juga dihapus. `pages.test.tsx` memakai `AuthProvider` + stub `fetch` tanpa `MockProvider`; role halaman diambil dari sesi API. Verifikasi: acceptance grep kosong, `npx tsc --noEmit`, `npm run test` (99 tes), `npm run build`, serta ESLint (0 error, 1 warning fast-refresh lama) + Prettier untuk file TS/TSX yang berubah. `npm run lint` seluruh repo masih gagal karena 10.749 error CRLF/Prettier lama di file yang tidak disentuh, bukan regresi Fase 6. Smoke test live tetap tertunda karena PostgreSQL/Reverb lokal tidak aktif; `npm audit` masih melaporkan 4 kerentanan yang sama. Tidak ada kebutuhan perubahan backend baru.
+
+Catatan smoke test live (2026-11-01): backend (PostgreSQL + Reverb + queue) dan frontend dijalankan bersama dengan data demo. Real-time terbukti jalan (dua klien menerima `.chat.message`, `.chat.read`, `.notification.sent`, dan presence `online` tanpa refresh) setelah `frontend/.env` berisi `VITE_REVERB_APP_KEY`. Audit tampilan semua halaman tiga role di desktop 1366px dan mobile 390px: tidak ada error console, request gagal, atau overflow horizontal. Bug yang ditemukan dicatat di bagian 15.
+
+---
+
+## 15. Bug Tampilan dari Audit Browser (1 November 2026)
+
+Ditemukan dengan membuka semua halaman tiga role di Chrome (desktop 1366px, mobile 390px) memakai data demo: absensi, logbook berbagai status, izin, koreksi, warning, pengumuman, chat, serta nama dan teks panjang. Tidak ada error console, request API gagal, maupun overflow horizontal. Semua bug di bawah murni frontend; backend tidak perlu diubah.
+
+| No | Bug | Lokasi | Penyebab dan arah perbaikan | Status |
+|---|---|---|---|---|
+| 1 | Chip tanggal di semua halaman selalu "Senin, 12 Okt 2026". Dashboard admin sekaligus menampilkan tanggal server yang benar ("Minggu, 1 Nov 2026"). Progres magang di sidebar intern salah (51%, seharusnya sekitar 76% per 1 Nov). Kalender Izin dan Performa mentor selalu terbuka di Oktober 2026 | `src/lib/utils.ts` (`TODAY = "2026-10-12"`), dipakai di `shared/ui.tsx`, `shared/shell.tsx`, `mentor/leave-calendar.tsx`, `mentor/performance.tsx`, dan fallback di halaman intern | Sisa data mock. Ganti dengan tanggal hari ini zona `Asia/Jakarta`, atau pakai `date` dari respons API bila tersedia | [ ] |
+| 2 | Performa Intern menampilkan 8000%, 8500%, 10000% | `src/lib/utils.ts` (`formatPercent`), dipakai di `mentor/performance.tsx` | API mengirim persen bulat 0-100 (sama seperti `attendance_rate` di Presensi admin yang sudah benar), tetapi `formatPercent` mengalikan 100 lagi. Tampilkan `${value}%` | [ ] |
+| 3 | Chat di mobile: daftar kontak terpotong, percakapan lain tidak bisa dipilih | `src/styles.css`, aturan `.chat-contacts { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }` di bagian bawah file | Aturan tanpa media query yang letaknya lebih bawah menimpa aturan mobile `flex-direction: row; overflow-y: hidden; gap: 4px`. Pindahkan aturan umum ke atas media query, atau ulangi aturan mobile setelahnya | [ ] |
+| 4 | Popup notifikasi di mobile menempel ke tepi kiri layar (jarak kiri 0, kanan 50px) | `src/styles.css`, `.notification-popup { position: static; width: 340px }` | Sama dengan no. 3: menimpa aturan mobile `position: fixed; right: 12px; width: min(315px, calc(100vw - 24px))` | [ ] |
+| 5 | Kartu Rekap di dashboard intern: "Hari kerja berjalan / Sisa kuota izin" menempel ke garis bawah kartu | `src/styles.css` (`.info-line { padding: 0 4px }`), `intern/dashboard.tsx` | CSS di luar layer Tailwind menimpa utility `px-5 py-4` di elemen. Hanya kasus ini yang ditemukan oleh pengecekan utility spacing di semua halaman | [ ] |
+| 6 | Dashboard admin "Asal kampus intern aktif": nama dan angka menempel ("Universitas Indonesia4") | `admin/dashboard.tsx`, `.tag` di `src/styles.css` | `.tag` berupa `inline-flex` tanpa `gap`, sehingga spasi di JSX hilang. Tambahkan `gap` | [ ] |
+| 7 | Tanggal "Jadwal berlaku" tampil ISO (`2020-01-01`) | `admin/offices.tsx` (daftar bandara) | Pakai `formatDate` seperti halaman lain | [ ] |
+| 8 | Label "0 jam" pada Izin menunggu di dashboard mentor kurang jelas | `mentor/dashboard.tsx` (`meta={`${item.pending_hours} jam`}`) | Samakan dengan halaman Izin (`shared/leave-review.tsx`): "diajukan X jam lalu" | [ ] |
+| 9 | Tabel di mobile (`.data-table` `nowrap`) mendorong kolom Aksi jauh ke kanan tanpa petunjuk scroll; nav bawah intern 6 menu terbagi 4 + 2 | `src/styles.css` | Saran UX, bukan bug | [ ] |
+| 10 | Titik status Offline di header chat memakai `var(--border)` sehingga hampir tidak terlihat, dan status online hanya ada di header percakapan | `shared/chat.tsx`, `.online-dot.off` | Saran: teks "Online"/"Offline" dan titik di daftar percakapan; peringatan di console saat `VITE_REVERB_APP_KEY` kosong | [ ] |
+
+Bukan bug: latar sidebar yang tampak berhenti di screenshot satu halaman penuh (sidebar `position: fixed`), dan konten paling bawah di mobile yang tidak tertutup nav bawah.
+
+---
+
+## 16. Menjalankan dan Menyambungkan Backend + Frontend (lokal)
+
+Ringkasan yang sama ada di `README.md` root dan `AGENTS.md`.
+
+### 16.1 Kebutuhan
+
+- PHP 8.3+ dengan ekstensi `pdo_pgsql` dan `zip`, Composer.
+- PostgreSQL berjalan di port 5432 (Laragon: nyalakan PostgreSQL dari menu Laragon).
+- Node.js dan npm.
+
+### 16.2 Backend (terminal 1)
+
+```bash
+cd backend
+composer install
+cp .env.example .env
+php artisan key:generate
+```
+
+Isi `backend/.env`:
+
+| Kunci | Nilai |
+| --- | --- |
+| `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Koneksi PostgreSQL lokal. Buat dulu databasenya, mis. `createdb -U postgres capstone_injourney` |
+| `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET` | Bebas, asal terisi. Contoh membuat nilai acak: `php -r "echo bin2hex(random_bytes(10));"` |
+| `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` | Biarkan `localhost`, `8080`, `http` |
+
+```bash
+php artisan migrate:fresh --seed   # akun contoh, password "password"
+php artisan dev                    # API :8000, Reverb :8080, queue worker sekaligus
+php artisan schedule:work          # opsional, terminal terpisah: pengingat terjadwal
+```
+
+Queue worker wajib hidup: event chat dan notifikasi dikirim lewat queue. `php artisan dev` sudah menjalankannya; jika hanya `php artisan serve`, real-time tidak jalan.
+
+### 16.3 Frontend (terminal 2)
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+```
+
+Isi `frontend/.env`:
+
+| Kunci | Nilai |
+| --- | --- |
+| `VITE_API_URL` | `http://localhost:8000` (tanpa `/api`) |
+| `VITE_REVERB_APP_KEY` | **Sama persis** dengan `REVERB_APP_KEY` di `backend/.env`. Jika kosong, real-time mati tanpa pesan error: chat perlu refresh, lonceng diam, status online tidak tampil |
+| `VITE_REVERB_HOST`, `VITE_REVERB_PORT`, `VITE_REVERB_SCHEME` | Sama dengan `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME` backend |
+
+```bash
+npm run dev -- --port 5173
+```
+
+Buka `http://localhost:5173`. **Selalu tentukan port.** Konfigurasi Lovable memakai port 8080 secara bawaan, sama dengan Reverb: jika frontend dinyalakan lebih dulu, Reverb gagal memakai 8080 dan real-time mati; jika backend lebih dulu, Vite pindah diam-diam ke port lain. CORS backend di development mengizinkan `localhost` port apa pun.
+
+Vite hanya membaca `.env` saat start, jadi restart `npm run dev` setiap kali `.env` diubah.
+
+### 16.4 Akun contoh
+
+| Email | Role |
+| --- | --- |
+| `admin@injourney.test` | Admin |
+| `mentor@injourney.test` | Mentor |
+| `intern@injourney.test` | Intern |
+| `intern.baru@injourney.test` | Intern, wajib ganti password saat login pertama |
+
+Semua memakai password `password`.
+
+### 16.5 Cek cepat bila ada yang tidak jalan
+
+| Gejala | Cek |
+| --- | --- |
+| Login gagal / "Failed to fetch" | Backend hidup di `http://localhost:8000`? `VITE_API_URL` benar? |
+| `SQLSTATE[08006]` di log backend | PostgreSQL belum dinyalakan |
+| Chat perlu refresh, status online tidak tampil | `VITE_REVERB_APP_KEY` terisi dan sama dengan backend? Reverb hidup di 8080 (tidak bentrok dengan Vite)? Queue worker hidup? Di DevTools > Network > WS harus ada koneksi ke `ws://localhost:8080` |
+| Export Excel gagal `OpenSpout ... not found` | Jalankan `composer install` di `backend/`, pastikan ekstensi `zip` aktif, lalu `php artisan optimize:clear` |
+| 401 setelah lama diam | Normal: sesi berakhir setelah 30 menit tanpa aktivitas |
