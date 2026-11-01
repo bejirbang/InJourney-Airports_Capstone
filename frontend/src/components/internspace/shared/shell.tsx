@@ -207,9 +207,16 @@ export function Workspace({ children }: { children: ReactNode }) {
   })();
 
   const canOpen = role !== null && allowed[role].includes(path as AppPath);
+  const notifications = useNotifications(apiRole !== null);
   const chat = useChatConversations("", apiRole !== null);
   const liveChatUnread = useChatLiveUnread();
-  const chatUnread = chat.data?.unread_total ?? liveChatUnread;
+  // Notifikasi chat adalah satu baris per pengirim, dipakai sebagai cadangan
+  // angka ikon chat saat `GET /api/chats` belum/gagal dimuat.
+  const chatNotificationUnread = notifications.items.filter(
+    (item) => item.link_path === "/chat" && item.read_at === null,
+  ).length;
+  const chatUnread =
+    chat.data?.unread_total ?? Math.max(liveChatUnread, chatNotificationUnread);
   useChatRealtime(auth.user?.id ?? null);
 
   // Periode magang di sidebar dari `intern_profile` pada sesi API.
@@ -306,7 +313,7 @@ export function Workspace({ children }: { children: ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              aria-label={`Chat, ${chatUnread} pesan baru`}
+              aria-label={`Chat, ${chatUnread} belum dibaca`}
               asChild
             >
               <Link to="/chat" className="relative">
@@ -314,7 +321,7 @@ export function Workspace({ children }: { children: ReactNode }) {
                 {chatUnread > 0 && <span className="icon-count">{chatUnread}</span>}
               </Link>
             </Button>
-            <NotificationBell enabled={apiRole !== null} />
+            <NotificationBell notifications={notifications} />
             <DropdownMenu>
               <DropdownMenuTrigger className="profile-summary" aria-label="Menu profil">
                 <span className="avatar">{initials(auth.user?.name ?? "Memuat")}</span>
@@ -377,10 +384,11 @@ export function Workspace({ children }: { children: ReactNode }) {
   );
 }
 
-function NotificationBell({ enabled }: { enabled: boolean }) {
+type NotificationsState = ReturnType<typeof useNotifications>;
+
+function NotificationBell({ notifications }: { notifications: NotificationsState }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const notifications = useNotifications(enabled);
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
   const unread = notifications.unreadCount;

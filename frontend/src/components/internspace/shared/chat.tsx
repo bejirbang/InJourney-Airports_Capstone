@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth";
 import {
   appendChatMessage,
   applyChatRead,
+  chatMessageTime,
   chatMessagesKey,
   useChatActivity,
   useChatContacts,
@@ -21,6 +22,7 @@ import {
   useOnlineUsers,
   useSendChatMessage,
 } from "@/components/internspace/shared/chat-data";
+import { useNotifications } from "@/components/internspace/shared/notifications-data";
 import { initials } from "@/lib/utils";
 import { Empty, PageHeading } from "@/components/internspace/shared/ui";
 import { onUserEvent } from "@/lib/realtime";
@@ -47,6 +49,7 @@ export function ChatPage() {
   const contacts = useChatContacts(deferredQuery, meId !== null);
   const activity = useChatActivity();
   const liveUnread = useChatLiveUnreadMap();
+  const notifications = useNotifications(meId !== null);
   const firstConversationId = conversations.data?.conversations[0]?.partner.id ?? null;
 
   useEffect(() => {
@@ -143,18 +146,43 @@ export function ChatPage() {
     void navigate({ to: "/chat", search: { to: String(id) } as never });
   };
 
+  // Notifikasi chat menyimpan waktu pesan terakhir per pengirim. Dipakai untuk
+  // mengurutkan kontak saat daftar percakapan dari server belum tersedia.
+  const notificationActivity: Record<number, number> = {};
+  const notificationUnread: Record<number, number> = {};
+  for (const item of notifications.items) {
+    if (item.link_path !== "/chat") continue;
+    const partnerId = Number((item.link_params as { to?: unknown } | null)?.to);
+    if (!Number.isInteger(partnerId) || partnerId <= 0) continue;
+    const parsed = Date.parse(item.created_at ?? "");
+    const stamp = Number.isFinite(parsed) ? parsed : item.id;
+    notificationActivity[partnerId] = Math.max(notificationActivity[partnerId] ?? 0, stamp);
+    if (item.read_at === null) notificationUnread[partnerId] = 1;
+  }
+
   const conversationList = [...(conversations.data?.conversations ?? [])].sort((a, b) => {
-    const left = Math.max(activity[a.partner.id] ?? 0, a.last_message.id);
-    const right = Math.max(activity[b.partner.id] ?? 0, b.last_message.id);
+    const left = Math.max(
+      activity[a.partner.id] ?? 0,
+      chatMessageTime(a.last_message),
+      notificationActivity[a.partner.id] ?? 0,
+    );
+    const right = Math.max(
+      activity[b.partner.id] ?? 0,
+      chatMessageTime(b.last_message),
+      notificationActivity[b.partner.id] ?? 0,
+    );
     return right - left;
   });
   const newContacts = (contacts.data ?? [])
     .filter((person) => !conversationList.some((item) => item.partner.id === person.id))
-    .sort(
-      (a, b) =>
-        (activity[b.id] ?? 0) - (activity[a.id] ?? 0) || a.name.localeCompare(b.name),
-    );
+    .sort((a, b) => {
+      const left = Math.max(activity[a.id] ?? 0, notificationActivity[a.id] ?? 0);
+      const right = Math.max(activity[b.id] ?? 0, notificationActivity[b.id] ?? 0);
+      return right - left || a.name.localeCompare(b.name);
+    });
 
+  const contactUnread = (id: number) =>
+    Math.max(liveUnread[id] ?? 0, notificationUnread[id] ?? 0);
   const canSend = partner?.can_send === true;
 
   return (
@@ -225,8 +253,8 @@ export function ChatPage() {
               <span className="min-w-0 flex-1 text-left">
                 <span className="flex justify-between gap-2">
                   <strong className="truncate">{person.name}</strong>
-                  {(liveUnread[person.id] ?? 0) > 0 && (
-                    <span className="nav-count !ml-0">{liveUnread[person.id]}</span>
+                  {contactUnread(person.id) > 0 && (
+                    <span className="nav-count !ml-0">{contactUnread(person.id)}</span>
                   )}
                 </span>
                 <small className="truncate block">{toDisplayRole[person.role]}</small>

@@ -68,10 +68,17 @@ export function useChatActivity(): ChatCounters {
   return data ?? {};
 }
 
-function bumpChatActivity(queryClient: QueryClient, partnerId: number, messageId: number) {
+/** Waktu pesan untuk urutan aktivitas; id dipakai bila `created_at` tidak ada. */
+export function chatMessageTime(message: ApiChatMessage): number {
+  const parsed = Date.parse(message.created_at ?? "");
+  return Number.isFinite(parsed) ? parsed : message.id;
+}
+
+function bumpChatActivity(queryClient: QueryClient, partnerId: number, message: ApiChatMessage) {
+  const stamp = chatMessageTime(message);
   queryClient.setQueryData<ChatCounters>(chatActivityKey, (old) => {
     const next = { ...(old ?? {}) };
-    if ((next[partnerId] ?? 0) < messageId) next[partnerId] = messageId;
+    if ((next[partnerId] ?? 0) < stamp) next[partnerId] = stamp;
     return next;
   });
 }
@@ -157,7 +164,7 @@ export function useChatRealtime(meId: number | null) {
       const incoming = message.receiver_id === meId;
       const partnerId = incoming ? message.sender_id : message.receiver_id;
       if (incoming) changeLiveUnread(queryClient, partnerId, 1);
-      bumpChatActivity(queryClient, partnerId, message.id);
+      bumpChatActivity(queryClient, partnerId, message);
       applyChatMessageToConversations(queryClient, meId, message);
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
     });
@@ -233,13 +240,13 @@ export function useChatMessages(partnerId: number | null) {
       .reverse()
       .flatMap((page) => page.messages) ?? [];
   const partner: ApiChatPerson | null = query.data?.pages[0]?.partner ?? null;
-  const lastMessageId = messages.at(-1)?.id ?? null;
+  const lastMessage = messages.at(-1) ?? null;
 
   useEffect(() => {
-    if (partnerId !== null && lastMessageId !== null) {
-      bumpChatActivity(queryClient, partnerId, lastMessageId);
+    if (partnerId !== null && lastMessage !== null) {
+      bumpChatActivity(queryClient, partnerId, lastMessage);
     }
-  }, [lastMessageId, partnerId, queryClient]);
+  }, [lastMessage, partnerId, queryClient]);
 
   return { ...query, messages, partner };
 }
@@ -305,7 +312,7 @@ export function useSendChatMessage() {
         void queryClient.invalidateQueries({ queryKey: key });
       }
       applyChatMessageToConversations(queryClient, message.sender_id, message);
-      bumpChatActivity(queryClient, variables.partnerId, message.id);
+      bumpChatActivity(queryClient, variables.partnerId, message);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
