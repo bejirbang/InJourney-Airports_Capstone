@@ -32,8 +32,59 @@ export const chatConversationsKey = (q: string) => [...CHATS_KEY, "conversations
 export const chatContactsKey = (q: string) => [...CHATS_KEY, "contacts", q] as const;
 export const chatMessagesKey = (partnerId: number) =>
   [...CHATS_KEY, "messages", partnerId] as const;
+export const chatLiveUnreadKey = [...CHATS_KEY, "live-unread"] as const;
+export const chatActivityKey = [...CHATS_KEY, "activity"] as const;
 
 type MessagePages = InfiniteData<ApiChatMessagesPage, number | undefined>;
+type ChatCounters = Record<number, number>;
+
+/** Cadangan angka belum dibaca per lawan bicara saat daftar percakapan gagal dimuat. */
+export function useChatLiveUnreadMap(): ChatCounters {
+  const { data } = useQuery({
+    queryKey: chatLiveUnreadKey,
+    queryFn: () => ({} as ChatCounters),
+    enabled: false,
+    staleTime: Infinity,
+    initialData: {},
+  });
+  return data ?? {};
+}
+
+/** Cadangan angka ikon chat saat daftar percakapan belum/gagal dimuat. */
+export function useChatLiveUnread(): number {
+  const byPartner = useChatLiveUnreadMap();
+  return Object.values(byPartner).reduce((total, count) => total + count, 0);
+}
+
+/** Waktu pesan terakhir yang diketahui per lawan bicara, untuk urutan kontak. */
+export function useChatActivity(): ChatCounters {
+  const { data } = useQuery({
+    queryKey: chatActivityKey,
+    queryFn: () => ({} as ChatCounters),
+    enabled: false,
+    staleTime: Infinity,
+    initialData: {},
+  });
+  return data ?? {};
+}
+
+function bumpChatActivity(queryClient: QueryClient, partnerId: number, messageId: number) {
+  queryClient.setQueryData<ChatCounters>(chatActivityKey, (old) => {
+    const next = { ...(old ?? {}) };
+    if ((next[partnerId] ?? 0) < messageId) next[partnerId] = messageId;
+    return next;
+  });
+}
+
+function changeLiveUnread(queryClient: QueryClient, partnerId: number, delta: number) {
+  queryClient.setQueryData<ChatCounters>(chatLiveUnreadKey, (old) => {
+    const next = { ...(old ?? {}) };
+    const value = (next[partnerId] ?? 0) + delta;
+    if (value <= 0) delete next[partnerId];
+    else next[partnerId] = value;
+    return next;
+  });
+}
 
 /** Daftar percakapan + total belum dibaca untuk ikon chat di header. */
 export function useChatConversations(q = "", enabled = true) {
@@ -103,6 +154,10 @@ export function useChatRealtime(meId: number | null) {
 
     const offMessage = onUserEvent("chat.message", (payload) => {
       const { message } = payload as { message: ApiChatMessage };
+      const incoming = message.receiver_id === meId;
+      const partnerId = incoming ? message.sender_id : message.receiver_id;
+      if (incoming) changeLiveUnread(queryClient, partnerId, 1);
+      bumpChatActivity(queryClient, partnerId, message.id);
       applyChatMessageToConversations(queryClient, meId, message);
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
     });
@@ -113,6 +168,11 @@ export function useChatRealtime(meId: number | null) {
         partner_id: number;
       };
       if (event.reader_id === meId) {
+        queryClient.setQueryData<ChatCounters>(chatLiveUnreadKey, (old) => {
+          const next = { ...(old ?? {}) };
+          delete next[event.partner_id];
+          return next;
+        });
         queryClient.setQueriesData<ApiChatConversationList>(
           { queryKey: [...CHATS_KEY, "conversations"] },
           (old) => {
@@ -155,6 +215,7 @@ export function useChatContacts(q = "", enabled = true) {
 
 /** Riwayat pesan satu percakapan, 30 pesan per halaman dari server. */
 export function useChatMessages(partnerId: number | null) {
+  const queryClient = useQueryClient();
   const query = useInfiniteQuery({
     queryKey: chatMessagesKey(partnerId ?? 0),
     queryFn: ({ pageParam }) => chatApi.messages(internToken(), partnerId as number, pageParam),
@@ -172,6 +233,13 @@ export function useChatMessages(partnerId: number | null) {
       .reverse()
       .flatMap((page) => page.messages) ?? [];
   const partner: ApiChatPerson | null = query.data?.pages[0]?.partner ?? null;
+  const lastMessageId = messages.at(-1)?.id ?? null;
+
+  useEffect(() => {
+    if (partnerId !== null && lastMessageId !== null) {
+      bumpChatActivity(queryClient, partnerId, lastMessageId);
+    }
+  }, [lastMessageId, partnerId, queryClient]);
 
   return { ...query, messages, partner };
 }
@@ -237,6 +305,7 @@ export function useSendChatMessage() {
         void queryClient.invalidateQueries({ queryKey: key });
       }
       applyChatMessageToConversations(queryClient, message.sender_id, message);
+      bumpChatActivity(queryClient, variables.partnerId, message.id);
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: [...CHATS_KEY, "conversations"] });
@@ -250,6 +319,11 @@ export function useMarkChatRead() {
   return useMutation({
     mutationFn: (partnerId: number) => chatApi.read(internToken(), partnerId),
     onSuccess: (unreadTotal, partnerId) => {
+      queryClient.setQueryData<ChatCounters>(chatLiveUnreadKey, (old) => {
+        const next = { ...(old ?? {}) };
+        delete next[partnerId];
+        return next;
+      });
       queryClient.setQueriesData<ApiChatConversationList>(
         { queryKey: [...CHATS_KEY, "conversations"] },
         (old) => {

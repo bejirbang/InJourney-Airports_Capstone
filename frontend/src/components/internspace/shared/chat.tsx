@@ -11,8 +11,10 @@ import {
   appendChatMessage,
   applyChatRead,
   chatMessagesKey,
+  useChatActivity,
   useChatContacts,
   useChatConversations,
+  useChatLiveUnreadMap,
   useChatMessages,
   useChatTyping,
   useMarkChatRead,
@@ -43,6 +45,8 @@ export function ChatPage() {
 
   const conversations = useChatConversations(deferredQuery, meId !== null);
   const contacts = useChatContacts(deferredQuery, meId !== null);
+  const activity = useChatActivity();
+  const liveUnread = useChatLiveUnreadMap();
   const firstConversationId = conversations.data?.conversations[0]?.partner.id ?? null;
 
   useEffect(() => {
@@ -139,10 +143,17 @@ export function ChatPage() {
     void navigate({ to: "/chat", search: { to: String(id) } as never });
   };
 
-  const conversationList = conversations.data?.conversations ?? [];
-  const newContacts = (contacts.data ?? []).filter(
-    (person) => !conversationList.some((item) => item.partner.id === person.id),
-  );
+  const conversationList = [...(conversations.data?.conversations ?? [])].sort((a, b) => {
+    const left = Math.max(activity[a.partner.id] ?? 0, a.last_message.id);
+    const right = Math.max(activity[b.partner.id] ?? 0, b.last_message.id);
+    return right - left;
+  });
+  const newContacts = (contacts.data ?? [])
+    .filter((person) => !conversationList.some((item) => item.partner.id === person.id))
+    .sort(
+      (a, b) =>
+        (activity[b.id] ?? 0) - (activity[a.id] ?? 0) || a.name.localeCompare(b.name),
+    );
 
   const canSend = partner?.can_send === true;
 
@@ -212,7 +223,12 @@ export function ChatPage() {
             >
               <span className="avatar">{initials(person.name)}</span>
               <span className="min-w-0 flex-1 text-left">
-                <strong className="truncate block">{person.name}</strong>
+                <span className="flex justify-between gap-2">
+                  <strong className="truncate">{person.name}</strong>
+                  {(liveUnread[person.id] ?? 0) > 0 && (
+                    <span className="nav-count !ml-0">{liveUnread[person.id]}</span>
+                  )}
+                </span>
                 <small className="truncate block">{toDisplayRole[person.role]}</small>
               </span>
             </button>

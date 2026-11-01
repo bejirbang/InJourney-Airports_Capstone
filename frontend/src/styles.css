@@ -328,7 +328,7 @@ img.avatar { object-fit: cover; }
 @media (max-width: 760px) {
   .chat-layout { height: 70vh; height: min(620px, 70svh); min-height: 420px; grid-template-rows: 64px 1fr; }
   .role-intern .chat-layout { height: 65vh; height: min(620px, 65svh); min-height: 380px; }
-  .chat-contacts { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; gap: 4px; }
+  .chat-contacts { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; gap: 4px; border-right: 0; }
   .chat-contact { flex: 0 0 auto; width: auto; max-width: 150px; }
   .chat-contact strong { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chat-header { padding: 14px 16px; }
